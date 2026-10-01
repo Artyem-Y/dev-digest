@@ -14,6 +14,7 @@
 - This package owns the Fastify API, PostgreSQL persistence, background jobs, repository indexing, SSE transport, and external-system adapters.
 - Keep transport in `src/modules/<name>/routes.ts`, orchestration in services, persistence in repositories, and external I/O behind adapters.
 - Resolve dependencies through `src/platform/container.ts`; tests should use container overrides and mocks.
+- Use the `onion-architecture` skill for new or substantially changed module logic. New domain/application code depends only inward on domain types and application-owned ports; Fastify, Zod, Drizzle, PostgreSQL, external clients, and `Container` stay in adapters or composition. Do not broaden a task into a legacy-module rewrite solely to satisfy this rule.
 - Obtain workspace and user scope through `modules/_shared/context.ts`. Do not bypass scoping in repositories or handlers.
 - Define request and response shapes with the shared Zod contracts and the Fastify Zod type provider.
 
