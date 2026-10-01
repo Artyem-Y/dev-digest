@@ -1,5 +1,5 @@
 import type { LogLine } from "@devdigest/ui";
-import type { RunTrace } from "@devdigest/shared";
+import type { RunTraceResponse } from "@devdigest/shared";
 
 interface RawEvent {
   t: string;
@@ -13,7 +13,7 @@ export function eventsToLog(events: RawEvent[]): LogLine[] {
 }
 
 /** Map a persisted trace's log to the LiveLogStream LogLine shape. */
-export function traceLog(trace: RunTrace | undefined): LogLine[] {
+export function traceLog(trace: RunTraceResponse | undefined): LogLine[] {
   return trace?.log.map((l) => ({ t: l.t, k: l.kind as LogLine["k"], m: l.msg })) ?? [];
 }
 
