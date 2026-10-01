@@ -37,3 +37,23 @@ Cost is already calculated at the provider/reviewer boundary and is currently di
 - Implication: Do not sum or label a PR-list value as one multi-agent review unless a persisted action-to-run relationship is introduced in a separately approved schema change.
 
 Cost belongs to an individual agent run in the current schema. Timestamp grouping is not a reliable replacement for review-action identity, so the PR list must expose the latest terminal run's nullable cost.
+
+<!-- insight-id: eng-server-98d738a4ab99 -->
+## eng-server-98d738a4ab99 — Unset model tuning must be omitted rather than defaulted by the adapter
+
+- Date: 2026-10-01
+- Category: boundary
+- Evidence: server/src/adapters/llm/openai.ts now builds tuning params only when temperature is defined; server/test/openai-provider.test.ts captures a structured request without temperature.
+- Implication: Do not inject a sampling default into optional provider parameters, because models that support only provider defaults reject an explicit value.
+
+The OpenAI provider contract distinguishes an absent temperature from a numeric temperature. Preserving absence lets model-specific defaults apply and avoids unsupported-temperature errors during structured review.
+
+<!-- insight-id: eng-server-631c2ec2a32b -->
+## eng-server-631c2ec2a32b — Select one latest terminal run per PR in SQL
+
+- Date: 2026-10-01
+- Category: performance
+- Evidence: server/src/modules/pulls/routes.ts uses PostgreSQL DISTINCT ON agent_runs.pr_id with pr_id, ran_at DESC, id DESC ordering; server/test/reviews.it.test.ts verifies the latest terminal-run cost contract.
+- Implication: For page-scoped PR lists, let PostgreSQL discard older terminal runs before transfer rather than sorting all histories and retaining the first row in application code. Any index for this query needs separate migration approval.
+
+DISTINCT ON returns the latest terminal run per PR while preserving the nullable cost contract and avoids work proportional to total run history.

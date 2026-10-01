@@ -9,6 +9,7 @@ describe("RunCostBadge", () => {
     [0.014, "$0.014"],
     [0.0013, "$0.0013"],
     [0.00001, "<$0.0001"],
+    [0.99999, "$1.00"],
   ])("formats %s as %s", (costUsd, expected) => {
     expect(formatRunCostUsd(costUsd)).toBe(expected);
   });
@@ -21,5 +22,10 @@ describe("RunCostBadge", () => {
   it("renders tokens and cost in the timeline variant", () => {
     render(<RunCostBadge variant="timeline" costUsd={0.0013} tokensIn={8200} tokensOut={1300} />);
     expect(screen.getByText("9,500 tok · $0.0013")).toBeInTheDocument();
+  });
+
+  it("keeps an unavailable timeline cost as an em dash", () => {
+    render(<RunCostBadge variant="timeline" costUsd={null} tokensIn={8200} tokensOut={1300} />);
+    expect(screen.getByText("9,500 tok · —")).toBeInTheDocument();
   });
 });

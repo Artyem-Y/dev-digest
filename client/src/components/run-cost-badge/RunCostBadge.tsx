@@ -4,7 +4,8 @@ export function formatRunCostUsd(costUsd: number | null | undefined): string {
   if (costUsd == null) return "—";
   if (costUsd === 0) return "$0.00";
   if (costUsd < 0.0001) return "<$0.0001";
-  if (costUsd >= 1) return `$${costUsd.toFixed(2)}`;
+  const roundedToFourDecimals = Number(costUsd.toFixed(4));
+  if (roundedToFourDecimals >= 1) return `$${roundedToFourDecimals.toFixed(2)}`;
   return `$${costUsd.toFixed(4).replace(/0+$/, "")}`;
 }
 
