@@ -27,3 +27,13 @@ The agent run cost column has already completed a create-and-drop lifecycle, so 
 - Implication: Persist and expose outcome.costUsd; do not recompute price from token counts in the server or client.
 
 Cost is already calculated at the provider/reviewer boundary and is currently discarded at server persistence, so downstream layers should transport the nullable result unchanged.
+
+<!-- insight-id: eng-server-de37c610398b -->
+## eng-server-de37c610398b — A cost-only migration cannot support review-batch aggregation
+
+- Date: 2026-10-01
+- Category: decision
+- Evidence: Migration 0010_fair_pixie.sql restores only agent_runs.cost_usd; server/src/modules/pulls/routes.ts selects the newest terminal agent_runs row; server/test/reviews.it.test.ts proves a newer failed run returns null rather than an older run cost.
+- Implication: Do not sum or label a PR-list value as one multi-agent review unless a persisted action-to-run relationship is introduced in a separately approved schema change.
+
+Cost belongs to an individual agent run in the current schema. Timestamp grouping is not a reliable replacement for review-action identity, so the PR list must expose the latest terminal run's nullable cost.
