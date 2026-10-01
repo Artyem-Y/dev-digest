@@ -67,3 +67,13 @@ DISTINCT ON returns the latest terminal run per PR while preserving the nullable
 - Implication: When an OpenAI model becomes selectable, add and test its current standard token rates before expecting a numeric run cost. Preserve null for models whose price is unknown rather than displaying zero.
 
 For direct OpenAI providers, cost persistence is only as complete as the local pricing coverage because the response supplies token usage, not billed USD.
+
+<!-- insight-id: eng-server-451f7ae29522 -->
+## eng-server-451f7ae29522 — Onion Architecture is a target state, not the current server baseline
+
+- Date: 2026-10-01
+- Category: architecture
+- Evidence: server/src/modules/pulls/routes.ts, settings/routes.ts, polling/routes.ts, and workspace/routes.ts import Drizzle or call container.db directly, while repos/routes.ts and agents/routes.ts delegate to services and repositories.
+- Implication: For Onion Architecture work, enforce inward dependencies in new or substantially changed paths and do not report the server as fully migrated until the direct route-to-Drizzle paths are separately refactored.
+
+The server uses mixed module shapes: some routes are thin adapters over services, while others couple transport directly to persistence. A big-bang folder rewrite would obscure feature changes, so the safe migration boundary is the touched path plus an explicit legacy exception.
