@@ -1,0 +1,12 @@
+{
+  "name": "Seeded Security Reviewer can be disabled and restored",
+  "description": "Reversible mutation against the hermetic seeded database. It verifies the named agent toggle persists through the real API without GitHub or LLM calls, then restores the seeded enabled state.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the agents page" },
+    { "cmd": ["wait", "--text", "Security Reviewer"], "label": "seeded Security Reviewer renders" },
+    { "cmd": ["find", "role", "switch", "click", "--name", "Toggle Security Reviewer"], "label": "disable the Security Reviewer" },
+    { "cmd": ["is", "checked", "button[aria-label=\"Toggle Security Reviewer\"]"], "label": "disabled state persists", "assert": { "stdoutIncludes": "false" } },
+    { "cmd": ["find", "role", "switch", "click", "--name", "Toggle Security Reviewer"], "label": "restore the Security Reviewer" },
+    { "cmd": ["is", "checked", "button[aria-label=\"Toggle Security Reviewer\"]"], "label": "enabled state is restored", "assert": { "stdoutIncludes": "true" } }
+  ]
+}
