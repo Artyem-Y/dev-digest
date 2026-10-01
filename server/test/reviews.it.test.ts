@@ -301,7 +301,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
-  it('persists each provider-reported cost and lists the most recent completed run cost', async () => {
+  it('persists each provider-reported cost and lists the most recent terminal run cost', async () => {
     const app = await appWith(REVIEW_FIXTURE);
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
     const body = (
@@ -323,6 +323,17 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     const pullList = (await app.inject({ method: 'GET', url: `/repos/${pr.repoId}/pulls` })).json();
     const listedPr = pullList.find((row: { id: string }) => row.id === pr.id);
     expect(listedPr.cost_usd).toBe(0.001);
+
+    await pg.handle.db.insert(t.agentRuns).values({
+      workspaceId,
+      prId: pr.id,
+      status: 'failed',
+      source: 'local',
+      ranAt: new Date(Date.now() + 1_000),
+      costUsd: null,
+    });
+    const afterFailedReview = (await app.inject({ method: 'GET', url: `/repos/${pr.repoId}/pulls` })).json();
+    expect(afterFailedReview.find((row: { id: string }) => row.id === pr.id).cost_usd).toBeNull();
     await app.close();
   });
 });
