@@ -131,9 +131,9 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
 
     // The cost migration intentionally adds only agent_runs.cost_usd. Without
     // a persisted review-action identity, a reliable multi-agent aggregate is
-    // not representable, so the list uses the newest successfully completed
-    // agent run for each PR. Running, failed, and cancelled rows never replace
-    // the last known completed-run cost.
+    // not representable, so the list uses the newest terminal agent run for
+    // each PR. A failed or cancelled latest review therefore returns null cost
+    // instead of falling back to an older review's amount.
     const latestCostByPr = new Map<string, number | null>();
     if (prIds.length > 0) {
       const runRows = await container.db
@@ -146,7 +146,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
           and(
             eq(t.agentRuns.workspaceId, workspaceId),
             inArray(t.agentRuns.prId, prIds),
-            eq(t.agentRuns.status, 'done'),
+            inArray(t.agentRuns.status, ['done', 'failed', 'cancelled']),
           ),
         )
         .orderBy(desc(t.agentRuns.ranAt), desc(t.agentRuns.id));
