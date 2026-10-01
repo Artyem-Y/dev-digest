@@ -13,6 +13,7 @@ import { seed } from '../src/db/seed.js';
 import { MockGitHubClient } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import type { PrReviewComment } from '@devdigest/shared';
+import { PullsRepository } from '../src/modules/pulls/repository.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -136,5 +137,16 @@ d('inline PR comments routes (Testcontainers pg)', () => {
     // Zod parse failure → the app's validation status (422), nothing posted.
     expect(res.statusCode).toBe(422);
     expect(gh.createdComments).toHaveLength(0);
+  });
+
+  it('does not resolve a pull from another workspace', async () => {
+    const [otherWorkspace] = await pg.handle.db
+      .insert(t.workspaces)
+      .values({ name: `other-${repoSeq}` })
+      .returning();
+    const { pr } = await setupRepoAndPr(pg.handle.db, otherWorkspace!.id);
+    const repository = new PullsRepository(pg.handle.db);
+
+    await expect(repository.findPullAndRepo(workspaceId, pr.id)).resolves.toBeUndefined();
   });
 });
