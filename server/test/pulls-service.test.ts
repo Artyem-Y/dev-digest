@@ -38,7 +38,7 @@ function repository(): PullsRepositoryPort {
     listPulls: vi.fn().mockResolvedValue([pull]),
     upsertPull: vi.fn(),
     updateStats: vi.fn(),
-    latestReviewScores: vi.fn().mockResolvedValue(new Map()),
+    latestReviewSummaries: vi.fn().mockResolvedValue(new Map()),
     latestCosts: vi.fn().mockResolvedValue(new Map()),
     findPullWithRepo: vi.fn().mockResolvedValue({ pull, repo }),
     replaceSnapshot: vi.fn(),
@@ -59,10 +59,28 @@ describe('PullsService local-first reads', () => {
         id: pull.id,
         number: pull.number,
         status: 'needs_review',
+        findings_counts: null,
         cost_usd: null,
       }),
     ]);
     expect(store.listPulls).toHaveBeenCalledWith(repo.id);
+  });
+
+  it('preserves the repository current-findings summary in the list contract', async () => {
+    const store = repository();
+    store.latestReviewSummaries = vi.fn().mockResolvedValue(
+      new Map([[pull.id, { score: 87, findingsCounts: { CRITICAL: 1, WARNING: 2, SUGGESTION: 3 } }]]),
+    );
+    const service = new PullsService(store, async () => {
+      throw new Error('GITHUB_TOKEN is not configured');
+    });
+
+    await expect(service.list('workspace-1', repo.id)).resolves.toEqual([
+      expect.objectContaining({
+        score: 87,
+        findings_counts: { CRITICAL: 1, WARNING: 2, SUGGESTION: 3 },
+      }),
+    ]);
   });
 
   it('returns the persisted detail snapshot when GitHub detail refresh is unavailable', async () => {

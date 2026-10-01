@@ -28,6 +28,15 @@ export interface PullRow {
   lastReviewedSha: string | null;
 }
 
+export interface PullReviewSummary {
+  score: number | null;
+  findingsCounts: {
+    CRITICAL: number;
+    WARNING: number;
+    SUGGESTION: number;
+  };
+}
+
 export interface PersistedPullFile {
   path: string;
   additions: number;
@@ -47,7 +56,7 @@ export interface PullsRepositoryPort {
   listPulls(repoId: string): Promise<PullRow[]>;
   upsertPull(workspaceId: string, repoId: string, pull: PrMeta): Promise<void>;
   updateStats(pullId: string, stats: Pick<PrMeta, 'additions' | 'deletions' | 'files_count'>): Promise<void>;
-  latestReviewScores(pullIds: string[]): Promise<Map<string, number | null>>;
+  latestReviewSummaries(pullIds: string[]): Promise<Map<string, PullReviewSummary>>;
   latestCosts(workspaceId: string, pullIds: string[]): Promise<Map<string, number | null>>;
   findPullWithRepo(
     workspaceId: string,
@@ -117,35 +126,39 @@ export class PullsService {
     if (github) await this.backfillStats(github, repo, rows);
 
     const pullIds = rows.map((row) => row.id);
-    const [reviewScores, costs] = await Promise.all([
-      this.repository.latestReviewScores(pullIds),
+    const [reviewSummaries, costs] = await Promise.all([
+      this.repository.latestReviewSummaries(pullIds),
       this.repository.latestCosts(workspaceId, pullIds),
     ]);
 
     const now = this.now();
-    return rows.map((row) => ({
-      id: row.id,
-      number: row.number,
-      title: row.title,
-      author: row.author,
-      branch: row.branch,
-      base: row.base,
-      head_sha: row.headSha,
-      additions: row.additions,
-      deletions: row.deletions,
-      files_count: row.filesCount,
-      status: deriveReviewStatus({
-        ghStatus: row.status,
-        lastReviewedSha: row.lastReviewedSha,
-        headSha: row.headSha,
-        updatedAt: row.updatedAt,
-        now,
-      }),
-      opened_at: row.openedAt?.toISOString() ?? null,
-      updated_at: row.updatedAt?.toISOString() ?? null,
-      score: reviewScores.get(row.id) ?? null,
-      cost_usd: costs.get(row.id) ?? null,
-    }));
+    return rows.map((row) => {
+      const review = reviewSummaries.get(row.id);
+      return {
+        id: row.id,
+        number: row.number,
+        title: row.title,
+        author: row.author,
+        branch: row.branch,
+        base: row.base,
+        head_sha: row.headSha,
+        additions: row.additions,
+        deletions: row.deletions,
+        files_count: row.filesCount,
+        status: deriveReviewStatus({
+          ghStatus: row.status,
+          lastReviewedSha: row.lastReviewedSha,
+          headSha: row.headSha,
+          updatedAt: row.updatedAt,
+          now,
+        }),
+        opened_at: row.openedAt?.toISOString() ?? null,
+        updated_at: row.updatedAt?.toISOString() ?? null,
+        score: review?.score ?? null,
+        findings_counts: review?.findingsCounts ?? null,
+        cost_usd: costs.get(row.id) ?? null,
+      };
+    });
   }
 
   async detail(workspaceId: string, pullId: string): Promise<PrDetail> {
