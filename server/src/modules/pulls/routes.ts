@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
@@ -129,6 +129,34 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // The cost migration intentionally adds only agent_runs.cost_usd. Without
+    // a persisted review-action identity, a reliable multi-agent aggregate is
+    // not representable, so the list uses the newest terminal agent run for
+    // each PR. A failed or cancelled latest review therefore returns null cost
+    // instead of falling back to an older review's amount.
+    const latestCostByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .selectDistinctOn([t.agentRuns.prId], {
+          prId: t.agentRuns.prId,
+          costUsd: t.agentRuns.costUsd,
+        })
+        .from(t.agentRuns)
+        .where(
+          and(
+            eq(t.agentRuns.workspaceId, workspaceId),
+            inArray(t.agentRuns.prId, prIds),
+            inArray(t.agentRuns.status, ['done', 'failed', 'cancelled']),
+          ),
+        )
+        .orderBy(asc(t.agentRuns.prId), desc(t.agentRuns.ranAt), desc(t.agentRuns.id));
+      for (const run of runRows) {
+        if (run.prId) {
+          latestCostByPr.set(run.prId, run.costUsd);
+        }
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
@@ -153,6 +181,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: latestCostByPr.get(r.id) ?? null,
       };
     });
   });

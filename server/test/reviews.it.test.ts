@@ -119,6 +119,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
         git: new MockGitClient({ diff: DIFF }),
         llm: {
           [provider]: new MockLLMProvider(provider, { structured }),
+          openrouter: new MockLLMProvider('openai', { structured }),
         },
       },
     });
@@ -297,6 +298,42 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     ).json();
     // seed has 2 enabled agents; we may have created more above in this PR's ws.
     expect(body.runs.length).toBeGreaterThanOrEqual(2);
+    await app.close();
+  });
+
+  it('persists each provider-reported cost and lists the most recent terminal run cost', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const body = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { all: true } })
+    ).json();
+
+    const persisted = await waitForPrRuns(pg.handle.db, pr.id, { expected: body.runs.length });
+    expect(persisted).toHaveLength(body.runs.length);
+    const completed = persisted.filter((run) => run.status === 'done');
+    expect(completed.length).toBeGreaterThan(0);
+    expect(completed.every((run) => run.costUsd === 0.001)).toBe(true);
+
+    const history = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(history).toHaveLength(body.runs.length);
+    const completedHistory = history.filter((run: { status: string }) => run.status === 'done');
+    expect(completedHistory.length).toBe(completed.length);
+    expect(completedHistory.every((run: { cost_usd?: number }) => run.cost_usd === 0.001)).toBe(true);
+
+    const pullList = (await app.inject({ method: 'GET', url: `/repos/${pr.repoId}/pulls` })).json();
+    const listedPr = pullList.find((row: { id: string }) => row.id === pr.id);
+    expect(listedPr.cost_usd).toBe(0.001);
+
+    await pg.handle.db.insert(t.agentRuns).values({
+      workspaceId,
+      prId: pr.id,
+      status: 'failed',
+      source: 'local',
+      ranAt: new Date(Date.now() + 1_000),
+      costUsd: null,
+    });
+    const afterFailedReview = (await app.inject({ method: 'GET', url: `/repos/${pr.repoId}/pulls` })).json();
+    expect(afterFailedReview.find((row: { id: string }) => row.id === pr.id).cost_usd).toBeNull();
     await app.close();
   });
 });

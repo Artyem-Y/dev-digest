@@ -69,7 +69,7 @@ export class OpenRouterProvider implements LLMProvider {
       const res = await this.client.chat.completions.create({
         model: req.model,
         messages,
-        temperature: req.temperature ?? 0,
+        ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
         ...(req.maxTokens ? { max_tokens: req.maxTokens } : {}),
         response_format: {
           type: 'json_schema',
