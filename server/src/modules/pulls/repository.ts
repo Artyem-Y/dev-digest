@@ -2,10 +2,12 @@ import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import type { PrDetail, PrMeta } from '@devdigest/shared';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
+import { rollupSeverities, selectLatestReviewIdsPerAgent } from './status.js';
 import type {
   PersistedPullCommit,
   PersistedPullFile,
   PullRepositoryRow,
+  PullReviewSummary,
   PullRow,
   PullsRepositoryPort,
 } from './service.js';
@@ -100,16 +102,45 @@ export class PullsRepository implements PullsRepositoryPort {
       .where(eq(t.pullRequests.id, pullId));
   }
 
-  async latestReviewScores(pullIds: string[]): Promise<Map<string, number | null>> {
+  async latestReviewSummaries(pullIds: string[]): Promise<Map<string, PullReviewSummary>> {
     if (pullIds.length === 0) return new Map();
     const rows = await this.db
-      .select({ prId: t.reviews.prId, score: t.reviews.score })
+      .select({ id: t.reviews.id, prId: t.reviews.prId, agentId: t.reviews.agentId, score: t.reviews.score })
       .from(t.reviews)
       .where(and(inArray(t.reviews.prId, pullIds), eq(t.reviews.kind, 'review')))
-      .orderBy(desc(t.reviews.createdAt));
-    const latest = new Map<string, number | null>();
+      .orderBy(desc(t.reviews.createdAt), desc(t.reviews.id));
+    const latest = new Map<string, PullReviewSummary>();
     for (const row of rows) {
-      if (!latest.has(row.prId)) latest.set(row.prId, row.score);
+      if (!latest.has(row.prId)) {
+        latest.set(row.prId, {
+          score: row.score,
+          findingsCounts: { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 },
+        });
+      }
+    }
+
+    const currentReviewIds = selectLatestReviewIdsPerAgent(rows);
+    if (currentReviewIds.size === 0) return latest;
+    const findings = await this.db
+      .select({ reviewId: t.findings.reviewId, severity: t.findings.severity })
+      .from(t.findings)
+      .where(inArray(t.findings.reviewId, [...currentReviewIds]));
+    const reviewToPr = new Map(rows.map((row) => [row.id, row.prId]));
+    const findingsByReview = new Map<string, { severity: string }[]>();
+    for (const finding of findings) {
+      const current = findingsByReview.get(finding.reviewId) ?? [];
+      current.push(finding);
+      findingsByReview.set(finding.reviewId, current);
+    }
+    for (const reviewId of currentReviewIds) {
+      const prId = reviewToPr.get(reviewId);
+      if (!prId) continue;
+      const summary = latest.get(prId);
+      if (!summary) continue;
+      const counts = rollupSeverities(findingsByReview.get(reviewId) ?? []);
+      summary.findingsCounts.CRITICAL += counts.critical;
+      summary.findingsCounts.WARNING += counts.warning;
+      summary.findingsCounts.SUGGESTION += counts.suggestion;
     }
     return latest;
   }
