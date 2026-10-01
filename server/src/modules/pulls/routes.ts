@@ -129,6 +129,34 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // The cost migration intentionally adds only agent_runs.cost_usd. Without
+    // a persisted review-action identity, a reliable multi-agent aggregate is
+    // not representable, so the list uses the newest successfully completed
+    // agent run for each PR. Running, failed, and cancelled rows never replace
+    // the last known completed-run cost.
+    const latestCostByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({
+          prId: t.agentRuns.prId,
+          costUsd: t.agentRuns.costUsd,
+        })
+        .from(t.agentRuns)
+        .where(
+          and(
+            eq(t.agentRuns.workspaceId, workspaceId),
+            inArray(t.agentRuns.prId, prIds),
+            eq(t.agentRuns.status, 'done'),
+          ),
+        )
+        .orderBy(desc(t.agentRuns.ranAt), desc(t.agentRuns.id));
+      for (const run of runRows) {
+        if (run.prId && !latestCostByPr.has(run.prId)) {
+          latestCostByPr.set(run.prId, run.costUsd);
+        }
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
@@ -153,6 +181,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: latestCostByPr.get(r.id) ?? null,
       };
     });
   });

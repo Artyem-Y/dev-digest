@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
@@ -34,6 +34,16 @@ d('Testcontainers: pg + pgvector', () => {
       WHERE table_schema = 'public'`;
     // 35 domain tables + drizzle migration bookkeeping
     expect(rows[0]!.count).toBeGreaterThanOrEqual(35);
+  });
+
+  it('migration restores the nullable agent-run cost column', async () => {
+    const columns = await pg.handle.sql<{ column_name: string; is_nullable: string }[]>`
+      SELECT column_name, is_nullable
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'agent_runs'
+        AND column_name = 'cost_usd'`;
+    expect(columns).toEqual([{ column_name: 'cost_usd', is_nullable: 'YES' }]);
   });
 
   it('pgvector extension is enabled', async () => {
@@ -71,6 +81,28 @@ d('Testcontainers: pg + pgvector', () => {
     await seed(pg.handle.db);
     const ws = await pg.handle.db.select().from(t.workspaces);
     expect(ws.filter((w) => w.name === 'default')).toHaveLength(1);
+  });
+
+  it('seeded PR has one linked demo run with persisted cost outside trace JSON', async () => {
+    const { db } = pg.handle;
+    const [repo] = await db
+      .select()
+      .from(t.repos)
+      .where(eq(t.repos.fullName, 'acme/payments-api'));
+    const [pr] = await db
+      .select()
+      .from(t.pullRequests)
+      .where(and(eq(t.pullRequests.repoId, repo!.id), eq(t.pullRequests.number, 482)));
+    const [run] = await db.select().from(t.agentRuns).where(eq(t.agentRuns.prId, pr!.id));
+
+    expect(run).toMatchObject({
+      status: 'done',
+      tokensIn: 8000,
+      tokensOut: 1119,
+      costUsd: 0.0013,
+    });
+    const [trace] = await db.select().from(t.runTraces).where(eq(t.runTraces.runId, run!.id));
+    expect((trace!.trace as { stats: Record<string, unknown> }).stats).not.toHaveProperty('cost_usd');
   });
 });
 
