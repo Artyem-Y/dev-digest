@@ -27,3 +27,13 @@ A missing cost communicates unknown provider billing, not a free run. The shared
 - Implication: Render the API's nullable cost directly across PR list, timeline, and trace; never substitute zero or retain an older visible cost for a newer unknown value.
 
 A missing cost communicates unknown provider billing, not a free run. The shared cost component preserves this distinction with an em dash; a numeric zero remains a numeric USD zero.
+
+<!-- insight-id: eng-client-f7010582f4c0 -->
+## eng-client-f7010582f4c0 — Choose USD display precision after rounding at the dollar boundary
+
+- Date: 2026-10-01
+- Category: invariant
+- Evidence: client/src/components/run-cost-badge/RunCostBadge.tsx rounds sub-dollar values to four decimal places before choosing the dollar format; RunCostBadge.test.tsx covers 0.99999 rendering as $1.00.
+- Implication: When a display threshold depends on rounded currency, branch on the rounded value; trimming only fractional zeroes can leave an invalid trailing decimal point.
+
+A value below one before rounding can become exactly one in the displayed precision. Formatting must promote it to the two-decimal dollar representation rather than produce a dangling decimal separator.

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
@@ -137,7 +137,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     const latestCostByPr = new Map<string, number | null>();
     if (prIds.length > 0) {
       const runRows = await container.db
-        .select({
+        .selectDistinctOn([t.agentRuns.prId], {
           prId: t.agentRuns.prId,
           costUsd: t.agentRuns.costUsd,
         })
@@ -149,9 +149,9 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
             inArray(t.agentRuns.status, ['done', 'failed', 'cancelled']),
           ),
         )
-        .orderBy(desc(t.agentRuns.ranAt), desc(t.agentRuns.id));
+        .orderBy(asc(t.agentRuns.prId), desc(t.agentRuns.ranAt), desc(t.agentRuns.id));
       for (const run of runRows) {
-        if (run.prId && !latestCostByPr.has(run.prId)) {
+        if (run.prId) {
           latestCostByPr.set(run.prId, run.costUsd);
         }
       }
