@@ -57,3 +57,13 @@ The OpenAI provider contract distinguishes an absent temperature from a numeric 
 - Implication: For page-scoped PR lists, let PostgreSQL discard older terminal runs before transfer rather than sorting all histories and retaining the first row in application code. Any index for this query needs separate migration approval.
 
 DISTINCT ON returns the latest terminal run per PR while preserving the nullable cost contract and avoids work proportional to total run history.
+
+<!-- insight-id: eng-server-4d60861b80f1 -->
+## eng-server-4d60861b80f1 — Direct OpenAI run cost requires an explicit model-price entry
+
+- Date: 2026-10-01
+- Category: boundary
+- Evidence: OpenAI Chat Completions usage records tokens but not USD cost; completed gpt-6-luna runs stored null until server/src/adapters/llm/pricing.ts added the verified standard 0.10 input and 0.50 output USD-per-million rates. server/test/adapters.test.ts covers the estimate.
+- Implication: When an OpenAI model becomes selectable, add and test its current standard token rates before expecting a numeric run cost. Preserve null for models whose price is unknown rather than displaying zero.
+
+For direct OpenAI providers, cost persistence is only as complete as the local pricing coverage because the response supplies token usage, not billed USD.
