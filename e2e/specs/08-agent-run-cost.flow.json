@@ -7,6 +7,7 @@
     { "cmd": ["wait", "--text", "$0.0013"], "label": "PR list shows the latest completed-run cost" },
     { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the seeded PR" },
     { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to PR detail" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
     { "cmd": ["find", "role", "button", "click", "--name", "Agent runs"], "label": "open Agent runs" },
     { "cmd": ["wait", "--text", "9,119 tok · $0.0013"], "label": "timeline shows tokens and per-run cost" },
     { "cmd": ["find", "role", "button", "click", "--name", "Open run trace & logs"], "label": "open trace drawer" },
