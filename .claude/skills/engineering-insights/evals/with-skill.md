@@ -7,7 +7,7 @@ Evaluated on 2026-09-18 after the skill, module instructions, rubric, and append
 Observed behavior:
 
 - Classified the request as cross-module before diagnosis.
-- Read `server/CLAUDE.md`, `server/README.md`, `server/INSIGHTS.md`, and the corresponding `reviewer-core` files before proposing work.
+- Read `server/AGENTS.md`, `server/README.md`, `server/INSIGHTS.md`, and the corresponding `reviewer-core` files before proposing work.
 - Required a final re-read and chose a single server boundary insight instead of duplicating module knowledge.
 
 Result: pass. Time pressure no longer caused the insight workflow to be skipped.
