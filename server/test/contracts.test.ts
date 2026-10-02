@@ -12,6 +12,8 @@ import {
   EvalRun,
   MemoryItem,
   RunTrace,
+  RunTraceResponse,
+  RunSummary,
   Settings,
   Repo,
   PrDetail,
@@ -166,6 +168,44 @@ describe('AI contracts parse fixtures', () => {
       log: [{ t: '00.00', kind: 'info', msg: 'started' }],
     });
     expect(trace.tool_calls).toHaveLength(1);
+  });
+
+  it('RunTraceResponse adds nullable non-negative cost without changing stored trace', () => {
+    const trace = {
+      config: { agent: 'Security Reviewer', version: 'v7', model: 'gpt-4.1', pr: 482, source: 'local' },
+      stats: { duration_ms: 8200, tokens_in: 14820, tokens_out: 1240, findings: 3, grounding: '3/3 passed' },
+      prompt_assembly: { system: 's', user: 'u' },
+      tool_calls: [],
+      raw_output: '{}',
+      memory_pulled: [],
+      specs_read: [],
+      log: [],
+    };
+    expect(RunTrace.parse(trace).stats).not.toHaveProperty('cost_usd');
+    expect(RunTraceResponse.parse({ ...trace, stats: { ...trace.stats, cost_usd: 0.0013 } }).stats.cost_usd).toBe(0.0013);
+    expect(RunTraceResponse.safeParse({ ...trace, stats: { ...trace.stats, cost_usd: -0.01 } }).success).toBe(false);
+  });
+
+  it('RunSummary accepts unknown cost and rejects a negative cost', () => {
+    const summary = {
+      run_id: 'run-1',
+      agent_id: 'agent-1',
+      agent_name: 'Security Reviewer',
+      provider: 'openai',
+      model: 'gpt-4.1',
+      status: 'done',
+      error: null,
+      duration_ms: 1000,
+      tokens_in: 100,
+      tokens_out: 50,
+      findings_count: 0,
+      grounding: '0/0 passed',
+      ran_at: '2026-09-25T00:00:00.000Z',
+      score: 100,
+      blockers: 0,
+    };
+    expect(RunSummary.parse({ ...summary, cost_usd: null }).cost_usd).toBeNull();
+    expect(RunSummary.safeParse({ ...summary, cost_usd: -0.01 }).success).toBe(false);
   });
 });
 

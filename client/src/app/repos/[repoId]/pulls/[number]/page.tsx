@@ -55,9 +55,12 @@ export default function PRDetailPage() {
   // just-failed run shows up in "Run history" immediately — no page reload.
   const invalidateRunHistory = () => {
     if (prId) qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
+    qc.invalidateQueries({ queryKey: ["pulls", repoId] });
   };
 
   const tab = search.get("tab") ?? "overview";
+  const severityParam = search.get("severity");
+  const severity = severityParam === "CRITICAL" || severityParam === "WARNING" || severityParam === "SUGGESTION" ? severityParam : null;
   const traceRunId = search.get("trace");
   const setParam = (key: string, val: string | null) => {
     const sp = new URLSearchParams(search.toString());
@@ -147,6 +150,7 @@ export default function PRDetailPage() {
             prCommits={pr.commits}
             repoFullName={repoFullName}
             headSha={pr.head_sha}
+            severity={severity}
             cancelMutation={cancel}
             onOpenTrace={(id) => setParam("trace", id)}
             onDelete={(id) => {

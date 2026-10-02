@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
-import type { RunSummary, RunTrace } from '@devdigest/shared';
+import { RunTraceResponse, type RunSummary, type RunTrace, type RunTraceResponse as RunTraceResponseType } from '@devdigest/shared';
 
 // ---- in-flight / history --------------------------------------------------
 
@@ -64,6 +64,7 @@ export async function listRunsForPull(
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
     score: run.score,
     blockers: run.blockers,
+    cost_usd: run.costUsd,
   }));
 }
 
@@ -154,6 +155,8 @@ export async function completeAgentRun(
     blockers?: number | null;
     /** Failure reason (status='failed') / cancellation note. Null clears it. */
     error?: string | null;
+    /** Provider/reviewer-reported USD cost. Null when unavailable. */
+    costUsd?: number | null;
   },
 ): Promise<void> {
   await db
@@ -168,6 +171,7 @@ export async function completeAgentRun(
       score: values.score ?? null,
       blockers: values.blockers ?? null,
       error: values.error ?? null,
+      costUsd: values.costUsd ?? null,
     })
     .where(eq(t.agentRuns.id, runId));
 }
@@ -180,7 +184,17 @@ export async function saveRunTrace(db: Db, runId: string, trace: RunTrace): Prom
     .onConflictDoUpdate({ target: t.runTraces.runId, set: { trace } });
 }
 
-export async function getRunTrace(db: Db, runId: string): Promise<RunTrace | undefined> {
-  const [row] = await db.select().from(t.runTraces).where(eq(t.runTraces.runId, runId));
-  return row ? (row.trace as RunTrace) : undefined;
+export async function getRunTrace(db: Db, runId: string): Promise<RunTraceResponseType | undefined> {
+  const [row] = await db
+    .select({ trace: t.runTraces.trace, costUsd: t.agentRuns.costUsd })
+    .from(t.runTraces)
+    .innerJoin(t.agentRuns, eq(t.agentRuns.id, t.runTraces.runId))
+    .where(eq(t.runTraces.runId, runId));
+  if (!row) return undefined;
+
+  const trace = row.trace as RunTrace;
+  return RunTraceResponse.parse({
+    ...trace,
+    stats: { ...trace.stats, cost_usd: row.costUsd },
+  });
 }

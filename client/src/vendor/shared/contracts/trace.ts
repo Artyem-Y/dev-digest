@@ -66,6 +66,8 @@ export const RunStats = z.object({
 });
 export type RunStats = z.infer<typeof RunStats>;
 
+const NullableCostUsd = z.number().nonnegative().nullable();
+
 /** The single-document trace stored in `run_traces.trace`. */
 export const RunTrace = z.object({
   config: z.object({
@@ -85,6 +87,12 @@ export const RunTrace = z.object({
   log: z.array(RunLogLine),
 });
 export type RunTrace = z.infer<typeof RunTrace>;
+
+/** HTTP representation of a stored trace, hydrated from agent_runs.cost_usd. */
+export const RunTraceResponse = RunTrace.extend({
+  stats: RunStats.extend({ cost_usd: NullableCostUsd }),
+});
+export type RunTraceResponse = z.infer<typeof RunTraceResponse>;
 
 /**
  * One row of a PR's run history (every agent_runs row, any status). Surfaced on
@@ -109,5 +117,7 @@ export const RunSummary = z.object({
   // findings that trip the agent's gate. Null on failed/cancelled runs.
   score: z.number().int().nullable(),
   blockers: z.number().int().nullable(),
+  /** Provider/reviewer-reported USD cost. Null when unavailable. */
+  cost_usd: NullableCostUsd,
 });
 export type RunSummary = z.infer<typeof RunSummary>;

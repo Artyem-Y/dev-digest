@@ -30,6 +30,7 @@ function run(o: Partial<RunSummary>): RunSummary {
     ran_at: "2026-06-11T18:44:34.000Z",
     score: null,
     blockers: null,
+    cost_usd: null,
     ...o,
   };
 }
@@ -52,9 +53,10 @@ describe("RunHistory — outcome badge", () => {
   });
 
   it("a clean done run reads 'approved'", () => {
-    renderRuns([run({ status: "done", findings_count: 0, blockers: 0, score: 95 })]);
+    renderRuns([run({ status: "done", findings_count: 0, blockers: 0, score: 95, cost_usd: 0.0013 })]);
     expect(screen.getByText("approved")).toBeInTheDocument();
     expect(screen.getByText("95")).toBeInTheDocument();
+    expect(screen.getByText("150 tok · $0.0013")).toBeInTheDocument();
   });
 
   it("a done run with non-blocking findings reads 'reviewed'", () => {

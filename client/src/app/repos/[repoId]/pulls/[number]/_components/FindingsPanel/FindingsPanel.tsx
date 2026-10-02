@@ -17,18 +17,20 @@ export function FindingsPanel({
   prId,
   repoFullName,
   headSha,
+  severity = null,
 }: {
   findings: FindingRecord[];
   prId: string;
   repoFullName?: string | null;
   headSha?: string | null;
+  severity?: "CRITICAL" | "WARNING" | "SUGGESTION" | null;
 }) {
   const t = useTranslations("prReview");
   const action = useFindingAction();
   const [hideLow, setHideLow] = React.useState(false);
   const [focusIdx, setFocusIdx] = React.useState(0);
 
-  const shown = React.useMemo(() => visibleFindings(findings, hideLow), [findings, hideLow]);
+  const shown = React.useMemo(() => visibleFindings(findings, hideLow).filter((finding) => !severity || finding.severity === severity), [findings, hideLow, severity]);
 
   // j/k navigation + a/d shortcuts on the focused finding (keyboard).
   React.useEffect(() => {
