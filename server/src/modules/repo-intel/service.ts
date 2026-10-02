@@ -29,6 +29,7 @@ import {
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { RepoIntelRepository, type FullSymbolRow } from './repository.js';
+import { IndexStateService } from './index-state.js';
 import type {
   BlastCallerRow,
   BlastChangedSymbol,
@@ -100,9 +101,11 @@ const PHANTOM_GLOBALS_ALLOWLIST: ReadonlySet<string> = new Set([
 
 export class RepoIntelService implements RepoIntel {
   private readonly repo: RepoIntelRepository;
+  private readonly indexState: IndexStateService;
 
   constructor(private container: Container) {
     this.repo = new RepoIntelRepository(container.db);
+    this.indexState = new IndexStateService(this.repo, INDEXER_VERSION);
   }
 
   // -------------------------------------------------------------------------
@@ -187,21 +190,7 @@ export class RepoIntelService implements RepoIntel {
    * without ever hitting a thrown error.
    */
   async getIndexState(repoId: string): Promise<IndexState> {
-    const persisted = await this.repo.tryGetIndexState(repoId);
-    if (persisted) return persisted;
-    return {
-      repoId,
-      status: 'degraded',
-      filesIndexed: 0,
-      filesSkipped: 0,
-      durationMs: 0,
-      reason: 'no_data',
-      lastIndexedSha: '',
-      indexerVersion: INDEXER_VERSION,
-      updatedAt: new Date(0),
-      degraded: true,
-      degradedReason: 'no_data',
-    };
+    return this.indexState.get(repoId);
   }
 
   // -------------------------------------------------------------------------
