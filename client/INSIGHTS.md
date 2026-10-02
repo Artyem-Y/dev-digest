@@ -37,3 +37,13 @@ A missing cost communicates unknown provider billing, not a free run. The shared
 - Implication: When a display threshold depends on rounded currency, branch on the rounded value; trimming only fractional zeroes can leave an invalid trailing decimal point.
 
 A value below one before rounding can become exactly one in the displayed precision. Formatting must promote it to the two-decimal dollar representation rather than produce a dangling decimal separator.
+
+<!-- insight-id: eng-client-14f92ab8e339 -->
+## eng-client-14f92ab8e339 — Findings previews must mirror the list aggregation rule
+
+- Date: 2026-10-02
+- Category: invariant
+- Evidence: client/src/app/repos/[repoId]/pulls/helpers.ts uses latestFindingsPerAgent for PRRow hover previews, while PRRow.test.tsx verifies the preview and server/test/reviews.it.test.ts verifies API counts.
+- Implication: Keep the hover preview filtered to one latest review per agent whenever list chips are changed; otherwise counts and preview can disagree after a reviewer reruns.
+
+The PR list receives per-agent-current severity counts, whereas the preview fetches review history. Applying the same newest-review-per-agent rule in the client makes both views describe the same findings set.

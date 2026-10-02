@@ -30,6 +30,21 @@ export function rollupSeverities(rows: { severity: string }[]): SeverityCounts {
   return c;
 }
 
+/** Review rows must be newest-first. Keep one current review per PR + agent. */
+export function selectLatestReviewIdsPerAgent(
+  rows: { id: string; prId: string; agentId: string | null }[],
+): Set<string> {
+  const seen = new Set<string>();
+  const ids = new Set<string>();
+  for (const row of rows) {
+    const key = `${row.prId}|${row.agentId ?? 'none'}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    ids.add(row.id);
+  }
+  return ids;
+}
+
 /**
  * Review-freshness status for the PR list. Merged/closed PRs keep their GitHub
  * merge state; open PRs map to:

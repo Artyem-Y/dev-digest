@@ -77,3 +77,13 @@ For direct OpenAI providers, cost persistence is only as complete as the local p
 - Implication: For Onion Architecture work, enforce inward dependencies in new or substantially changed paths and do not report the server as fully migrated until the direct route-to-Drizzle paths are separately refactored.
 
 The server uses mixed module shapes: some routes are thin adapters over services, while others couple transport directly to persistence. A big-bang folder rewrite would obscure feature changes, so the safe migration boundary is the touched path plus an explicit legacy exception.
+
+<!-- insight-id: eng-server-b992542cbfb3 -->
+## eng-server-b992542cbfb3 — PR findings must use each agent’s latest review
+
+- Date: 2026-10-02
+- Category: invariant
+- Evidence: server/src/modules/pulls/repository.ts selects review rows newest-first; selectLatestReviewIdsPerAgent keeps one row for every PR and agent.
+- Implication: When changing list-level findings, select current reviews per agent before counting; do not use only the PR single newest review or include superseded runs.
+
+A PR may have current results from several reviewers and repeated runs from one reviewer. The list count is the union of the most recent persisted review for each agent, preserving all current agents while avoiding duplicate findings from reruns.

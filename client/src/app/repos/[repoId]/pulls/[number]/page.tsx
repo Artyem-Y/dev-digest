@@ -59,6 +59,8 @@ export default function PRDetailPage() {
   };
 
   const tab = search.get("tab") ?? "overview";
+  const severityParam = search.get("severity");
+  const severity = severityParam === "CRITICAL" || severityParam === "WARNING" || severityParam === "SUGGESTION" ? severityParam : null;
   const traceRunId = search.get("trace");
   const setParam = (key: string, val: string | null) => {
     const sp = new URLSearchParams(search.toString());
@@ -148,6 +150,7 @@ export default function PRDetailPage() {
             prCommits={pr.commits}
             repoFullName={repoFullName}
             headSha={pr.head_sha}
+            severity={severity}
             cancelMutation={cancel}
             onOpenTrace={(id) => setParam("trace", id)}
             onDelete={(id) => {
