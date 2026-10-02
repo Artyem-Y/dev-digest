@@ -7,12 +7,12 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
-import type { RunTraceResponse } from "@devdigest/shared";
+import type { RunTrace } from "@devdigest/shared";
 
 export function useRunTrace(runId: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ["run-trace", runId],
-    queryFn: () => api.get<RunTraceResponse>(`/runs/${runId}/trace`),
+    queryFn: () => api.get<RunTrace>(`/runs/${runId}/trace`),
     enabled: !!runId && enabled,
     retry: false,
   });

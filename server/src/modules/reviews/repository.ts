@@ -1,6 +1,6 @@
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import type { Finding, Intent, RunSummary, RunTrace, RunTraceResponse } from '@devdigest/shared';
+import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
 
 /**
  * A2 — review data-access. The ONLY layer touching the DB for the review
@@ -163,8 +163,6 @@ export class ReviewRepository {
       blockers?: number | null;
       /** Failure reason (status='failed') / cancellation note. Null clears it. */
       error?: string | null;
-      /** Provider/reviewer-reported USD cost. Null when unavailable. */
-      costUsd?: number | null;
     },
   ): Promise<void> {
     return runRepo.completeAgentRun(this.db, runId, values);
@@ -180,7 +178,7 @@ export class ReviewRepository {
     return runRepo.saveRunTrace(this.db, runId, trace);
   }
 
-  getRunTrace(runId: string): Promise<RunTraceResponse | undefined> {
+  getRunTrace(runId: string): Promise<RunTrace | undefined> {
     return runRepo.getRunTrace(this.db, runId);
   }
 }

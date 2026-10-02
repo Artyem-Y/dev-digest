@@ -65,7 +65,6 @@ describe('reviewPullRequest (engine)', () => {
     // Score is derived from the SURVIVING findings, not the model's self-reported
     // 38: one CRITICAL remains after grounding ⇒ 100 − 35 = 65.
     expect(outcome.review.score).toBe(65);
-    expect(outcome.costUsd).toBe(0.001);
     // progress is surfaced (server bridges this onto SSE; runner logs it)
     expect(events.some((m) => m.includes('Citation grounding'))).toBe(true);
   });
