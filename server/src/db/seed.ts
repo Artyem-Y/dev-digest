@@ -221,6 +221,30 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     if (!existing) await db.insert(t.agents).values(a);
   }
 
+  // ---- Test Quality Reviewer + reusable text-only skills -----------------
+  const testSkillDefinitions = [
+    ['Behavioral Test Coverage', 'Check that changed behaviour has meaningful positive-path coverage.'],
+    ['Boundary and Failure Cases', 'Check empty, invalid, boundary, and error-path behaviour.'],
+    ['Regression and Compatibility', 'Check public contracts, migrations, and unintended regressions.'],
+    ['Test Determinism and Maintainability', 'Check timing, network isolation, and readable deterministic tests.'],
+  ] as const;
+  const skillRows: Array<typeof t.skills.$inferSelect> = [];
+  for (const [name, description] of testSkillDefinitions) {
+    let [skill] = await db.select().from(t.skills).where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, name)));
+    if (!skill) {
+      [skill] = await db.insert(t.skills).values({ workspaceId, name, description, type: 'rubric', source: 'manual', body: description, enabled: true, version: 1 }).returning();
+      await db.insert(t.skillVersions).values({ skillId: skill!.id, version: 1, body: skill!.body }).onConflictDoNothing();
+    }
+    skillRows.push(skill!);
+  }
+  let [testAgent] = await db.select().from(t.agents).where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Test Quality Reviewer')));
+  if (!testAgent) {
+    [testAgent] = await db.insert(t.agents).values({ workspaceId, name: 'Test Quality Reviewer', description: 'Reviews test quality, coverage, and determinism.', provider: DEFAULT_PROVIDER, model: DEFAULT_MODEL, systemPrompt: GENERAL_REVIEWER_PROMPT, enabled: true, version: 1, createdBy: userId }).returning();
+  }
+  for (const [order, skill] of skillRows.entries()) {
+    await db.insert(t.agentSkills).values({ agentId: testAgent!.id, skillId: skill.id, order }).onConflictDoNothing();
+  }
+
   // ---- one completed demo run (no model call) ----
   // Keep cost on agent_runs: the stored trace deliberately contains usage but
   // never duplicates the provider-reported USD amount.

@@ -3,6 +3,7 @@ import { loadDiff } from './diff-loader.js';
 import { ReviewRepository } from './repository.js';
 import { ReviewRunExecutor } from './run-executor.js';
 import { ReviewService } from './service.js';
+import { AgentsRepository } from '../agents/repository.js';
 
 /** Wires review application services and external adapters at the outer boundary. */
 export function createReviewService(container: Container): ReviewService {
@@ -12,6 +13,10 @@ export function createReviewService(container: Container): ReviewService {
     resolveLlm: (provider) => container.llm(provider),
     repoIntel: container.repoIntel,
     loadDiff: (workspaceId, pull, repo) => loadDiff(container.git, repository, workspaceId, pull, repo),
+    resolveSkills: async (agentId) => {
+      const links = await new AgentsRepository(container.db).linkedSkills(agentId);
+      return links.filter(({ skill }) => skill.enabled).map(({ skill }) => skill.body);
+    },
   }, repository);
   return new ReviewService({
     repository,

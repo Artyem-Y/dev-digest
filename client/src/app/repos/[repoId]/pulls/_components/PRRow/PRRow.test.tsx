@@ -48,24 +48,24 @@ afterEach(() => {
 });
 
 describe("PRRow findings column", () => {
-  it("shows all three severity counters, including zero counts", () => {
+  it("shows only non-zero severity counters", () => {
     renderRow();
-    const critical = screen.getByTitle("Show only CRITICAL findings");
+    const critical = screen.getByLabelText("CRITICAL findings: 2");
     expect(critical).toHaveTextContent("2");
-    expect(screen.getByTitle("Show only WARNING findings")).toHaveTextContent("1");
-    expect(screen.getByTitle("Show only SUGGESTION findings")).toHaveTextContent("0");
+    expect(screen.getByLabelText("WARNING findings: 1")).toHaveTextContent("1");
+    expect(screen.queryByLabelText("SUGGESTION findings: 0")).not.toBeInTheDocument();
     expect(critical.parentElement).toHaveStyle({ flexWrap: "nowrap" });
   });
 
-  it("opens the findings tab filtered to the clicked severity", () => {
+  it("keeps severity chips informational and lets their click open the PR row", () => {
     renderRow();
-    fireEvent.click(screen.getByTitle("Show only CRITICAL findings"));
-    expect(push).toHaveBeenCalledWith("/repos/repo1/pulls/482?tab=findings&severity=CRITICAL");
+    fireEvent.click(screen.getByLabelText("CRITICAL findings: 2"));
+    expect(push).toHaveBeenCalledWith("/repos/repo1/pulls/482");
   });
 
   it("shows a dash if no review exists", () => {
     renderRow({ ...PR, score: null, findings_counts: null });
-    expect(screen.queryByTitle("Show only CRITICAL findings")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("CRITICAL findings: 2")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Findings preview")).toHaveTextContent("—");
   });
 
@@ -109,9 +109,11 @@ describe("PRRow findings column", () => {
     renderRow();
     fireEvent.mouseEnter(screen.getByLabelText("Findings preview"));
     expect(screen.getByText("1 findings")).toBeInTheDocument();
+    expect(screen.getByText("Critical")).toBeInTheDocument();
     expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
     expect(screen.getByText("src/config.ts:12")).toBeInTheDocument();
     expect(screen.getByText("98% conf")).toBeInTheDocument();
+    expect(screen.getByText("A credential is committed in source.")).toHaveStyle({ WebkitLineClamp: "2" });
     expect(screen.queryByText("Superseded finding")).not.toBeInTheDocument();
   });
 });
