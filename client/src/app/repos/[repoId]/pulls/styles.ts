@@ -44,15 +44,20 @@ export const s = {
     position: "relative",
     display: "flex",
     alignItems: "center",
-    gap: 4,
-    flexWrap: "wrap",
+    gap: 8,
+    flexWrap: "nowrap",
   } satisfies CSSProperties,
   findingChipButton: {
     display: "inline-flex",
+    alignItems: "center",
+    gap: 3,
     padding: 0,
     border: "none",
     background: "none",
     cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 600,
+    lineHeight: 1,
   } satisfies CSSProperties,
   // Fixed positioning lets the card escape the list card's overflow clipping.
   findingsPreview: (top: number, left: number): CSSProperties => ({
