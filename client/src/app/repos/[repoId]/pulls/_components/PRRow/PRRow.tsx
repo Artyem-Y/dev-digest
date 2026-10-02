@@ -21,6 +21,18 @@ import { FINDINGS_SEVERITIES, SIZE_COLOR, STATUS_META } from "../../constants";
 import { latestFindingsPerAgent, relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
 
+const SEVERITY_ICON = {
+  CRITICAL: Icon.AlertOctagon,
+  WARNING: Icon.AlertTriangle,
+  SUGGESTION: Icon.Lightbulb,
+} as const;
+
+const SEVERITY_COLOR = {
+  CRITICAL: "var(--crit)",
+  WARNING: "var(--warn)",
+  SUGGESTION: "var(--sugg)",
+} as const;
+
 export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const t = useTranslations("prReview");
   const router = useRouter();
@@ -29,9 +41,9 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const st = STATUS_META[pr.status] ?? STATUS_META.needs_review!;
   const { size, lines } = sizeOf(pr);
   const reviewed = pr.score != null; // null score ⇒ PR has never been reviewed
-  const hasFindings = FINDINGS_SEVERITIES.some((severity) => (pr.findings_counts?.[severity] ?? 0) > 0);
+  const hasReview = pr.findings_counts != null;
   // Fetch only while the preview is open; React Query keeps a cached result.
-  const { data: reviews } = usePrReviews(previewPosition && hasFindings ? pr.id : null);
+  const { data: reviews } = usePrReviews(previewPosition && hasReview ? pr.id : null);
   const previewFindings = React.useMemo(
     () => latestFindingsPerAgent(reviews ?? []),
     [reviews],
@@ -84,21 +96,26 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         }}
         onMouseLeave={() => setPreviewPosition(null)}
       >
-        {hasFindings ? (
-          FINDINGS_SEVERITIES.filter((severity) => pr.findings_counts![severity] > 0).map((severity) => (
-            <button
-              key={severity}
-              type="button"
-              title={t("panel.showOnlySeverity", { severity })}
-              style={s.findingChipButton}
-              onClick={(event) => {
-                event.stopPropagation();
-                router.push(`/repos/${repoId}/pulls/${pr.number}?tab=findings&severity=${severity}`);
-              }}
-            >
-              <SeverityBadge severity={severity as Severity} count={pr.findings_counts![severity]} compact />
-            </button>
-          ))
+        {hasReview ? (
+          FINDINGS_SEVERITIES.map((severity) => {
+            const SeverityIcon = SEVERITY_ICON[severity];
+            const color = SEVERITY_COLOR[severity];
+            return (
+              <button
+                key={severity}
+                type="button"
+                title={t("panel.showOnlySeverity", { severity })}
+                style={{ ...s.findingChipButton, color }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  router.push(`/repos/${repoId}/pulls/${pr.number}?tab=findings&severity=${severity}`);
+                }}
+              >
+                <SeverityIcon size={13} />
+                <span className="tnum">{pr.findings_counts![severity]}</span>
+              </button>
+            );
+          })
         ) : (
           <span style={s.muted}>—</span>
         )}

@@ -48,11 +48,13 @@ afterEach(() => {
 });
 
 describe("PRRow findings column", () => {
-  it("shows populated severities and hides zero counts", () => {
+  it("shows all three severity counters, including zero counts", () => {
     renderRow();
-    expect(screen.getByTitle("Show only CRITICAL findings")).toHaveTextContent("2");
+    const critical = screen.getByTitle("Show only CRITICAL findings");
+    expect(critical).toHaveTextContent("2");
     expect(screen.getByTitle("Show only WARNING findings")).toHaveTextContent("1");
-    expect(screen.queryByTitle("Show only SUGGESTION findings")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Show only SUGGESTION findings")).toHaveTextContent("0");
+    expect(critical.parentElement).toHaveStyle({ flexWrap: "nowrap" });
   });
 
   it("opens the findings tab filtered to the clicked severity", () => {
