@@ -1,7 +1,8 @@
-import type { Container } from '../../platform/container.js';
 import type { FindingActionKind, RunEventKind, RunTrace, RunTraceResponse } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
+import type { AgentsRepository } from '../agents/repository.js';
+import type { RunBus } from '../../platform/sse.js';
 import { ReviewRepository } from './repository.js';
 import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
 import { ReviewRunExecutor, type Logger } from './run-executor.js';
@@ -12,6 +13,32 @@ import { reviewToDto } from './helpers.js';
 // './service.js' (these previously lived here; logic now in ./helpers.ts).
 export { findingRowToDto, reviewToDto } from './helpers.js';
 export type { ReviewDto, ReviewDtoFinding } from './helpers.js';
+
+export type ReviewRepositoryPort = Pick<
+  ReviewRepository,
+  | 'deleteReview'
+  | 'activeRunsForPull'
+  | 'listRunsForPull'
+  | 'deleteAgentRun'
+  | 'cancelRunIfRunning'
+  | 'reapStaleRunningRuns'
+  | 'getPull'
+  | 'getRepo'
+  | 'createAgentRun'
+  | 'reviewsForPull'
+  | 'getRunTrace'
+  | 'getFinding'
+  | 'findingContext'
+  | 'setFindingAccepted'
+  | 'setFindingDismissed'
+>;
+
+export interface ReviewServiceDependencies {
+  repository: ReviewRepositoryPort;
+  agents: Pick<AgentsRepository, 'listEnabled' | 'getById'>;
+  executor: Pick<ReviewRunExecutor, 'executeRuns'>;
+  runBus: Pick<RunBus, 'cancel' | 'complete' | 'publish'>;
+}
 
 /**
  * Review service (the core). Orchestrates:
@@ -26,15 +53,7 @@ export type { ReviewDto, ReviewDtoFinding } from './helpers.js';
  * run-executor; this class keeps the public method surface.
  */
 export class ReviewService {
-  private repo: ReviewRepository;
-  private agents: Container['agentsRepo'];
-  private executor: ReviewRunExecutor;
-
-  constructor(private container: Container) {
-    this.repo = new ReviewRepository(container.db);
-    this.agents = container.agentsRepo;
-    this.executor = new ReviewRunExecutor(container, this.repo, this.agents);
-  }
+  constructor(private readonly dependencies: ReviewServiceDependencies) {}
 
   // ===========================================================================
   // Run a review for one or all enabled agents on a PR.
@@ -47,9 +66,9 @@ export class ReviewService {
     workspaceId: string,
     opts: { agentId?: string; all?: boolean },
   ): Promise<AgentRow[]> {
-    if (opts.all) return this.agents.listEnabled(workspaceId);
+    if (opts.all) return this.dependencies.agents.listEnabled(workspaceId);
     if (opts.agentId) {
-      const agent = await this.agents.getById(workspaceId, opts.agentId);
+      const agent = await this.dependencies.agents.getById(workspaceId, opts.agentId);
       if (!agent) throw new NotFoundError('Agent not found');
       return [agent];
     }
@@ -58,22 +77,22 @@ export class ReviewService {
 
   /** Delete a whole review run (one agent's pass) + its findings (cascade). */
   async deleteReview(workspaceId: string, reviewId: string): Promise<boolean> {
-    return this.repo.deleteReview(workspaceId, reviewId);
+    return this.dependencies.repository.deleteReview(workspaceId, reviewId);
   }
 
   /** In-flight runs for a PR (server-side source of truth, survives reload). */
   async activeRuns(workspaceId: string, prId: string) {
-    return this.repo.activeRunsForPull(workspaceId, prId);
+    return this.dependencies.repository.activeRunsForPull(workspaceId, prId);
   }
 
   /** All runs for a PR (any status), newest first — the run history (incl. failures). */
   async listRuns(workspaceId: string, prId: string) {
-    return this.repo.listRunsForPull(workspaceId, prId);
+    return this.dependencies.repository.listRunsForPull(workspaceId, prId);
   }
 
   /** Delete one run from the history (+ its trace). */
   async deleteRun(workspaceId: string, runId: string): Promise<boolean> {
-    return this.repo.deleteAgentRun(workspaceId, runId);
+    return this.dependencies.repository.deleteAgentRun(workspaceId, runId);
   }
 
   /**
@@ -84,14 +103,14 @@ export class ReviewService {
    */
   async cancelRun(runId: string): Promise<void> {
     this.publish(runId, 'info', 'Cancellation requested — stopping…');
-    this.container.runBus.cancel(runId);
-    await this.repo.cancelRunIfRunning(runId);
-    this.container.runBus.complete(runId);
+    this.dependencies.runBus.cancel(runId);
+    await this.dependencies.repository.cancelRunIfRunning(runId);
+    this.dependencies.runBus.complete(runId);
   }
 
   /** Reap runs left 'running' by a previous (now-dead) process. Called on boot. */
   async reapStaleRuns(): Promise<number> {
-    return this.repo.reapStaleRunningRuns();
+    return this.dependencies.repository.reapStaleRunningRuns();
   }
 
   /**
@@ -106,9 +125,9 @@ export class ReviewService {
     targets: AgentRow[],
     logger?: Logger,
   ): Promise<{ runs: { run_id: string; agent_id: string; agent_name: string }[]; reviews: ReviewDto[] }> {
-    const pull = await this.repo.getPull(workspaceId, prId);
+    const pull = await this.dependencies.repository.getPull(workspaceId, prId);
     if (!pull) throw new NotFoundError('Pull request not found');
-    const repo = await this.repo.getRepo(pull.repoId);
+    const repo = await this.dependencies.repository.getRepo(pull.repoId);
     if (!repo) throw new NotFoundError('Repo not found');
 
     // Create the agent_run rows up front so a runId is available IMMEDIATELY —
@@ -117,7 +136,7 @@ export class ReviewService {
     const jobs = await Promise.all(
       targets.map(async (agent) => ({
         agent,
-        runId: await this.repo.createAgentRun({
+        runId: await this.dependencies.repository.createAgentRun({
           workspaceId,
           prId,
           agentId: agent.id,
@@ -134,7 +153,7 @@ export class ReviewService {
 
     // Fire-and-forget: the HTTP response returns now with the runIds; reviews
     // are persisted as each agent finishes and the client refetches on SSE done.
-    void this.executor.executeRuns(workspaceId, pull, repo, jobs, logger).catch((err) => {
+    void this.dependencies.executor.executeRuns(workspaceId, pull, repo, jobs, logger).catch((err) => {
       logger?.error({ prId, err: (err as Error).message }, 'review: background execution crashed');
     });
 
@@ -142,7 +161,7 @@ export class ReviewService {
   }
 
   private publish(runId: string, kind: RunEventKind, msg: string, data?: unknown) {
-    return this.container.runBus.publish(runId, kind, msg, data);
+    return this.dependencies.runBus.publish(runId, kind, msg, data);
   }
 
   // ===========================================================================
@@ -154,7 +173,7 @@ export class ReviewService {
     findingId: string,
     action: FindingActionKind,
   ): Promise<{ finding: ReviewDtoFinding }> {
-    return actOnFindingImpl(this.repo, workspaceId, findingId, action);
+    return actOnFindingImpl(this.dependencies.repository, workspaceId, findingId, action);
   }
 
   // ===========================================================================
@@ -162,13 +181,13 @@ export class ReviewService {
   // ===========================================================================
 
   async reviewsForPull(workspaceId: string, prId: string): Promise<ReviewDto[]> {
-    const pull = await this.repo.getPull(workspaceId, prId);
+    const pull = await this.dependencies.repository.getPull(workspaceId, prId);
     if (!pull) throw new NotFoundError('Pull request not found');
-    const rows = await this.repo.reviewsForPull(prId);
+    const rows = await this.dependencies.repository.reviewsForPull(prId);
     const names = new Map<string, string>();
     for (const { review } of rows) {
       if (review.agentId && !names.has(review.agentId)) {
-        const a = await this.agents.getById(workspaceId, review.agentId);
+        const a = await this.dependencies.agents.getById(workspaceId, review.agentId);
         if (a) names.set(review.agentId, a.name);
       }
     }
@@ -178,6 +197,6 @@ export class ReviewService {
   }
 
   async getRunTrace(runId: string): Promise<RunTraceResponse | undefined> {
-    return this.repo.getRunTrace(runId);
+    return this.dependencies.repository.getRunTrace(runId);
   }
 }

@@ -3,6 +3,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { RepoInput } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
+import { RepoRepository } from './repository.js';
 import { RepoService } from './service.js';
 
 /**
@@ -18,7 +19,12 @@ import { RepoService } from './service.js';
  */
 export default async function reposRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const service = new RepoService(app.container);
+  const service = new RepoService({
+    repository: new RepoRepository(app.container.db),
+    jobs: app.container.jobs,
+    secrets: app.container.secrets,
+    git: app.container.git,
+  });
 
   // Register the clone job handler once.
   service.registerCloneJobHandler();
