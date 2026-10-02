@@ -42,6 +42,7 @@ export interface ReviewRunExecutorDependencies {
     pull: PullRow,
     repository: ReviewRepositoryRef,
   ): Promise<UnifiedDiff>;
+  resolveSkills(agentId: string): Promise<string[]>;
 }
 
 /**
@@ -191,6 +192,7 @@ export class ReviewRunExecutor {
       const rankNote = repoIntelOn ? await this.buildRankNote(pull.repoId, diff, runLog) : '';
 
       const task = taskLine(pull) + rankNote;
+      const skills = await this.dependencies.resolveSkills(agent.id);
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
@@ -204,6 +206,7 @@ export class ReviewRunExecutor {
         // Per-agent review strategy (configured in the Agent editor); falls back
         // to the studio default. single-pass = whole diff in one call.
         strategy: agent.strategy ?? REVIEW_STRATEGY,
+        ...(skills.length > 0 ? { skills } : {}),
         // T1.3 — pass the callers digest only when we built one. assemblePrompt
         // omits the section when this is empty/undefined.
         ...(callersDigest ? { callers: callersDigest } : {}),

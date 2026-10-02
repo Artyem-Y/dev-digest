@@ -9,6 +9,7 @@ import type {
 } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
 import { toAgentDto, toAgentVersionDto } from './helpers.js';
+import { ValidationError } from '../../platform/errors.js';
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
@@ -152,7 +153,14 @@ export class AgentsService {
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.dependencies.repository.getById(workspaceId, agentId);
     if (!agent) return undefined;
+    if (new Set(skillIds).size !== skillIds.length) {
+      throw new ValidationError('A skill can only be linked once to an agent');
+    }
+    if (!(await this.dependencies.repository.skillsBelongToWorkspace(workspaceId, skillIds))) {
+      throw new ValidationError('Every linked skill must belong to this workspace');
+    }
     await this.dependencies.repository.setSkills(agentId, skillIds);
+    await this.dependencies.repository.snapshotSkillsChange(workspaceId, agentId);
     return this.skillLinks(agentId);
   }
 
@@ -165,9 +173,13 @@ export class AgentsService {
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.dependencies.repository.getById(workspaceId, agentId);
     if (!agent) return undefined;
+    if (!(await this.dependencies.repository.skillsBelongToWorkspace(workspaceId, [skillId]))) {
+      throw new ValidationError('The skill must belong to this workspace');
+    }
     const existing = await this.dependencies.repository.linkedSkills(agentId);
     const resolvedOrder = order ?? existing.length;
     await this.dependencies.repository.linkSkill(agentId, skillId, resolvedOrder);
+    await this.dependencies.repository.snapshotSkillsChange(workspaceId, agentId);
     return this.skillLinks(agentId);
   }
 
