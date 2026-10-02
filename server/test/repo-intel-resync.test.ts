@@ -13,6 +13,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { RepoIntelService } from '../src/modules/repo-intel/service.js';
+import { RepoIntelIndexer } from '../src/modules/repo-intel/indexer.js';
+import { RepoIntelIndexCommands } from '../src/modules/repo-intel/index-commands.js';
 import { MockGitClient } from '../src/adapters/mocks.js';
 import { INDEXER_VERSION } from '../src/modules/repo-intel/constants.js';
 import type { RepoIntelRepository } from '../src/modules/repo-intel/repository.js';
@@ -41,14 +43,21 @@ function makeService(opts: { basics: Basics | null; state?: IndexState | null; g
   } as unknown as RepoIntelRepository;
 
   const container = {
+    config: { repoIntelEnabled: true },
     git: opts.git,
     db: {}, // never queried — service.repo is overridden below
     depgraph: { buildEdges: async () => [] },
     tokenizer: { count: (text: string) => Math.ceil(text.length / 4) },
   } as unknown as Container;
 
-  const service = new RepoIntelService(container);
-  (service as unknown as { repo: RepoIntelRepository }).repo = repo;
+  const indexer = new RepoIntelIndexer(container, repo);
+  const service = new RepoIntelService({
+    repository: repo,
+    enabled: true,
+    codeIndex: {} as never,
+    jobs: { register: () => undefined, enqueue: async () => ({ id: 'job-1' }) },
+    indexCommands: new RepoIntelIndexCommands(repo, opts.git, indexer),
+  });
   return { service, touched };
 }
 

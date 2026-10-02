@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { RepoIntelService } from '../src/modules/repo-intel/service.js';
+import { createRepoIntelService } from '../src/modules/repo-intel/composition.js';
 import type { RepoBasics } from '../src/modules/repo-intel/repository.js';
 import type { IndexState } from '../src/modules/repo-intel/types.js';
 
@@ -29,7 +30,7 @@ function buildDegradedService(opts: {
       references: async () => [],
     } as never,
   } as never;
-  const svc = new RepoIntelService(container);
+  const svc = createRepoIntelService(container);
   (svc as unknown as { repo: Record<string, unknown> }).repo = {
     getRepoBasics: async () => opts.basics ?? null,
     tryGetIndexState: async () => opts.indexStateRow ?? null,
