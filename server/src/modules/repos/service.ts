@@ -1,7 +1,6 @@
-import type { Container } from '../../platform/container.js';
 import { type Repo } from '@devdigest/shared';
 import { NotFoundError } from '../../platform/errors.js';
-import { RepoRepository } from './repository.js';
+import type { InsertRepo, RepoRow } from './repository.js';
 import { parseRepoUrl, withGitHubToken, toRepoDto } from './helpers.js';
 import {
   CLONE_JOB_KIND,
@@ -30,12 +29,38 @@ export interface CloneJobPayload {
   url: string;
 }
 
-export class RepoService {
-  private repo: RepoRepository;
+export interface RepoRepositoryPort {
+  findByFullName(workspaceId: string, fullName: string): Promise<RepoRow | undefined>;
+  insert(values: InsertRepo): Promise<RepoRow>;
+  list(workspaceId: string): Promise<RepoRow[]>;
+  getById(workspaceId: string, id: string): Promise<RepoRow | undefined>;
+  workspaceIdFor(repoId: string): Promise<string | null>;
+  updateClonePath(repoId: string, clonePath: string): Promise<void>;
+  remove(workspaceId: string, id: string): Promise<boolean>;
+}
 
-  constructor(private container: Container) {
-    this.repo = new RepoRepository(container.db);
-  }
+export interface RepoJobsPort {
+  register(kind: string, handler: (payload: unknown) => Promise<void>): void;
+  enqueue(workspaceId: string, kind: string, payload: unknown): Promise<unknown>;
+}
+
+export interface RepoSecretsPort {
+  get(name: string): Promise<string | undefined>;
+}
+
+export interface RepoGitPort {
+  clone(ref: { owner: string; name: string }, url: string, options: { depth: number }): Promise<{ path: string }>;
+}
+
+export interface RepoServiceDependencies {
+  repository: RepoRepositoryPort;
+  jobs: RepoJobsPort;
+  secrets: RepoSecretsPort;
+  git: RepoGitPort;
+}
+
+export class RepoService {
+  constructor(private readonly dependencies: RepoServiceDependencies) {}
 
   /**
    * Register the `clone` job handler once. Authenticates the clone with the
@@ -43,29 +68,29 @@ export class RepoService {
    * then persists the resulting path + last_polled_at.
    */
   registerCloneJobHandler(): void {
-    this.container.jobs.register(CLONE_JOB_KIND, async (payload) => {
+    this.dependencies.jobs.register(CLONE_JOB_KIND, async (payload) => {
       await this.runCloneJob(payload as CloneJobPayload);
     });
   }
 
   async runCloneJob(payload: CloneJobPayload): Promise<void> {
     const { repoId, owner, name, url } = payload;
-    const token = await this.container.secrets.get(GITHUB_TOKEN_SECRET);
+    const token = await this.dependencies.secrets.get(GITHUB_TOKEN_SECRET);
     const cloneUrl = token ? withGitHubToken(url, token) : url;
-    const { path } = await this.container.git.clone({ owner, name }, cloneUrl, {
+    const { path } = await this.dependencies.git.clone({ owner, name }, cloneUrl, {
       depth: CLONE_DEPTH,
     });
-    await this.repo.updateClonePath(repoId, path);
+    await this.dependencies.repository.updateClonePath(repoId, path);
 
     // T2.2 — kick off the indexer in the background. ENQUEUE (not call) so the
     // clone job closes immediately and the (heavier) index runs as its own
     // job under JobRunner's timeout/retry. If the handler isn't registered
     // (e.g. repo-intel disabled at module wiring), enqueue() throws — log and
     // continue so the clone result is preserved either way.
-    const workspaceId = await this.repo.workspaceIdFor(repoId);
+    const workspaceId = await this.dependencies.repository.workspaceIdFor(repoId);
     if (workspaceId) {
       try {
-        await this.container.jobs.enqueue(workspaceId, INDEX_JOB_KIND, {
+        await this.dependencies.jobs.enqueue(workspaceId, INDEX_JOB_KIND, {
           repoId,
           owner,
           name,
@@ -91,11 +116,11 @@ export class RepoService {
     const { owner, name } = parseRepoUrl(url);
     const fullName = `${owner}/${name}`;
 
-    const existing = await this.repo.findByFullName(workspaceId, fullName);
+    const existing = await this.dependencies.repository.findByFullName(workspaceId, fullName);
     if (existing) return { repo: toRepoDto(existing), created: false };
 
-    const row = await this.repo.insert({ workspaceId, owner, name, fullName, createdBy: userId });
-    await this.container.jobs.enqueue(workspaceId, CLONE_JOB_KIND, {
+    const row = await this.dependencies.repository.insert({ workspaceId, owner, name, fullName, createdBy: userId });
+    await this.dependencies.jobs.enqueue(workspaceId, CLONE_JOB_KIND, {
       repoId: row.id,
       owner,
       name,
@@ -106,13 +131,13 @@ export class RepoService {
   }
 
   async list(workspaceId: string): Promise<Repo[]> {
-    const rows = await this.repo.list(workspaceId);
+    const rows = await this.dependencies.repository.list(workspaceId);
     return rows.map(toRepoDto);
   }
 
   /** Re-fetch the clone for an existing repo (enqueues a fresh `clone` job). */
   async refresh(workspaceId: string, id: string): Promise<{ status: 'refreshing' }> {
-    const repo = await this.repo.getById(workspaceId, id);
+    const repo = await this.dependencies.repository.getById(workspaceId, id);
     if (!repo) throw new NotFoundError('Repo not found');
     await this.container.jobs.enqueue(workspaceId, CLONE_JOB_KIND, {
       repoId: repo.id,
@@ -126,7 +151,7 @@ export class RepoService {
     // refresh fires before the new clone settles, it cheaply exits; if after,
     // it picks up the new HEAD.
     try {
-      await this.container.jobs.enqueue(workspaceId, REFRESH_JOB_KIND, {
+      await this.dependencies.jobs.enqueue(workspaceId, REFRESH_JOB_KIND, {
         repoId: repo.id,
         owner: repo.owner,
         name: repo.name,
@@ -138,7 +163,7 @@ export class RepoService {
   }
 
   async remove(workspaceId: string, id: string): Promise<void> {
-    const ok = await this.repo.remove(workspaceId, id);
+    const ok = await this.dependencies.repository.remove(workspaceId, id);
     if (!ok) throw new NotFoundError('Repo not found');
   }
 }
