@@ -2,8 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
-import { PollingRepository } from './repository.js';
-import { PollingService } from './service.js';
+import { createPollingService } from './composition.js';
 
 /**
  * F1 — polling module. MANUAL refresh that ONLY syncs the PR list
@@ -14,7 +13,7 @@ import { PollingService } from './service.js';
  */
 export default async function pollingRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const service = new PollingService(new PollingRepository(app.container.db), () => app.container.github());
+  const service = createPollingService(app.container);
 
   app.post('/repos/:id/poll', { schema: { params: IdParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { RepoIntelService } from '../src/modules/repo-intel/service.js';
 import { createRepoIntelService } from '../src/modules/repo-intel/composition.js';
 import type { RepoBasics } from '../src/modules/repo-intel/repository.js';
@@ -122,5 +122,33 @@ describe('RepoIntel facade — degraded contract (flag on, but no data)', () => 
   it('getCallerSignatures with empty changedFiles → []', async () => {
     const svc = buildDegradedService({ flag: true, basics: { id: 'r1', owner: 'a', name: 'b', clonePath: '/tmp' } });
     await expect(svc.getCallerSignatures('r1', [])).resolves.toEqual([]);
+  });
+});
+
+describe('RepoIntel facade — source analysis boundary', () => {
+  it('uses the injected source-analysis port for unsupported files', async () => {
+    const isSupported = vi.fn().mockReturnValue(false);
+    const service = new RepoIntelService({
+      repository: {
+        getRepoBasics: vi.fn().mockResolvedValue({
+          id: 'repo-1', owner: 'acme', name: 'api', clonePath: '/not-used', defaultBranch: 'main',
+        }),
+      } as never,
+      enabled: true,
+      codeIndex: { symbols: vi.fn(), references: vi.fn() },
+      jobs: { register: vi.fn(), enqueue: vi.fn() },
+      indexCommands: { full: vi.fn(), refresh: vi.fn(), resync: vi.fn() },
+      sourceAnalysis: {
+        isSupported,
+        readFile: vi.fn(),
+        extractEndpoints: vi.fn(),
+        parseSymbols: vi.fn(),
+        parseImports: vi.fn(),
+        parseInvocationHeads: vi.fn(),
+      },
+    });
+
+    await expect(service.getUnresolvedReferences('repo-1', ['README.md'])).resolves.toEqual([]);
+    expect(isSupported).toHaveBeenCalledWith('README.md');
   });
 });

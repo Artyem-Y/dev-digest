@@ -16,9 +16,7 @@ import { createDb, type Db } from './db/client.js';
 import { Container, type ContainerOverrides } from './platform/container.js';
 import { AppError } from './platform/errors.js';
 import { modules } from './modules/index.js';
-import { ReviewService } from './modules/reviews/service.js';
-import { ReviewRepository } from './modules/reviews/repository.js';
-import { ReviewRunExecutor } from './modules/reviews/run-executor.js';
+import { createReviewService } from './modules/reviews/composition.js';
 
 // Attach the DI container to every request/instance.
 declare module 'fastify' {
@@ -80,13 +78,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   // NOTE: assumes a SINGLE API instance per DB. With multiple replicas this
   // would need per-instance scoping / heartbeats (not this app's deployment).
   try {
-    const repository = new ReviewRepository(container.db);
-    const reaped = await new ReviewService({
-      repository,
-      agents: container.agentsRepo,
-      executor: new ReviewRunExecutor(container, repository, container.agentsRepo),
-      runBus: container.runBus,
-    }).reapStaleRuns();
+    const reaped = await createReviewService(container).reapStaleRuns();
     if (reaped > 0) app.log.info({ reaped }, 'reaped stale running agent_runs on boot');
   } catch (err) {
     app.log.warn({ err: (err as Error).message }, 'stale-run reaping failed (non-fatal)');
