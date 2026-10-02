@@ -67,3 +67,13 @@ DISTINCT ON returns the latest terminal run per PR while preserving the nullable
 - Implication: When an OpenAI model becomes selectable, add and test its current standard token rates before expecting a numeric run cost. Preserve null for models whose price is unknown rather than displaying zero.
 
 For direct OpenAI providers, cost persistence is only as complete as the local pricing coverage because the response supplies token usage, not billed USD.
+
+<!-- insight-id: eng-server-b992542cbfb3 -->
+## eng-server-b992542cbfb3 — PR findings must use each agent’s latest review
+
+- Date: 2026-10-02
+- Category: invariant
+- Evidence: server/src/modules/pulls/routes.ts selects review rows newest-first, selectLatestReviewIdsPerAgent keeps one row for every PR and agent, and server/test/pulls-status.test.ts plus test/reviews.it.test.ts cover selection and API counts.
+- Implication: When changing list-level findings, select current reviews per agent before counting; do not use only the PR’s single newest review or include superseded runs.
+
+A PR may have current results from several reviewers and repeated runs from one reviewer. The list count is the union of the most recent persisted review for each agent, preserving all current agents while avoiding duplicate findings from reruns.

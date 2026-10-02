@@ -24,6 +24,7 @@ interface FindingsTabProps {
   onOpenTrace: (id: string) => void;
   onDelete: (id: string) => void;
   onRunDone: () => void;
+  severity?: "CRITICAL" | "WARNING" | "SUGGESTION" | null;
 }
 
 export function FindingsTab({
@@ -40,6 +41,7 @@ export function FindingsTab({
   onOpenTrace,
   onDelete,
   onRunDone,
+  severity,
 }: FindingsTabProps) {
   const handleCancelAll = useCallback(() => {
     liveRunIds.forEach((id) => cancelMutation.mutate(id));
@@ -164,6 +166,7 @@ export function FindingsTab({
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
+            severity={severity}
           />
         ))
       )}

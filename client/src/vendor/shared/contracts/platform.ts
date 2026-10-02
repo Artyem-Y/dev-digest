@@ -170,6 +170,11 @@ export const PrMeta = z.object({
   updated_at: z.string().nullish(),
   // Latest-review score (list endpoint only; null/absent until reviewed).
   score: z.number().int().nullish(),
+  findings_counts: z.object({
+    CRITICAL: z.number().int().nonnegative(),
+    WARNING: z.number().int().nonnegative(),
+    SUGGESTION: z.number().int().nonnegative(),
+  }).nullish(),
   // Latest settled review-batch cost (list endpoint only).
   cost_usd: z.number().nonnegative().nullish(),
 });
