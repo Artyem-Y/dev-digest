@@ -87,3 +87,13 @@ A PR may have current results from several reviewers and repeated runs from one 
 - Implication: For Onion Architecture work, enforce inward dependencies in new or substantially changed paths and do not report the server as fully migrated until the direct route-to-Drizzle paths are separately refactored.
 
 The server uses mixed module shapes: some routes are thin adapters over services, while others couple transport directly to persistence. A big-bang folder rewrite would obscure feature changes, so the safe migration boundary is the touched path plus an explicit legacy exception.
+
+<!-- insight-id: eng-server-4e39d8ac5114 -->
+## eng-server-4e39d8ac5114 — Module factories keep HTTP routes free of persistence composition
+
+- Date: 2026-10-02
+- Category: architecture
+- Evidence: Supersedes eng-server-451f7ae29522. server/src/modules/{agents,repos,pulls,settings,polling,workspace,reviews}/composition.ts now creates repositories and services; their routes only resolve request context and invoke services. server/src/modules/repo-intel/source-analysis.ts owns Node filesystem and ast-grep imports; server/test/reviews.it.test.ts and agents-versions.it.test.ts passed after the change.
+- Implication: Add new dependencies in a module composition factory, not in routes or application services. Keep only infrastructure adapters and composition code dependent on Container.
+
+The server now has a consistent module-bootstrap boundary for the touched HTTP modules. This preserves Fastify handlers as inbound adapters while allowing application services to be constructed with narrow dependencies and tested without the DI container.

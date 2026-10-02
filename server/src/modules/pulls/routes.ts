@@ -3,8 +3,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { PrCommentInput } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
-import { PullsRepository } from './repository.js';
-import { PullsService } from './service.js';
+import { createPullsService } from './composition.js';
 
 /**
  * F1 — pulls module inbound adapter. It owns only Fastify/Zod concerns:
@@ -13,11 +12,8 @@ import { PullsService } from './service.js';
  */
 export default async function pullsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const service = new PullsService(
-    new PullsRepository(app.container.db),
-    () => app.container.github(),
-    Date.now,
-    (error, message, meta) => app.log.warn({ err: error, ...meta }, message),
+  const service = createPullsService(app.container, (error, message, meta) =>
+    app.log.warn({ err: error, ...meta }, message),
   );
 
   app.get('/repos/:id/pulls', { schema: { params: IdParams } }, async (req) => {

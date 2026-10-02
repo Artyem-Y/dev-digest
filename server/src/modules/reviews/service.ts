@@ -46,7 +46,7 @@ export interface ReviewServiceDependencies {
  *        → llm.completeStructured({ schema: Review }) (single-pass)
  *        → groundFindings(...) (citation gate — drops findings off the diff)
  *        → persist reviews + kept findings (+ grounding summary)
- *   while streaming RunEvents over container.runBus, and on completion writing
+ *   while streaming RunEvents over the injected run-bus port, and on completion writing
  *   the whole log as ONE RunTrace doc + an agent_runs row.
  *
  * Also: the finding accept/dismiss actions. The bulky run execution lives in

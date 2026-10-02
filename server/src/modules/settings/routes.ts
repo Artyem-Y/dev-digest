@@ -7,8 +7,7 @@ import {
   type SecretsStatus,
 } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
-import { SettingsRepository } from './repository.js';
-import { SettingsService } from './service.js';
+import { createSettingsService } from './composition.js';
 
 /**
  * F1 — settings module.
@@ -21,13 +20,7 @@ import { SettingsService } from './service.js';
  */
 export default async function settingsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const service = new SettingsService(
-    new SettingsRepository(app.container.db),
-    app.container.secrets,
-    () => app.container.github(),
-    (provider) => app.container.llm(provider),
-    () => app.container.invalidateSecretCaches(),
-  );
+  const service = createSettingsService(app.container);
 
   app.get('/settings', async (req) => {
     const { workspaceId } = await getContext(app.container, req);

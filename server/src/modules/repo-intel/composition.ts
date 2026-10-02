@@ -3,6 +3,7 @@ import { RepoIntelIndexCommands } from './index-commands.js';
 import { RepoIntelIndexer } from './indexer.js';
 import { RepoIntelRepository } from './repository.js';
 import { RepoIntelService } from './service.js';
+import { nodeRepoIntelSourceAnalysis } from './source-analysis.js';
 
 /** Composition boundary for the repo-intel facade and its infrastructure adapters. */
 export function createRepoIntelService(container: Container): RepoIntelService {
@@ -13,6 +14,7 @@ export function createRepoIntelService(container: Container): RepoIntelService {
     repository,
     enabled: container.config.repoIntelEnabled,
     codeIndex: container.codeIndex,
+    sourceAnalysis: nodeRepoIntelSourceAnalysis,
     jobs: container.jobs,
     indexCommands,
   });

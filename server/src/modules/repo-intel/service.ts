@@ -14,19 +14,10 @@
  * `getUnresolvedReferences` and (via T1.3) `getCallerSignatures`. T2 fills in
  * the rank-driven methods. T3 unlocks `getCriticalPaths` etc.
  *
- * The constructor takes ONLY a Container. No astgrep / depgraph / tokenizer
- * deps are imported here — those land later and plug into this same shell.
+ * The constructor receives application ports only. Node filesystem and ast-grep
+ * dependencies are implemented behind the source-analysis adapter.
  */
 import type { CodeIndex, CodeSymbol, RepoRef } from '@devdigest/shared';
-import { extractEndpoints } from '../../adapters/codeindex/extract.js';
-import {
-  parseImports,
-  parseInvocationHeads,
-  parseSymbols,
-  langForFile,
-} from '../../adapters/astgrep/index.js';
-import { readFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
 import { RepoIntelRepository, type FullSymbolRow } from './repository.js';
 import { IndexStateService } from './index-state.js';
 import { RepoIntelIndexCommands } from './index-commands.js';
@@ -51,7 +42,6 @@ import {
   MAX_CALLERS_PER_SYMBOL,
   REFRESH_JOB_KIND,
   RESYNC_JOB_KIND,
-  SUPPORTED_EXT,
 } from './constants.js';
 import type { IndexPayload } from './pipeline/full.js';
 
@@ -98,12 +88,36 @@ const PHANTOM_GLOBALS_ALLOWLIST: ReadonlySet<string> = new Set([
   'afterAll', 'afterEach', 'vi', 'jest',
 ]);
 
+export interface RepoIntelParsedSymbol {
+  name: string;
+  kind: string;
+  line: number;
+  signature: string | null;
+}
+
+export interface RepoIntelParsedImport { name: string; }
+export interface RepoIntelInvocationHead { name: string; line: number; }
+
+/**
+ * Application-owned boundary for clone files and language parsing. The Node
+ * filesystem and ast-grep implementation stay in the infrastructure adapter.
+ */
+export interface RepoIntelSourceAnalysisPort {
+  isSupported(file: string): boolean;
+  readFile(clonePath: string, file: string): Promise<string | null>;
+  extractEndpoints(source: string): string[];
+  parseSymbols(file: string, source: string): RepoIntelParsedSymbol[];
+  parseImports(file: string, source: string): RepoIntelParsedImport[];
+  parseInvocationHeads(file: string, source: string): RepoIntelInvocationHead[];
+}
+
 export class RepoIntelService implements RepoIntel {
   private readonly repo: RepoIntelRepository;
   private readonly indexState: IndexStateService;
   private readonly indexCommands: RepoIntelIndexCommands;
   private readonly enabled: boolean;
   private readonly codeIndex: Pick<CodeIndex, 'symbols' | 'references'>;
+  private readonly sourceAnalysis: RepoIntelSourceAnalysisPort;
   private readonly jobs: {
     register(kind: string, handler: (payload: unknown) => Promise<void>): void;
     enqueue(workspaceId: string, kind: string, payload: unknown): Promise<{ id: string }>;
@@ -113,6 +127,7 @@ export class RepoIntelService implements RepoIntel {
     repository: RepoIntelRepository;
     enabled: boolean;
     codeIndex: Pick<CodeIndex, 'symbols' | 'references'>;
+    sourceAnalysis: RepoIntelSourceAnalysisPort;
     jobs: {
       register(kind: string, handler: (payload: unknown) => Promise<void>): void;
       enqueue(workspaceId: string, kind: string, payload: unknown): Promise<{ id: string }>;
@@ -124,6 +139,7 @@ export class RepoIntelService implements RepoIntel {
     this.indexCommands = dependencies.indexCommands;
     this.enabled = dependencies.enabled;
     this.codeIndex = dependencies.codeIndex;
+    this.sourceAnalysis = dependencies.sourceAnalysis;
     this.jobs = dependencies.jobs;
   }
 
@@ -295,9 +311,9 @@ export class RepoIntelService implements RepoIntel {
       // Detect HTTP routes reachable from any caller file (best-effort, just
       // like the legacy blast service).
       for (const file of callerFiles) {
-        const content = await readClone(repo.clonePath, file);
+        const content = await this.sourceAnalysis.readFile(repo.clonePath, file);
         if (!content) continue;
-        for (const e of extractEndpoints(content)) endpoints.add(e);
+        for (const e of this.sourceAnalysis.extractEndpoints(content)) endpoints.add(e);
       }
     }
 
@@ -473,11 +489,11 @@ export class RepoIntelService implements RepoIntel {
     //    call sites, so chasing references for them just wastes work.
     const declaredSymbols = new Map<string, { file: string; kind: string }>();
     for (const file of changedFiles) {
-      if (!langForFile(file)) continue;
-      const source = await readClone(repo.clonePath, file);
+      if (!this.sourceAnalysis.isSupported(file)) continue;
+      const source = await this.sourceAnalysis.readFile(repo.clonePath, file);
       if (source == null) continue;
       try {
-        for (const s of parseSymbols(file, source)) {
+        for (const s of this.sourceAnalysis.parseSymbols(file, source)) {
           if (s.kind !== 'function' && s.kind !== 'method' && s.kind !== 'class') continue;
           // Dual-emit (Class.method + method): only store the bare name; the
           // qualified form would double-count callers.
@@ -497,7 +513,7 @@ export class RepoIntelService implements RepoIntel {
     const seen = new Set<string>();
     // Cache caller-file astgrep parses so we don't re-parse the same file per
     // referenced symbol.
-    const callerSymbolsByFile = new Map<string, ReturnType<typeof parseSymbols>>();
+    const callerSymbolsByFile = new Map<string, RepoIntelParsedSymbol[]>();
 
     for (const [symbolName, decl] of declaredSymbols) {
       if (out.length >= limit) break;
@@ -514,17 +530,17 @@ export class RepoIntelService implements RepoIntel {
         // Parse the caller file once; reuse for further symbols in this loop.
         let callerSyms = callerSymbolsByFile.get(r.fromPath);
         if (callerSyms === undefined) {
-          if (!langForFile(r.fromPath)) {
+          if (!this.sourceAnalysis.isSupported(r.fromPath)) {
             callerSymbolsByFile.set(r.fromPath, []);
             callerSyms = [];
           } else {
-            const callerSrc = await readClone(repo.clonePath, r.fromPath);
+            const callerSrc = await this.sourceAnalysis.readFile(repo.clonePath, r.fromPath);
             if (callerSrc == null) {
               callerSymbolsByFile.set(r.fromPath, []);
               callerSyms = [];
             } else {
               try {
-                callerSyms = parseSymbols(r.fromPath, callerSrc);
+                callerSyms = this.sourceAnalysis.parseSymbols(r.fromPath, callerSrc);
               } catch {
                 callerSyms = [];
               }
@@ -592,19 +608,18 @@ export class RepoIntelService implements RepoIntel {
     const out: RefRow[] = [];
 
     for (const file of files) {
-      const ext = extname(file).toLowerCase();
-      if (!(SUPPORTED_EXT as readonly string[]).includes(ext)) continue;
+      if (!this.sourceAnalysis.isSupported(file)) continue;
 
-      const source = await readClone(repo.clonePath, file);
+      const source = await this.sourceAnalysis.readFile(repo.clonePath, file);
       if (source == null) continue;
 
-      let declared: ReturnType<typeof parseSymbols>;
-      let imports: ReturnType<typeof parseImports>;
-      let heads: ReturnType<typeof parseInvocationHeads>;
+      let declared: RepoIntelParsedSymbol[];
+      let imports: RepoIntelParsedImport[];
+      let heads: RepoIntelInvocationHead[];
       try {
-        declared = parseSymbols(file, source);
-        imports = parseImports(file, source);
-        heads = parseInvocationHeads(file, source);
+        declared = this.sourceAnalysis.parseSymbols(file, source);
+        imports = this.sourceAnalysis.parseImports(file, source);
+        heads = this.sourceAnalysis.parseInvocationHeads(file, source);
       } catch {
         // Tree-sitter is lenient but a napi-level failure shouldn't blow up
         // the whole gate. Skip the file (= "no phantoms here" — conservative).
@@ -764,8 +779,4 @@ function enclosingSymbolName(
     .filter((s) => s.path === fromPath && s.line <= line && !s.name.includes('.'))
     .sort((a, b) => b.line - a.line);
   return inFile[0]?.name ?? fromPath.split('/').pop() ?? fromPath;
-}
-
-async function readClone(clonePath: string, file: string): Promise<string | null> {
-  return readFile(join(clonePath, file), 'utf8').catch(() => null);
 }
