@@ -17,8 +17,7 @@
  * The constructor takes ONLY a Container. No astgrep / depgraph / tokenizer
  * deps are imported here — those land later and plug into this same shell.
  */
-import type { CodeSymbol, RepoRef } from '@devdigest/shared';
-import type { Container } from '../../platform/container.js';
+import type { CodeIndex, CodeSymbol, RepoRef } from '@devdigest/shared';
 import { extractEndpoints } from '../../adapters/codeindex/extract.js';
 import {
   parseImports,
@@ -30,6 +29,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { RepoIntelRepository, type FullSymbolRow } from './repository.js';
 import { IndexStateService } from './index-state.js';
+import { RepoIntelIndexCommands } from './index-commands.js';
 import type {
   BlastCallerRow,
   BlastChangedSymbol,
@@ -53,8 +53,7 @@ import {
   RESYNC_JOB_KIND,
   SUPPORTED_EXT,
 } from './constants.js';
-import { runFullIndex, type IndexPayload } from './pipeline/full.js';
-import { runIncremental } from './pipeline/incremental.js';
+import type { IndexPayload } from './pipeline/full.js';
 
 /**
  * GLOBALS allowlist — common JS/TS builtins + runtime that appear as bare
@@ -102,10 +101,30 @@ const PHANTOM_GLOBALS_ALLOWLIST: ReadonlySet<string> = new Set([
 export class RepoIntelService implements RepoIntel {
   private readonly repo: RepoIntelRepository;
   private readonly indexState: IndexStateService;
+  private readonly indexCommands: RepoIntelIndexCommands;
+  private readonly enabled: boolean;
+  private readonly codeIndex: Pick<CodeIndex, 'symbols' | 'references'>;
+  private readonly jobs: {
+    register(kind: string, handler: (payload: unknown) => Promise<void>): void;
+    enqueue(workspaceId: string, kind: string, payload: unknown): Promise<{ id: string }>;
+  };
 
-  constructor(private container: Container) {
-    this.repo = new RepoIntelRepository(container.db);
+  constructor(dependencies: {
+    repository: RepoIntelRepository;
+    enabled: boolean;
+    codeIndex: Pick<CodeIndex, 'symbols' | 'references'>;
+    jobs: {
+      register(kind: string, handler: (payload: unknown) => Promise<void>): void;
+      enqueue(workspaceId: string, kind: string, payload: unknown): Promise<{ id: string }>;
+    };
+    indexCommands: RepoIntelIndexCommands;
+  }) {
+    this.repo = dependencies.repository;
     this.indexState = new IndexStateService(this.repo, INDEXER_VERSION);
+    this.indexCommands = dependencies.indexCommands;
+    this.enabled = dependencies.enabled;
+    this.codeIndex = dependencies.codeIndex;
+    this.jobs = dependencies.jobs;
   }
 
   // -------------------------------------------------------------------------
@@ -123,7 +142,8 @@ export class RepoIntelService implements RepoIntel {
    * jobs already have their own time budget and don't want a second queue.
    */
   async indexRepo(repoId: string): Promise<IndexResult> {
-    return runFullIndex(this.container, this.repo, { repoId });
+    if (!this.enabled) return this.disabledIndexResult();
+    return this.indexCommands.full(repoId);
   }
 
   /**
@@ -132,7 +152,8 @@ export class RepoIntelService implements RepoIntel {
    * delegates to `runFullIndex` internally.
    */
   async refreshIndex(repoId: string): Promise<IndexResult> {
-    return runIncremental(this.container, this.repo, { repoId });
+    if (!this.enabled) return this.disabledIndexResult();
+    return this.indexCommands.refresh(repoId);
   }
 
   /**
@@ -144,24 +165,8 @@ export class RepoIntelService implements RepoIntel {
    * repo isn't cloned yet or the fetch fails.
    */
   async resyncRepo(repoId: string): Promise<IndexResult> {
-    const startedAt = Date.now();
-    const repo = await this.repo.getRepoBasics(repoId);
-    if (!repo || !repo.clonePath) {
-      return { status: 'degraded', filesIndexed: 0, filesSkipped: 0, durationMs: Date.now() - startedAt, reason: 'no_clone' };
-    }
-    const ref: RepoRef = { owner: repo.owner, name: repo.name };
-    try {
-      await this.container.git.sync(ref, repo.defaultBranch);
-    } catch (err) {
-      return {
-        status: 'degraded',
-        filesIndexed: 0,
-        filesSkipped: 0,
-        durationMs: Date.now() - startedAt,
-        reason: `sync_failed:${err instanceof Error ? err.message : String(err)}`,
-      };
-    }
-    return runIncremental(this.container, this.repo, { repoId });
+    if (!this.enabled) return this.disabledIndexResult();
+    return this.indexCommands.resync(repoId);
   }
 
   /**
@@ -173,15 +178,24 @@ export class RepoIntelService implements RepoIntel {
    * `Promise<void>`. Status/progress is observable via `repo_index_state`.
    */
   registerIndexJobHandlers(): void {
-    this.container.jobs.register(INDEX_JOB_KIND, async (payload) => {
+    this.jobs.register(INDEX_JOB_KIND, async (payload) => {
       await this.indexRepo((payload as IndexPayload).repoId);
     });
-    this.container.jobs.register(REFRESH_JOB_KIND, async (payload) => {
+    this.jobs.register(REFRESH_JOB_KIND, async (payload) => {
       await this.refreshIndex((payload as IndexPayload).repoId);
     });
-    this.container.jobs.register(RESYNC_JOB_KIND, async (payload) => {
+    this.jobs.register(RESYNC_JOB_KIND, async (payload) => {
       await this.resyncRepo((payload as IndexPayload).repoId);
     });
+  }
+
+  async enqueueResync(workspaceId: string, repoId: string): Promise<string | null> {
+    try {
+      const job = await this.jobs.enqueue(workspaceId, RESYNC_JOB_KIND, { repoId });
+      return job.id;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -191,6 +205,10 @@ export class RepoIntelService implements RepoIntel {
    */
   async getIndexState(repoId: string): Promise<IndexState> {
     return this.indexState.get(repoId);
+  }
+
+  private disabledIndexResult(): IndexResult {
+    return { status: 'degraded', filesIndexed: 0, filesSkipped: 0, durationMs: 0, reason: 'flag_off' };
   }
 
   // -------------------------------------------------------------------------
@@ -209,7 +227,7 @@ export class RepoIntelService implements RepoIntel {
   async getBlastRadius(repoId: string, changedFiles: string[]): Promise<BlastResult> {
     // T3: serve from the persistent index when it's built. Falls through to the
     // ripgrep best-effort below when the flag is off / index is absent.
-    if (this.container.config.repoIntelEnabled && changedFiles.length > 0) {
+    if (this.enabled && changedFiles.length > 0) {
       const persistent = await this.tryPersistentBlast(repoId, changedFiles);
       if (persistent) return persistent;
     }
@@ -230,7 +248,7 @@ export class RepoIntelService implements RepoIntel {
 
     let allSymbols: CodeSymbol[];
     try {
-      allSymbols = await this.container.codeIndex.symbols(ref);
+      allSymbols = await this.codeIndex.symbols(ref);
     } catch {
       return empty;
     }
@@ -253,7 +271,7 @@ export class RepoIntelService implements RepoIntel {
     for (const sym of changedSymbols) {
       let refs;
       try {
-        refs = await this.container.codeIndex.references(ref, sym.name);
+        refs = await this.codeIndex.references(ref, sym.name);
       } catch {
         continue;
       }
@@ -392,7 +410,7 @@ export class RepoIntelService implements RepoIntel {
       degraded: true,
       reason: 'no_data',
     };
-    if (!this.container.config.repoIntelEnabled) {
+    if (!this.enabled) {
       return { ...degraded, reason: 'flag_off' };
     }
     const state = await this.repo.tryGetIndexState(repoId);
@@ -405,14 +423,14 @@ export class RepoIntelService implements RepoIntel {
 
   /** Percentile per path from `file_rank` (smart-diff / run-executor "top-N%"). */
   async getFileRank(repoId: string, paths: string[]): Promise<FileRankRow[]> {
-    if (!this.container.config.repoIntelEnabled) return [];
+    if (!this.enabled) return [];
     if (paths.length === 0) return [];
     return this.repo.getFileRankFor(repoId, paths);
   }
 
   /** Persistent symbol read-model (T2 columns) for the given files. */
   async getSymbolsInFiles(repoId: string, paths: string[]): Promise<SymbolRow[]> {
-    if (!this.container.config.repoIntelEnabled) return [];
+    if (!this.enabled) return [];
     if (paths.length === 0) return [];
     const rows = await this.repo.getSymbolRows(repoId, paths);
     return rows.map((r) => ({
@@ -444,7 +462,7 @@ export class RepoIntelService implements RepoIntel {
     changedFiles: string[],
     limit: number = MAX_CALLERS_PER_SYMBOL,
   ): Promise<SignatureRow[]> {
-    if (!this.container.config.repoIntelEnabled) return [];
+    if (!this.enabled) return [];
     if (changedFiles.length === 0) return [];
 
     const repo = await this.repo.getRepoBasics(repoId);
@@ -485,7 +503,7 @@ export class RepoIntelService implements RepoIntel {
       if (out.length >= limit) break;
       let refs;
       try {
-        refs = await this.container.codeIndex.references(ref, symbolName);
+        refs = await this.codeIndex.references(ref, symbolName);
       } catch {
         continue;
       }
@@ -565,7 +583,7 @@ export class RepoIntelService implements RepoIntel {
    * NEVER throws — per-file parse errors are swallowed.
    */
   async getUnresolvedReferences(repoId: string, files: string[]): Promise<RefRow[]> {
-    if (!this.container.config.repoIntelEnabled) return [];
+    if (!this.enabled) return [];
     if (files.length === 0) return [];
 
     const repo = await this.repo.getRepoBasics(repoId);
@@ -630,7 +648,7 @@ export class RepoIntelService implements RepoIntel {
     n: number,
     opts?: { exclude?: string[] },
   ): Promise<string[]> {
-    if (!this.container.config.repoIntelEnabled) return [];
+    if (!this.enabled) return [];
     if (n <= 0) return [];
     const exclude = opts?.exclude ?? [];
     const rows = await this.repo.getRankedPaths(repoId, Math.max(n * 10, 100));
@@ -650,7 +668,7 @@ export class RepoIntelService implements RepoIntel {
    * up to BFS_DEPTH hops. Pure read over `file_edges` + `file_rank`.
    */
   async getCriticalPaths(repoId: string): Promise<string[][]> {
-    if (!this.container.config.repoIntelEnabled) return [];
+    if (!this.enabled) return [];
     const edges = await this.repo.getEdges(repoId);
     if (edges.length === 0) return [];
 
