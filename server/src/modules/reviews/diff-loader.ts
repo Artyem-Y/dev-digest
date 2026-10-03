@@ -1,8 +1,8 @@
-import type { Container } from '../../platform/container.js';
-import type { UnifiedDiff } from '@devdigest/shared';
+import type { GitClient, UnifiedDiff } from '@devdigest/shared';
 import { parseUnifiedDiff } from '../../adapters/git/diff-parser.js';
-import * as schema from '../../db/schema.js';
 import type { ReviewRepository, PullRow } from './repository.js';
+
+export interface ReviewRepositoryRef { owner: string; name: string; }
 
 /**
  * Load the unified diff for a PR. Prefers a real `git diff base...head`; falls
@@ -10,14 +10,14 @@ import type { ReviewRepository, PullRow } from './repository.js';
  * patches (so the reviewer works even before a clone completes / in tests).
  */
 export async function loadDiff(
-  container: Container,
+  git: Pick<GitClient, 'diff'>,
   repo: ReviewRepository,
   workspaceId: string,
   pull: PullRow,
-  repoRow: typeof schema.repos.$inferSelect,
+  repoRow: ReviewRepositoryRef,
 ): Promise<UnifiedDiff> {
   try {
-    const diff = await container.git.diff(
+    const diff = await git.diff(
       { owner: repoRow.owner, name: repoRow.name },
       pull.base,
       pull.headSha,

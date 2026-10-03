@@ -46,4 +46,12 @@ describe("AgentCard (smoke)", () => {
     renderWithIntl(<AgentCard ag={{ ...AGENT, description: "" }} />);
     expect(screen.getByText("No description")).toBeInTheDocument();
   });
+
+  it("gives the enabled switch an agent-specific accessible name", () => {
+    renderWithIntl(<AgentCard ag={AGENT} onToggle={() => {}} />);
+    expect(screen.getByRole("switch", { name: "Toggle Security Reviewer" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
 });

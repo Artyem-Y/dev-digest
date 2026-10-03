@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { createDb, type Db } from './client.js';
 import * as t from './schema.js';
 import { eq, and } from 'drizzle-orm';
+import type { RunTrace } from '@devdigest/shared';
 import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
@@ -218,6 +219,106 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
     if (!existing) await db.insert(t.agents).values(a);
+  }
+
+  // ---- Test Quality Reviewer + reusable text-only skills -----------------
+  const testSkillDefinitions = [
+    ['Behavioral Test Coverage', 'Check that changed behaviour has meaningful positive-path coverage.'],
+    ['Boundary and Failure Cases', 'Check empty, invalid, boundary, and error-path behaviour.'],
+    ['Regression and Compatibility', 'Check public contracts, migrations, and unintended regressions.'],
+    ['Test Determinism and Maintainability', 'Check timing, network isolation, and readable deterministic tests.'],
+  ] as const;
+  const skillRows: Array<typeof t.skills.$inferSelect> = [];
+  for (const [name, description] of testSkillDefinitions) {
+    let [skill] = await db.select().from(t.skills).where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, name)));
+    if (!skill) {
+      [skill] = await db.insert(t.skills).values({ workspaceId, name, description, type: 'rubric', source: 'manual', body: description, enabled: true, version: 1 }).returning();
+      await db.insert(t.skillVersions).values({ skillId: skill!.id, version: 1, body: skill!.body }).onConflictDoNothing();
+    }
+    skillRows.push(skill!);
+  }
+  let [testAgent] = await db.select().from(t.agents).where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Test Quality Reviewer')));
+  if (!testAgent) {
+    [testAgent] = await db.insert(t.agents).values({ workspaceId, name: 'Test Quality Reviewer', description: 'Reviews test quality, coverage, and determinism.', provider: DEFAULT_PROVIDER, model: DEFAULT_MODEL, systemPrompt: GENERAL_REVIEWER_PROMPT, enabled: true, version: 1, createdBy: userId }).returning();
+  }
+  for (const [order, skill] of skillRows.entries()) {
+    await db.insert(t.agentSkills).values({ agentId: testAgent!.id, skillId: skill.id, order }).onConflictDoNothing();
+  }
+
+  // ---- one completed demo run (no model call) ----
+  // Keep cost on agent_runs: the stored trace deliberately contains usage but
+  // never duplicates the provider-reported USD amount.
+  const [generalAgent] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'General Reviewer')));
+  const [sampleReview] = await db
+    .select()
+    .from(t.reviews)
+    .where(and(eq(t.reviews.prId, pr!.id), eq(t.reviews.kind, 'review')));
+  if (generalAgent && sampleReview && !sampleReview.runId) {
+    await db.transaction(async (tx) => {
+      const [run] = await tx
+        .insert(t.agentRuns)
+        .values({
+          workspaceId,
+          agentId: generalAgent.id,
+          prId: pr!.id,
+          provider: DEFAULT_PROVIDER,
+          model: DEFAULT_MODEL,
+          status: 'done',
+          source: 'local',
+          durationMs: 8200,
+          tokensIn: 8000,
+          tokensOut: 1119,
+          costUsd: 0.0013,
+          findingsCount: 2,
+          grounding: '2/2 passed',
+          score: 61,
+          blockers: 1,
+        })
+        .returning({ id: t.agentRuns.id });
+      const trace: RunTrace = {
+        config: {
+          agent: generalAgent.name,
+          version: String(generalAgent.version),
+          provider: DEFAULT_PROVIDER,
+          model: DEFAULT_MODEL,
+          pr: pr!.number,
+          source: 'local',
+        },
+        stats: {
+          duration_ms: 8200,
+          tokens_in: 8000,
+          tokens_out: 1119,
+          findings: 2,
+          grounding: '2/2 passed',
+        },
+        prompt_assembly: {
+          system: GENERAL_REVIEWER_PROMPT,
+          skills: null,
+          memory: null,
+          specs: null,
+          callers: null,
+          repo_map: null,
+          pr_description: pr!.body,
+          user: 'Review PR #482.',
+        },
+        tool_calls: [],
+        raw_output: sampleReview.summary ?? '',
+        memory_pulled: [],
+        specs_read: [],
+        log: [
+          { t: '00.00', kind: 'info', msg: 'Starting seeded review' },
+          { t: '08.20', kind: 'result', msg: 'Seeded review completed' },
+        ],
+      };
+      await tx.insert(t.runTraces).values({ runId: run!.id, trace });
+      await tx
+        .update(t.reviews)
+        .set({ runId: run!.id, agentId: generalAgent.id })
+        .where(eq(t.reviews.id, sampleReview.id));
+    });
   }
 
   return { workspaceId, userId };

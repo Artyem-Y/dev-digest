@@ -26,7 +26,7 @@ import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
-import { RepoIntelService } from '../modules/repo-intel/service.js';
+import { createRepoIntelService } from '../modules/repo-intel/composition.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
 
@@ -113,7 +113,7 @@ export class Container {
    */
   get repoIntel(): RepoIntel {
     if (this.overrides.repoIntel) return this.overrides.repoIntel;
-    this._repoIntel ??= new RepoIntelService(this);
+    this._repoIntel ??= createRepoIntelService(this);
     return this._repoIntel;
   }
 

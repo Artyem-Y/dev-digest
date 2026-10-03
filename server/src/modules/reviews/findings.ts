@@ -8,8 +8,13 @@ import { findingRowToDto, type ReviewDtoFinding } from './helpers.js';
  * are the dataset later lessons build on (eval cases from accept/dismiss, the
  * `learn → memory` action, etc.).
  */
+export type FindingActionsRepositoryPort = Pick<
+  ReviewRepository,
+  'findingContext' | 'setFindingAccepted' | 'setFindingDismissed'
+>;
+
 export async function actOnFinding(
-  repo: ReviewRepository,
+  repo: FindingActionsRepositoryPort,
   workspaceId: string,
   findingId: string,
   action: FindingActionKind,

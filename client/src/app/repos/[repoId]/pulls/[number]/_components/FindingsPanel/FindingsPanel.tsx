@@ -26,9 +26,28 @@ export function FindingsPanel({
   const t = useTranslations("prReview");
   const action = useFindingAction();
   const [hideLow, setHideLow] = React.useState(false);
+  const [severities, setSeverities] = React.useState<Set<string>>(() => new Set());
+  const [category, setCategory] = React.useState<string>("");
   const [focusIdx, setFocusIdx] = React.useState(0);
 
-  const shown = React.useMemo(() => visibleFindings(findings, hideLow), [findings, hideLow]);
+  const categories = React.useMemo(
+    () => [...new Set(findings.map((finding) => finding.category))].sort(),
+    [findings],
+  );
+  const shown = React.useMemo(
+    () => visibleFindings(findings, hideLow).filter(
+      (finding) => (severities.size === 0 || severities.has(finding.severity)) && (!category || finding.category === category),
+    ),
+    [findings, hideLow, severities, category],
+  );
+  const toggleSeverity = (severity: string) => {
+    setSeverities((current) => {
+      const next = new Set(current);
+      if (next.has(severity)) next.delete(severity);
+      else next.add(severity);
+      return next;
+    });
+  };
 
   // j/k navigation + a/d shortcuts on the focused finding (keyboard).
   React.useEffect(() => {
@@ -48,9 +67,29 @@ export function FindingsPanel({
   return (
     <div>
       <div style={s.toolbar}>
+        <div style={s.severityFilters} aria-label={t("panel.severityFilter")}>
+          {["CRITICAL", "WARNING", "SUGGESTION"].map((severity) => (
+            <button
+              key={severity}
+              type="button"
+              aria-pressed={severities.has(severity)}
+              onClick={() => toggleSeverity(severity)}
+              style={s.severityFilter(severities.has(severity))}
+            >
+              {severity}
+            </button>
+          ))}
+        </div>
+        <label style={s.categoryFilter}>
+          {t("panel.category")}
+          <select aria-label={t("panel.category")} value={category} onChange={(event) => setCategory(event.target.value)} style={s.categorySelect}>
+            <option value="">{t("panel.allCategories")}</option>
+            {categories.map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
         <div style={s.toggleGroup}>
           {t("panel.hideLowConfidence")}
-          <Toggle on={hideLow} onChange={setHideLow} size={16} />
+          <Toggle on={hideLow} onChange={setHideLow} size={16} ariaLabel={t("panel.hideLowConfidence")} />
         </div>
       </div>
 

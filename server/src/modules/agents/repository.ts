@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
@@ -204,6 +204,15 @@ export class AgentsRepository {
     return links.map((l) => l.skill.id);
   }
 
+  async skillsBelongToWorkspace(workspaceId: string, skillIds: string[]): Promise<boolean> {
+    if (skillIds.length === 0) return true;
+    const rows = await this.db
+      .select({ id: t.skills.id })
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), inArray(t.skills.id, skillIds)));
+    return rows.length === skillIds.length;
+  }
+
   /** Link a skill to an agent at a given order (idempotent: upserts order). */
   async linkSkill(agentId: string, skillId: string, order: number): Promise<void> {
     await this.db
@@ -232,5 +241,15 @@ export class AgentsRepository {
     await this.db
       .insert(t.agentSkills)
       .values(skillIds.map((skillId, i) => ({ agentId, skillId, order: i })));
+  }
+
+  async snapshotSkillsChange(workspaceId: string, agentId: string): Promise<void> {
+    const agent = await this.getById(workspaceId, agentId);
+    if (!agent) return;
+    const nextVersion = agent.version + 1;
+    const [updated] = await this.db.update(t.agents).set({ version: nextVersion })
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, agentId)))
+      .returning();
+    if (updated) await this.snapshotVersion(updated, nextVersion);
   }
 }

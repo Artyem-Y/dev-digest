@@ -28,8 +28,12 @@
   },
   "panel": {
     "hideLowConfidence": "Hide low confidence",
+    "severityFilter": "Filter by severity",
+    "category": "Category",
+    "allCategories": "All categories",
     "noMatchTitle": "No findings match",
-    "noMatchBody": "Adjust the filters above, or run a review to generate findings."
+    "noMatchBody": "Adjust the filters above, or run a review to generate findings.",
+    "showOnlySeverity": "Show only {severity} findings"
   },
   "runReview": {
     "runAll": "Run all enabled agents",
@@ -91,10 +95,14 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "findings": "Findings",
       "status": "Status",
+      "cost": "Cost",
       "updated": "Updated"
     },
     "filesCount": "{count} files",
+    "findingsPreviewTitle": "{count} findings",
+    "findingsChipLabel": "{severity} findings: {count}",
     "errorTitle": "Couldn’t load pull requests",
     "errorBody": "The engine returned an error.",
     "emptyTitle": "No pull requests",

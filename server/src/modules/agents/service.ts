@@ -1,4 +1,3 @@
-import type { Container } from '../../platform/container.js';
 import type {
   Agent,
   AgentSkillLink,
@@ -10,6 +9,7 @@ import type {
 } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
 import { toAgentDto, toAgentVersionDto } from './helpers.js';
+import { ValidationError } from '../../platform/errors.js';
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
@@ -49,29 +49,30 @@ export interface UpdateAgentInput {
 }
 
 export class AgentsService {
-  private repo: AgentsRepository;
-
-  constructor(private container: Container) {
-    this.repo = new AgentsRepository(container.db);
-  }
+  constructor(
+    private readonly dependencies: {
+      repository: AgentsRepository;
+      listModels(provider: Provider): Promise<ModelInfo[]>;
+    },
+  ) {}
 
   async list(workspaceId: string): Promise<Agent[]> {
-    const rows = await this.repo.list(workspaceId);
+    const rows = await this.dependencies.repository.list(workspaceId);
     return rows.map(toAgentDto);
   }
 
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {
-    const row = await this.repo.getById(workspaceId, id);
+    const row = await this.dependencies.repository.getById(workspaceId, id);
     return row ? toAgentDto(row) : undefined;
   }
 
   /** Delete an agent (and its versions/skill-links, via cascade). */
   async delete(workspaceId: string, id: string): Promise<boolean> {
-    return this.repo.deleteById(workspaceId, id);
+    return this.dependencies.repository.deleteById(workspaceId, id);
   }
 
   async create(workspaceId: string, input: CreateAgentInput, userId?: string): Promise<Agent> {
-    const row = await this.repo.insert({
+    const row = await this.dependencies.repository.insert({
       workspaceId,
       name: input.name,
       description: input.description,
@@ -93,7 +94,7 @@ export class AgentsService {
     id: string,
     patch: UpdateAgentInput,
   ): Promise<Agent | undefined> {
-    const row = await this.repo.update(workspaceId, id, {
+    const row = await this.dependencies.repository.update(workspaceId, id, {
       ...(patch.name !== undefined ? { name: patch.name } : {}),
       ...(patch.description !== undefined ? { description: patch.description } : {}),
       ...(patch.provider !== undefined ? { provider: patch.provider } : {}),
@@ -114,9 +115,9 @@ export class AgentsService {
    * so version snapshots can't be read across tenants.
    */
   async listVersions(workspaceId: string, agentId: string): Promise<AgentVersion[] | undefined> {
-    const agent = await this.repo.getById(workspaceId, agentId);
+    const agent = await this.dependencies.repository.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    const rows = await this.repo.listVersions(agentId);
+    const rows = await this.dependencies.repository.listVersions(agentId);
     return rows.map(toAgentVersionDto);
   }
 
@@ -129,15 +130,15 @@ export class AgentsService {
     agentId: string,
     version: number,
   ): Promise<AgentVersion | undefined> {
-    const agent = await this.repo.getById(workspaceId, agentId);
+    const agent = await this.dependencies.repository.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    const row = await this.repo.getVersion(agentId, version);
+    const row = await this.dependencies.repository.getVersion(agentId, version);
     return row ? toAgentVersionDto(row) : undefined;
   }
 
   /** Linked skills for an agent as AgentSkillLink[] (ordered). */
   async skillLinks(agentId: string): Promise<AgentSkillLink[]> {
-    const links = await this.repo.linkedSkills(agentId);
+    const links = await this.dependencies.repository.linkedSkills(agentId);
     return links.map((l) => ({ agent_id: agentId, skill_id: l.skill.id, order: l.order }));
   }
 
@@ -150,9 +151,16 @@ export class AgentsService {
     agentId: string,
     skillIds: string[],
   ): Promise<AgentSkillLink[] | undefined> {
-    const agent = await this.repo.getById(workspaceId, agentId);
+    const agent = await this.dependencies.repository.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    await this.repo.setSkills(agentId, skillIds);
+    if (new Set(skillIds).size !== skillIds.length) {
+      throw new ValidationError('A skill can only be linked once to an agent');
+    }
+    if (!(await this.dependencies.repository.skillsBelongToWorkspace(workspaceId, skillIds))) {
+      throw new ValidationError('Every linked skill must belong to this workspace');
+    }
+    await this.dependencies.repository.setSkills(agentId, skillIds);
+    await this.dependencies.repository.snapshotSkillsChange(workspaceId, agentId);
     return this.skillLinks(agentId);
   }
 
@@ -163,11 +171,15 @@ export class AgentsService {
     skillId: string,
     order?: number,
   ): Promise<AgentSkillLink[] | undefined> {
-    const agent = await this.repo.getById(workspaceId, agentId);
+    const agent = await this.dependencies.repository.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    const existing = await this.repo.linkedSkills(agentId);
+    if (!(await this.dependencies.repository.skillsBelongToWorkspace(workspaceId, [skillId]))) {
+      throw new ValidationError('The skill must belong to this workspace');
+    }
+    const existing = await this.dependencies.repository.linkedSkills(agentId);
     const resolvedOrder = order ?? existing.length;
-    await this.repo.linkSkill(agentId, skillId, resolvedOrder);
+    await this.dependencies.repository.linkSkill(agentId, skillId, resolvedOrder);
+    await this.dependencies.repository.snapshotSkillsChange(workspaceId, agentId);
     return this.skillLinks(agentId);
   }
 
@@ -177,8 +189,7 @@ export class AgentsService {
    */
   async listModels(provider: Provider): Promise<ModelInfo[]> {
     try {
-      const llm = await this.container.llm(provider);
-      return await llm.listModels();
+      return await this.dependencies.listModels(provider);
     } catch {
       return [];
     }
