@@ -6,7 +6,7 @@
  * + age, so it gets unit coverage independent of the route's queries.
  */
 import { describe, it, expect } from 'vitest';
-import { deriveReviewStatus, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/status.js';
+import { deriveReviewStatus, rollupSeverities, selectLatestReviewIdsPerAgent, STALE_DAYS } from '../src/modules/pulls/status.js';
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 5, 11);
@@ -64,5 +64,17 @@ describe('rollupSeverities', () => {
 
   it('is all-zero for no findings', () => {
     expect(rollupSeverities([])).toEqual({ critical: 0, warning: 0, suggestion: 0 });
+  });
+});
+
+describe('selectLatestReviewIdsPerAgent', () => {
+  it('keeps the newest review for each agent on a PR', () => {
+    expect(
+      selectLatestReviewIdsPerAgent([
+        { id: 'new-security', prId: 'pr-1', agentId: 'security' },
+        { id: 'old-security', prId: 'pr-1', agentId: 'security' },
+        { id: 'performance', prId: 'pr-1', agentId: 'performance' },
+      ]),
+    ).toEqual(new Set(['new-security', 'performance']));
   });
 });

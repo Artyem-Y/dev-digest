@@ -33,7 +33,8 @@ function tuningParams(
   if (isReasoningModel(model)) {
     return maxTokens ? { max_completion_tokens: maxTokens } : {};
   }
-  const p: Record<string, number> = { temperature: temperature ?? 0 };
+  const p: Record<string, number> = {};
+  if (temperature !== undefined) p.temperature = temperature;
   if (maxTokens) p.max_tokens = maxTokens;
   return p;
 }
@@ -71,7 +72,7 @@ export class OpenAIProvider implements LLMProvider {
     const res = await this.client.chat.completions.create({
       model: req.model,
       messages: req.messages,
-      ...tuningParams(req.model, req.temperature ?? 0.2, req.maxTokens),
+      ...tuningParams(req.model, req.temperature, req.maxTokens),
     });
     const text = res.choices?.[0]?.message?.content ?? '';
     const tokensIn = res.usage?.prompt_tokens ?? 0;

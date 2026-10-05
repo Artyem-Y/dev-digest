@@ -15,6 +15,7 @@ const PRICING: Record<string, Price> = {
   'gpt-5.4-nano': { in: 0.2, out: 1.25 },
   'gpt-5.1': { in: 1.25, out: 10.0 },
   'gpt-5': { in: 1.25, out: 10.0 },
+  'gpt-6-luna': { in: 0.1, out: 0.5 },
   'gpt-4.1': { in: 2.0, out: 8.0 },
   'gpt-4.1-mini': { in: 0.4, out: 1.6 },
   'gpt-4o': { in: 2.5, out: 10.0 },

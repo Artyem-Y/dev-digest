@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
+import type { FindingActionKind, RunEventKind, RunTrace, RunTraceResponse } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import { ReviewRepository } from './repository.js';
@@ -114,19 +114,23 @@ export class ReviewService {
     // Create the agent_run rows up front so a runId is available IMMEDIATELY —
     // the client persists these in global state and subscribes to the SSE
     // stream. The actual (slow) review runs in the background below.
-    const runs: { run_id: string; agent_id: string; agent_name: string }[] = [];
-    const jobs: { agent: AgentRow; runId: string }[] = [];
-    for (const agent of targets) {
-      const runId = await this.repo.createAgentRun({
-        workspaceId,
-        agentId: agent.id,
-        prId,
-        provider: agent.provider,
-        model: agent.model,
-      });
-      runs.push({ run_id: runId, agent_id: agent.id, agent_name: agent.name });
-      jobs.push({ agent, runId });
-    }
+    const jobs = await Promise.all(
+      targets.map(async (agent) => ({
+        agent,
+        runId: await this.repo.createAgentRun({
+          workspaceId,
+          prId,
+          agentId: agent.id,
+          provider: agent.provider,
+          model: agent.model,
+        }),
+      })),
+    );
+    const runs = jobs.map(({ agent, runId }) => ({
+      run_id: runId,
+      agent_id: agent.id,
+      agent_name: agent.name,
+    }));
 
     // Fire-and-forget: the HTTP response returns now with the runIds; reviews
     // are persisted as each agent finishes and the client refetches on SSE done.
@@ -173,7 +177,7 @@ export class ReviewService {
     );
   }
 
-  async getRunTrace(runId: string): Promise<RunTrace | undefined> {
+  async getRunTrace(runId: string): Promise<RunTraceResponse | undefined> {
     return this.repo.getRunTrace(runId);
   }
 }
