@@ -22,6 +22,7 @@ export function ConventionsPageView() {
   const createSkill = useCreateConventionsSkill();
   const [editing, setEditing] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const canExtract = Boolean(selectedId && repo?.clone_path);
   const visibleCandidates = candidates.filter((item) => item.status !== "rejected");
   const accepted = visibleCandidates.filter((item) => item.status === "accepted");
   const suggestedName = "repo-conventions";
@@ -38,11 +39,12 @@ export function ConventionsPageView() {
       <div><h1 style={{ marginBottom: 6 }}>{t("page.headingPrefix")}{repo?.full_name ?? t("page.repoFallback")}</h1><p style={{ color: "var(--text-secondary)" }}>{t("page.subtitle")}</p></div>
       <div style={{ display: "flex", gap: 8 }}>
         <select aria-label="Repository" value={selectedId ?? ""} onChange={(event) => setRepoId(event.target.value)}>{repos.map((item) => <option key={item.id} value={item.id}>{item.full_name}</option>)}</select>
-        <button type="button" disabled={!selectedId || scan.isPending} onClick={() => selectedId && scan.mutate(selectedId)}>{scan.isPending ? t("page.scanning") : t("page.runExtraction")}</button>
-        <button type="button" disabled={!selectedId || scan.isPending || visibleCandidates.length === 0} onClick={() => selectedId && scan.mutate(selectedId)}>{t("page.rescan")}</button>
+        <button type="button" disabled={!canExtract || scan.isPending} onClick={() => selectedId && scan.mutate(selectedId)}>{scan.isPending ? t("page.scanning") : t("page.runExtraction")}</button>
+        <button type="button" disabled={!canExtract || scan.isPending || visibleCandidates.length === 0} onClick={() => selectedId && scan.mutate(selectedId)}>{t("page.rescan")}</button>
         {accepted.length > 0 && <button type="button" disabled={!selectedId || createSkill.isPending} onClick={() => setCreateOpen(true)}>Create skill</button>}
       </div>
     </div>
+    {repo && !repo.clone_path && <p role="status" style={{ color: "var(--text-secondary)", marginTop: 16 }}>{t("page.cloneRequired")}</p>}
     {isLoading ? <p>{t("page.scanning")}</p> : visibleCandidates.length === 0 ? <div style={{ padding: 28, color: "var(--text-secondary)" }}><h2>{t("page.empty.title")}</h2><p>{t("page.empty.body")}</p></div> : <div style={{ display: "grid", gap: 12, marginTop: 24 }}>{visibleCandidates.map((candidate) => <article key={candidate.id} style={{ border: "1px solid var(--border)", borderLeft: `3px solid ${candidate.status === "accepted" ? "var(--green)" : "var(--border)"}`, borderRadius: 8, padding: 16 }}>
       {editing === candidate.id ? <input aria-label="Convention rule" defaultValue={candidate.rule} autoFocus onKeyDown={(event) => { if (event.key === "Enter" && selectedId) { update.mutate({ repoId: selectedId, id: candidate.id, status: candidate.status, rule: event.currentTarget.value }); setEditing(null); } }} /> : <h3 style={{ marginTop: 0 }}>{candidate.rule}</h3>}
       <a href={repo ? githubBlobUrl(repo.full_name, repo.default_branch, candidate.evidence_path, candidate.evidence_line) : "#"} target="_blank" rel="noreferrer">{candidate.evidence_path}:{candidate.evidence_line}</a>

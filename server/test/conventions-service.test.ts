@@ -2,6 +2,34 @@ import { describe, expect, it } from 'vitest';
 import { ConventionsService } from '../src/modules/conventions/service.js';
 
 describe('ConventionsService', () => {
+  it('serializes database convention fields to the shared API contract', async () => {
+    const service = new ConventionsService({
+      repository: {
+        list: async () => [{
+          id: '3b1a4db3-a8b1-4ad1-9d28-e0dbf97b9d0d',
+          category: 'style',
+          rule: 'Use await',
+          evidencePath: 'src/api.ts',
+          evidenceLine: 2,
+          evidenceSnippet: 'const value = await load();',
+          confidence: 0.9,
+          status: 'pending',
+        }],
+      } as never,
+    } as never);
+
+    await expect(service.list('workspace', 'repo')).resolves.toEqual([{
+      id: '3b1a4db3-a8b1-4ad1-9d28-e0dbf97b9d0d',
+      category: 'style',
+      rule: 'Use await',
+      evidence_path: 'src/api.ts',
+      evidence_line: 2,
+      evidence_snippet: 'const value = await load();',
+      confidence: 0.9,
+      status: 'pending',
+    }]);
+  });
+
   it('persists only candidates whose evidence was verified against sampled files', async () => {
     const inserted: unknown[] = [];
     const service = new ConventionsService({
@@ -22,7 +50,7 @@ describe('ConventionsService', () => {
     const candidates = await service.scan('workspace', 'repo');
 
     expect(candidates).toHaveLength(1);
-    expect(candidates[0]).toMatchObject({ rule: 'Use await', evidencePath: 'src/api.ts', evidenceLine: 2, evidenceSnippet: 'two' });
+    expect(candidates[0]).toMatchObject({ rule: 'Use await', evidence_path: 'src/api.ts', evidence_line: 2, evidence_snippet: 'two' });
     expect(inserted).toHaveLength(1);
   });
 

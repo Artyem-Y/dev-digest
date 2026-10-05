@@ -43,7 +43,7 @@ export default async function conventionsRoutes(appBase: FastifyInstance) {
     const { workspaceId } = await getContext(app.container, req);
     const repo = await conventions.repo(workspaceId, req.params.repoId);
     const rows = await conventions.list(workspaceId, req.params.repoId) as Array<{
-      rule: string; editedRule: string | null; status: string; evidencePath: string | null; evidenceLine: number | null;
+      rule: string; status: string; evidence_path: string; evidence_line: number;
     }>;
     const accepted = rows.filter((row) => row.status === 'accepted');
     if (accepted.length === 0) {
@@ -55,8 +55,8 @@ export default async function conventionsRoutes(appBase: FastifyInstance) {
       'Flag changes that violate these verified repository conventions. Cite the offending file and line.',
       '',
       ...accepted.flatMap((row) => [
-        `## ${row.editedRule ?? row.rule}`,
-        row.evidencePath && row.evidenceLine ? `Evidence: \`${row.evidencePath}:${row.evidenceLine}\`.` : '',
+        `## ${row.rule}`,
+        `Evidence: \`${row.evidence_path}:${row.evidence_line}\`.`,
         '',
       ]),
     ].join('\n').trim();
@@ -66,7 +66,7 @@ export default async function conventionsRoutes(appBase: FastifyInstance) {
       type: 'convention',
       body: req.body.body ?? generatedBody,
       source: 'extracted',
-      evidence_files: accepted.flatMap((row) => row.evidencePath ? [row.evidencePath] : []),
+      evidence_files: accepted.map((row) => row.evidence_path),
     });
     const agentId = req.body.agent_id ?? (await agents.list(workspaceId))[0]?.id;
     if (agentId) {

@@ -117,3 +117,13 @@ A model path and snippet are untrusted output. Filtering only when persisting st
 - Implication: When adding a reviewer specialization, extend the shared FindingCategory contract in both vendored copies before relying on its structured output.
 
 The structured Review schema validates category before grounding and persistence. A valid API-contract finding is rejected at that boundary when contract is absent, so the run can silently lack the intended review result.
+
+<!-- insight-id: eng-server-d56bee8bcd32 -->
+## eng-server-d56bee8bcd32 — Convention rows must cross the API as shared DTOs
+
+- Date: 2026-10-05
+- Category: boundary
+- Evidence: server/src/modules/conventions/repository.ts returns Drizzle camelCase columns while client/src/vendor/shared/contracts/knowledge.ts requires snake_case ConventionCandidate fields; server/test/conventions-service.test.ts now verifies the conversion.
+- Implication: Map convention persistence rows at the service boundary for list, scan, and status updates; do not pass Drizzle rows directly to Fastify handlers.
+
+Drizzle column property names are persistence implementation details. The conventions UI consumes the shared snake_case contract, so leaking a raw row omits evidence_path and breaks source links even when the database contains a valid path.

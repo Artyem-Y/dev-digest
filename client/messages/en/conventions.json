@@ -8,6 +8,7 @@
     "scanning": "Scanning…",
     "rescan": "Re-scan",
     "runExtraction": "Run extraction",
+    "cloneRequired": "This repository has no local checkout. Add or re-sync a real GitHub repository before extracting conventions.",
     "extractionFailed": "Extraction failed",
     "loadError": "Could not load conventions.",
     "empty": {

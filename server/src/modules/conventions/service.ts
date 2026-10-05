@@ -6,6 +6,8 @@ import type { SettingsRepositoryPort } from '../settings/repository.js';
 import type { RepoRepositoryPort } from '../repos/service.js';
 import { NotFoundError, AppError } from '../../platform/errors.js';
 import { verifyConventionEvidence, type VerifiedConventionEvidence } from './application/verify-evidence.js';
+import { toConventionCandidate } from './helpers.js';
+import type * as t from '../../db/schema.js';
 
 const Extraction = z.object({
   candidates: z.array(z.object({
@@ -20,12 +22,13 @@ const Extraction = z.object({
 type PersistedCandidate = {
   category: string; rule: string; evidencePath: string; evidenceLine: number; evidenceSnippet: string; confidence: number;
 };
+type ConventionRow = typeof t.conventions.$inferSelect;
 
 export interface ConventionsServiceDependencies {
   repository: {
-    list(workspaceId: string, repoId: string): Promise<unknown[]>;
-    replace(workspaceId: string, repoId: string, rows: PersistedCandidate[]): Promise<unknown[]>;
-    setStatus(workspaceId: string, repoId: string, id: string, status: 'pending' | 'accepted' | 'rejected', rule?: string): Promise<unknown>;
+    list(workspaceId: string, repoId: string): Promise<ConventionRow[]>;
+    replace(workspaceId: string, repoId: string, rows: PersistedCandidate[]): Promise<ConventionRow[]>;
+    setStatus(workspaceId: string, repoId: string, id: string, status: 'pending' | 'accepted' | 'rejected', rule?: string): Promise<ConventionRow | undefined>;
   };
   repos: Pick<RepoRepositoryPort, 'getById'>;
   repoIntel: Pick<RepoIntel, 'getConventionSamples'>;
@@ -39,7 +42,9 @@ export interface ConventionsServiceDependencies {
 export class ConventionsService {
   constructor(private readonly dependencies: ConventionsServiceDependencies) {}
 
-  async list(workspaceId: string, repoId: string) { return this.dependencies.repository.list(workspaceId, repoId); }
+  async list(workspaceId: string, repoId: string) {
+    return (await this.dependencies.repository.list(workspaceId, repoId)).map(toConventionCandidate);
+  }
 
   async repo(workspaceId: string, repoId: string) {
     const repo = await this.dependencies.repos.getById(workspaceId, repoId);
@@ -59,7 +64,7 @@ export class ConventionsService {
       return content ? `FILE: ${path}\n${content.slice(0, 16_000)}` : '';
     }));
     const usablePaths = paths.filter((_path, index) => samples[index]);
-    if (!usablePaths.length) return this.dependencies.repository.replace(workspaceId, repoId, []);
+    if (!usablePaths.length) return (await this.dependencies.repository.replace(workspaceId, repoId, [])).map(toConventionCandidate);
 
     const model = await resolveFeatureModel(this.dependencies.settings, workspaceId, 'conventions');
     const provider = await this.dependencies.llm(model.provider);
@@ -81,12 +86,12 @@ export class ConventionsService {
       const evidence = await verify(repo.clonePath!, sampled, candidate.evidence_path, candidate.evidence_line);
       return evidence ? { category: candidate.category, rule: candidate.rule, confidence: candidate.confidence, ...evidence } : null;
     }))).filter((candidate): candidate is PersistedCandidate => candidate !== null);
-    return this.dependencies.repository.replace(workspaceId, repoId, verified);
+    return (await this.dependencies.repository.replace(workspaceId, repoId, verified)).map(toConventionCandidate);
   }
 
   async setStatus(workspaceId: string, repoId: string, id: string, status: 'pending' | 'accepted' | 'rejected', rule?: string) {
     const row = await this.dependencies.repository.setStatus(workspaceId, repoId, id, status, rule);
     if (!row) throw new NotFoundError('Convention not found');
-    return row;
+    return toConventionCandidate(row);
   }
 }
