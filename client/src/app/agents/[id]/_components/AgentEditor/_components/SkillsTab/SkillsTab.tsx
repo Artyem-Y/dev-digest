@@ -4,17 +4,19 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, ErrorState, Skeleton } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
-import { useAgentSkills, useReplaceAgentSkills, useSkills } from "@/lib/hooks/skills";
+import { useAgentSkills, useReplaceAgentSkills, useSetAgentSkillEnabled, useSkills } from "@/lib/hooks/skills";
 
 export function SkillsTab({ agent }: { agent: Agent }) {
   const t = useTranslations("agents");
   const { data: skills, isLoading: skillsLoading, isError: skillsError, refetch: refetchSkills } = useSkills();
   const { data: links, isLoading: linksLoading, isError: linksError } = useAgentSkills(agent.id);
   const replace = useReplaceAgentSkills();
+  const setEnabled = useSetAgentSkillEnabled();
   const [filter, setFilter] = React.useState("");
+  const [draggedId, setDraggedId] = React.useState<string | null>(null);
   const orderedIds = React.useMemo(() => (links ?? []).slice().sort((a, b) => a.order - b.order).map((link) => link.skill_id), [links]);
   const filtered = (skills ?? []).filter((skill) => skill.name.toLowerCase().includes(filter.toLowerCase()));
-  const enabledLinked = (skills ?? []).filter((skill) => orderedIds.includes(skill.id) && skill.enabled).length;
+  const enabledLinked = (links ?? []).filter((link) => link.enabled !== false && (skills ?? []).some((skill) => skill.id === link.skill_id && skill.enabled)).length;
 
   const save = (next: string[]) => replace.mutate({ agentId: agent.id, skillIds: next });
   const toggle = (skillId: string) => save(orderedIds.includes(skillId) ? orderedIds.filter((id) => id !== skillId) : [...orderedIds, skillId]);
@@ -30,6 +32,15 @@ export function SkillsTab({ agent }: { agent: Agent }) {
     next[target] = current;
     save(next);
   };
+  const reorderEnabled = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const enabledIds = (links ?? []).filter((link) => link.enabled).sort((a, b) => a.order - b.order).map((link) => link.skill_id);
+    if (!enabledIds.includes(sourceId) || !enabledIds.includes(targetId)) return;
+    const moved = enabledIds.filter((id) => id !== sourceId);
+    moved.splice(moved.indexOf(targetId), 0, sourceId);
+    let cursor = 0;
+    save(orderedIds.map((id) => enabledIds.includes(id) ? moved[cursor++]! : id));
+  };
 
   if (skillsLoading || linksLoading) return <div style={{ padding: 28 }}><Skeleton height={42} /><Skeleton height={100} /></div>;
   if (skillsError || linksError) return <ErrorState body={t("skills.loadError")} onRetry={() => refetchSkills()} />;
@@ -41,15 +52,17 @@ export function SkillsTab({ agent }: { agent: Agent }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {filtered.map((skill) => {
         const linked = orderedIds.includes(skill.id);
+        const linkEnabled = links?.find((link) => link.skill_id === skill.id)?.enabled !== false;
         const position = orderedIds.indexOf(skill.id);
-        return <label key={skill.id} style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid var(--border)", borderRadius: 8, padding: 12 }}>
+        return <label key={skill.id} draggable={linked && linkEnabled} onDragStart={() => setDraggedId(skill.id)} onDragOver={(event) => { if (linked && linkEnabled) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); if (draggedId) reorderEnabled(draggedId, skill.id); setDraggedId(null); }} style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid var(--border)", borderRadius: 8, padding: 12, opacity: draggedId === skill.id ? 0.55 : 1, cursor: linked && linkEnabled ? "grab" : undefined }}>
           <input aria-label={skill.name} type="checkbox" checked={linked} onChange={() => toggle(skill.id)} disabled={replace.isPending} />
           <span style={{ flex: 1 }}><strong>{skill.name}</strong>{skill.description && <span style={{ display: "block", color: "var(--text-secondary)", fontSize: 13 }}>{skill.description}</span>}</span>
           <Badge color="var(--text-secondary)">{skill.type}</Badge>
           <Badge color={skill.enabled ? "var(--green)" : "var(--text-muted)"}>{skill.enabled ? t("skills.enabled") : t("editor.disabled")}</Badge>
+          {linked && <input aria-label={`Enable ${skill.name}`} type="checkbox" checked={linkEnabled} onChange={(event) => setEnabled.mutate({ agentId: agent.id, skillId: skill.id, enabled: event.target.checked })} />}
           {linked && <span style={{ display: "flex", gap: 4 }}>
-            <button type="button" aria-label={t("skills.moveUp", { name: skill.name })} disabled={replace.isPending || position === 0} onClick={(event) => { event.preventDefault(); move(skill.id, -1); }}>↑</button>
-            <button type="button" aria-label={t("skills.moveDown", { name: skill.name })} disabled={replace.isPending || position === orderedIds.length - 1} onClick={(event) => { event.preventDefault(); move(skill.id, 1); }}>↓</button>
+            <button type="button" aria-label={t("skills.moveUp", { name: skill.name })} disabled={replace.isPending || !linkEnabled || position === 0} onClick={(event) => { event.preventDefault(); move(skill.id, -1); }}>↑</button>
+            <button type="button" aria-label={t("skills.moveDown", { name: skill.name })} disabled={replace.isPending || !linkEnabled || position === orderedIds.length - 1} onClick={(event) => { event.preventDefault(); move(skill.id, 1); }}>↓</button>
           </span>}
         </label>;
       })}

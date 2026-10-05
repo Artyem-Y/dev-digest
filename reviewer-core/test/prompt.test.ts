@@ -64,3 +64,26 @@ describe('assemblePrompt — ## PR description', () => {
     expect((assembly.pr_description as string).length).toBe(4000);
   });
 });
+
+describe('assemblePrompt — skills trace block', () => {
+  it('preserves skill order and counts only the final skills block', () => {
+    const { assembly, messages } = assemblePrompt({
+      system: 'sys',
+      diff: 'DIFF',
+      skills: ['# First rule', '# Second rule'],
+    });
+
+    expect(assembly.skills).toBe('# First rule\n\n# Second rule');
+    expect((assembly as { skill_tokens?: number | null }).skill_tokens).toBe(7);
+    expect(messages[1]!.content.indexOf('# First rule')).toBeLessThan(
+      messages[1]!.content.indexOf('# Second rule'),
+    );
+  });
+
+  it('omits both the skills block and its token count without enabled skills', () => {
+    const { assembly } = assemblePrompt({ system: 'sys', diff: 'DIFF', skills: [] });
+
+    expect(assembly.skills).toBeNull();
+    expect((assembly as { skill_tokens?: number | null }).skill_tokens).toBeNull();
+  });
+});

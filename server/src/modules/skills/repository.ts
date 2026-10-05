@@ -42,6 +42,18 @@ export class SkillsRepository {
     return Number(row?.count ?? 0);
   }
 
+  async listVersions(workspaceId: string, id: string) {
+    const skill = await this.get(workspaceId, id);
+    if (!skill) return undefined;
+    return this.db.select().from(t.skillVersions).where(eq(t.skillVersions.skillId, id)).orderBy(sql`${t.skillVersions.version} desc`);
+  }
+
+  async getVersion(workspaceId: string, id: string, version: number) {
+    if (!(await this.get(workspaceId, id))) return undefined;
+    const [row] = await this.db.select().from(t.skillVersions).where(and(eq(t.skillVersions.skillId, id), eq(t.skillVersions.version, version)));
+    return row;
+  }
+
   async delete(workspaceId: string, id: string) {
     const rows = await this.db.delete(t.skills).where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id))).returning({ id: t.skills.id });
     return rows.length > 0;

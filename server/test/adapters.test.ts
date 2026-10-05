@@ -41,6 +41,27 @@ describe('mock adapters (no network)', () => {
 });
 
 describe('structured review pipeline (mock LLM → grounding)', () => {
+  it('chooses a deterministic review fixture from the assembled prompt', async () => {
+    const llm = new MockLLMProvider('openai', {
+      structuredResolver: (request) =>
+        request.messages.some((message) => message.content.includes('BREAKING-CHANGE SKILL'))
+          ? { verdict: 'request_changes', summary: 'contract changed', score: 0, findings: [] }
+          : { verdict: 'approve', summary: 'no contract rule', score: 100, findings: [] },
+    });
+
+    const withoutSkill = await llm.completeStructured({
+      model: 'gpt-4.1', schema: Review, schemaName: 'Review',
+      messages: [{ role: 'user', content: 'Review this diff.' }],
+    });
+    const withSkill = await llm.completeStructured({
+      model: 'gpt-4.1', schema: Review, schemaName: 'Review',
+      messages: [{ role: 'user', content: '## Skills / rules\nBREAKING-CHANGE SKILL' }],
+    });
+
+    expect(withoutSkill.data.verdict).toBe('approve');
+    expect(withSkill.data.verdict).toBe('request_changes');
+  });
+
   it('runs assemble → completeStructured(Review) → groundFindings end-to-end', async () => {
     // a fixture review where one finding is grounded and one is hallucinated
     const fixture = {

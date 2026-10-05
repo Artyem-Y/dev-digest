@@ -4,9 +4,10 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Icon, Badge, Toggle } from "@devdigest/ui";
+import { Button, Icon, Badge, Modal, Toggle } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
 import { useDeleteAgent } from "../../../../lib/hooks/agents";
+import { useAgentSkills } from "../../../../lib/hooks/skills";
 import { modelColor } from "./helpers";
 import { s } from "./styles";
 
@@ -25,6 +26,8 @@ export function AgentCard({
 }) {
   const t = useTranslations("agents");
   const del = useDeleteAgent();
+  const { data: links } = useAgentSkills(ag.id);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
   const color = modelColor(ag.model);
   return (
     <div onClick={onClick} style={s.card(!!active, ag.enabled)}>
@@ -41,7 +44,7 @@ export function AgentCard({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            if (window.confirm(`Delete agent "${ag.name}"? This cannot be undone.`)) del.mutate(ag.id);
+            setConfirmDelete(true);
           }}
           disabled={del.isPending}
           title="Delete agent"
@@ -63,12 +66,13 @@ export function AgentCard({
         <span className="mono" style={s.modelChip(color)}>
           {ag.model}
         </span>
-        {skillCount != null && (
+        {(skillCount ?? links?.length) != null && (
           <Badge color="var(--text-secondary)" icon="Sparkles">
-            {t("card.skillCount", { count: skillCount })}
+            {t("card.skillCount", { count: skillCount ?? links?.length ?? 0 })}
           </Badge>
         )}
       </div>
+      {confirmDelete && <Modal title="Delete agent" subtitle={`Delete ${ag.name}? This cannot be undone.`} onClose={() => setConfirmDelete(false)} footer={<><Button kind="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button><Button kind="danger" disabled={del.isPending} onClick={() => del.mutate(ag.id, { onSuccess: () => setConfirmDelete(false) })}>Delete</Button></>} />}
     </div>
   );
 }

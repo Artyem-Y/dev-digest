@@ -5,6 +5,7 @@ import messages from "../../../../../../../../messages/en/agents.json";
 import type { Agent, Skill } from "@devdigest/shared";
 
 const replace = vi.fn();
+const setEnabled = vi.fn();
 
 vi.mock("@/lib/hooks/skills", () => ({
   useSkills: () => ({ data: [
@@ -13,13 +14,14 @@ vi.mock("@/lib/hooks/skills", () => ({
   ], isLoading: false, isError: false, refetch: vi.fn() }),
   useAgentSkills: () => ({ data: [{ agent_id: "agent-1", skill_id: "one", order: 0 }], isLoading: false, isError: false }),
   useReplaceAgentSkills: () => ({ mutate: replace, isPending: false }),
+  useSetAgentSkillEnabled: () => ({ mutate: setEnabled, isPending: false }),
 }));
 
 import { SkillsTab } from "./SkillsTab";
 
 const agent = { id: "agent-1", name: "Test", description: "", provider: "openai", model: "gpt", system_prompt: "", output_schema: null, enabled: true, version: 1, strategy: "single-pass", ci_fail_on: "critical", repo_intel: true } as Agent;
 
-afterEach(() => { cleanup(); replace.mockReset(); });
+afterEach(() => { cleanup(); replace.mockReset(); setEnabled.mockReset(); });
 
 describe("SkillsTab", () => {
   it("shows linked count, states, and attaches a skill through the ordered endpoint", () => {

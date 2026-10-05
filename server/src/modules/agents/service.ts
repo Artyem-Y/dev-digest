@@ -139,7 +139,7 @@ export class AgentsService {
   /** Linked skills for an agent as AgentSkillLink[] (ordered). */
   async skillLinks(agentId: string): Promise<AgentSkillLink[]> {
     const links = await this.dependencies.repository.linkedSkills(agentId);
-    return links.map((l) => ({ agent_id: agentId, skill_id: l.skill.id, order: l.order }));
+    return links.map((l) => ({ agent_id: agentId, skill_id: l.skill.id, order: l.order, enabled: l.enabled }));
   }
 
   /**
@@ -179,6 +179,14 @@ export class AgentsService {
     const existing = await this.dependencies.repository.linkedSkills(agentId);
     const resolvedOrder = order ?? existing.length;
     await this.dependencies.repository.linkSkill(agentId, skillId, resolvedOrder);
+    await this.dependencies.repository.snapshotSkillsChange(workspaceId, agentId);
+    return this.skillLinks(agentId);
+  }
+
+  async setSkillEnabled(workspaceId: string, agentId: string, skillId: string, enabled: boolean): Promise<AgentSkillLink[] | undefined> {
+    const agent = await this.dependencies.repository.getById(workspaceId, agentId);
+    if (!agent) return undefined;
+    await this.dependencies.repository.setSkillEnabled(agentId, skillId, enabled);
     await this.dependencies.repository.snapshotSkillsChange(workspaceId, agentId);
     return this.skillLinks(agentId);
   }

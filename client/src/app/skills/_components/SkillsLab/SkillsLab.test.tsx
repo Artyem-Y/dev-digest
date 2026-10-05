@@ -6,6 +6,7 @@ import type { Skill } from "@devdigest/shared";
 
 const create = vi.fn();
 const update = vi.fn();
+const remove = vi.fn();
 
 vi.mock("@/lib/hooks/skills", () => ({
   useSkills: () => ({ data: [
@@ -13,6 +14,9 @@ vi.mock("@/lib/hooks/skills", () => ({
   ], isLoading: false, isError: false, refetch: vi.fn() }),
   useCreateSkill: () => ({ mutate: create, isPending: false }),
   useUpdateSkill: () => ({ mutate: update, isPending: false }),
+  useDeleteSkill: () => ({ mutate: remove, isPending: false }),
+  useImportSkillPreview: () => ({ mutate: vi.fn(), isPending: false }),
+  useImportSkill: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 import { SkillsLab } from "./SkillsLab";
@@ -36,20 +40,24 @@ describe("SkillsLab", () => {
     renderLab();
 
     expect(screen.getAllByText("Boundary cases")).toHaveLength(2);
-    expect(screen.getByText("v2")).toBeInTheDocument();
+    expect(screen.getAllByText("v2")).toHaveLength(2);
     expect(screen.getByText("Check empty input.")).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText("Search skills…"), { target: { value: "missing" } });
     expect(screen.queryByText("Boundary cases")).not.toBeInTheDocument();
   });
 
-  it("creates only a manual text skill", () => {
+  it("lets Add Skill choose manual creation before opening its form", () => {
     renderLab();
 
     fireEvent.click(screen.getByRole("button", { name: "Add Skill" }));
-    fireEvent.change(screen.getByLabelText("Skill name"), { target: { value: "Regression checks" } });
-    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Contract regressions" } });
-    fireEvent.change(screen.getByLabelText("Skill body (Markdown)"), { target: { value: "Check contracts." } });
+    expect(screen.getByRole("button", { name: "Create manually" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import existing skill" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Create manually" }));
+    fireEvent.change(screen.getAllByLabelText("Skill name")[1]!, { target: { value: "Regression checks" } });
+    fireEvent.change(screen.getAllByLabelText("Description")[1]!, { target: { value: "Contract regressions" } });
+    fireEvent.change(screen.getAllByLabelText("Skill body (Markdown)")[1]!, { target: { value: "Check contracts." } });
     fireEvent.click(screen.getByRole("button", { name: "Create skill" }));
 
     expect(create).toHaveBeenCalledWith({

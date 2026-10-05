@@ -97,3 +97,23 @@ The server uses mixed module shapes: some routes are thin adapters over services
 - Implication: Add new dependencies in a module composition factory, not in routes or application services. Keep only infrastructure adapters and composition code dependent on Container.
 
 The server now has a consistent module-bootstrap boundary for the touched HTTP modules. This preserves Fastify handlers as inbound adapters while allowing application services to be constructed with narrow dependencies and tested without the DI container.
+
+<!-- insight-id: eng-server-1b6cf249a445 -->
+## eng-server-1b6cf249a445 — Ground repository evidence before and after extraction
+
+- Date: 2026-10-05
+- Category: security
+- Evidence: server/src/modules/conventions/composition.ts rejects absolute and escaping sample paths before readFile; server/src/modules/conventions/application/verify-evidence.ts re-reads only sampled regular files and server/test/conventions-verifier.test.ts covers traversal, unsampled paths, and symlinks.
+- Implication: Repository-grounded LLM flows must constrain filesystem reads before prompt assembly and derive persisted citations from disk after structured output.
+
+A model path and snippet are untrusted output. Filtering only when persisting still permits an unsafe read or ungrounded prompt; the safe boundary is path validation before sampling plus verified file-line evidence before storage.
+
+<!-- insight-id: eng-server-45f4416186f2 -->
+## eng-server-45f4416186f2 — Contract review findings require a shared category
+
+- Date: 2026-10-05
+- Category: invariant
+- Evidence: server/test/skills-experiments.it.test.ts produced no persisted API Contract finding until server/src/vendor/shared/contracts/findings.ts accepted category contract; client/src/vendor/shared/contracts/findings.ts was updated in lockstep.
+- Implication: When adding a reviewer specialization, extend the shared FindingCategory contract in both vendored copies before relying on its structured output.
+
+The structured Review schema validates category before grounding and persistence. A valid API-contract finding is rejected at that boundary when contract is absent, so the run can silently lack the intended review result.

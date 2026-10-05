@@ -1,9 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { buildApp } from '../src/app.js';
 import { MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
 import { seed } from '../src/db/seed.js';
 import { loadConfig } from '../src/platform/config.js';
 import { dockerAvailable, startPg, type PgFixture } from './helpers/pg.js';
+import * as t from '../src/db/schema.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -69,6 +71,17 @@ d('skills API', () => {
     const deleted = await app.inject({ method: 'DELETE', url: `/skills/${created.json().id}` });
     expect(deleted.statusCode).toBe(200);
     expect(await app.inject({ method: 'GET', url: `/skills/${created.json().id}` })).toMatchObject({ statusCode: 404 });
+    await app.close();
+  });
+
+  it('does not return a skill removed directly from Postgres', async () => {
+    const app = await makeApp();
+    const created = await app.inject({ method: 'POST', url: '/skills', payload: { name: 'Externally deleted', description: 'd', type: 'custom', body: 'b' } });
+    const id = created.json().id as string;
+    await pg.handle.db.delete(t.skills).where(eq(t.skills.id, id));
+
+    const listed = await app.inject({ method: 'GET', url: '/skills' });
+    expect(listed.json()).not.toEqual(expect.arrayContaining([expect.objectContaining({ id })]));
     await app.close();
   });
 
