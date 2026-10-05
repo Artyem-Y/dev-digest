@@ -47,6 +47,22 @@ describe("SkillsLab", () => {
     expect(screen.queryByText("Boundary cases")).not.toBeInTheDocument();
   });
 
+  it("toggles a skill directly from its card", () => {
+    renderLab();
+
+    fireEvent.click(screen.getAllByRole("switch", { name: "Enable Boundary cases" })[0]!);
+
+    expect(update).toHaveBeenCalledWith({
+      id: "skill-1",
+      name: "Boundary cases",
+      description: "Failure paths",
+      body: "Check empty input.",
+      type: "rubric",
+      enabled: false,
+      expected_version: 2,
+    });
+  });
+
   it("lets Add Skill choose manual creation before opening its form", () => {
     renderLab();
 
