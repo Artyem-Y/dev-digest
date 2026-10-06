@@ -2,9 +2,17 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Button, Checkbox, ErrorState, Skeleton, TextInput, Toggle } from "@devdigest/ui";
-import type { Agent } from "@devdigest/shared";
+import { Badge, ErrorState, Skeleton, TextInput, Toggle } from "@devdigest/ui";
+import type { Agent, Skill } from "@devdigest/shared";
 import { useAgentSkills, useReplaceAgentSkills, useSetAgentSkillEnabled, useSkills } from "@/lib/hooks/skills";
+import { isUnsafeSkillContent } from "@/vendor/shared/skill-safety";
+
+const typeColors = {
+  rubric: "var(--accent-text)",
+  security: "var(--crit)",
+  convention: "var(--ok)",
+  custom: "var(--warn)",
+} as const;
 
 export function SkillsTab({ agent }: { agent: Agent }) {
   const t = useTranslations("agents");
@@ -15,23 +23,24 @@ export function SkillsTab({ agent }: { agent: Agent }) {
   const [filter, setFilter] = React.useState("");
   const [draggedId, setDraggedId] = React.useState<string | null>(null);
   const orderedIds = React.useMemo(() => (links ?? []).slice().sort((a, b) => a.order - b.order).map((link) => link.skill_id), [links]);
-  const filtered = (skills ?? []).filter((skill) => skill.name.toLowerCase().includes(filter.toLowerCase()));
-  const enabledLinked = (links ?? []).filter((link) => link.enabled !== false && (skills ?? []).some((skill) => skill.id === link.skill_id && skill.enabled)).length;
+  const filtered = React.useMemo(() => {
+    const linkBySkill = new Map((links ?? []).map((link) => [link.skill_id, link]));
+    return (skills ?? [])
+      .filter((skill) => skill.name.toLowerCase().includes(filter.toLowerCase()))
+      .sort((left, right) => {
+        const leftLink = linkBySkill.get(left.id);
+        const rightLink = linkBySkill.get(right.id);
+        const rank = (skill: Skill, link: typeof leftLink) => !link ? 2 : link.enabled !== false && skill.enabled ? 0 : 1;
+        const rankDifference = rank(left, leftLink) - rank(right, rightLink);
+        if (rankDifference !== 0) return rankDifference;
+        if (leftLink && rightLink) return leftLink.order - rightLink.order;
+        return left.name.localeCompare(right.name);
+      });
+  }, [filter, links, skills]);
+  const enabledLinked = (links ?? []).filter((link) => link.enabled !== false && (skills ?? []).some((skill) => skill.id === link.skill_id && skill.enabled && !isUnsafeSkillContent(skill.body))).length;
 
   const save = (next: string[]) => replace.mutate({ agentId: agent.id, skillIds: next });
   const toggle = (skillId: string) => save(orderedIds.includes(skillId) ? orderedIds.filter((id) => id !== skillId) : [...orderedIds, skillId]);
-  const move = (skillId: string, offset: -1 | 1) => {
-    const at = orderedIds.indexOf(skillId);
-    const target = at + offset;
-    if (at < 0 || target < 0 || target >= orderedIds.length) return;
-    const next = [...orderedIds];
-    const current = next[at];
-    const destination = next[target];
-    if (!current || !destination) return;
-    next[at] = destination;
-    next[target] = current;
-    save(next);
-  };
   const reorderEnabled = (sourceId: string, targetId: string) => {
     if (sourceId === targetId) return;
     const enabledIds = (links ?? []).filter((link) => link.enabled).sort((a, b) => a.order - b.order).map((link) => link.skill_id);
@@ -53,17 +62,12 @@ export function SkillsTab({ agent }: { agent: Agent }) {
       {filtered.map((skill) => {
         const linked = orderedIds.includes(skill.id);
         const linkEnabled = links?.find((link) => link.skill_id === skill.id)?.enabled !== false;
-        const position = orderedIds.indexOf(skill.id);
-        return <label key={skill.id} draggable={linked && linkEnabled} onDragStart={() => setDraggedId(skill.id)} onDragOver={(event) => { if (linked && linkEnabled) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); if (draggedId) reorderEnabled(draggedId, skill.id); setDraggedId(null); }} style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid var(--border)", borderRadius: 8, padding: 12, opacity: draggedId === skill.id ? 0.55 : 1, cursor: linked && linkEnabled ? "grab" : undefined }}>
-          <Checkbox checked={linked} onChange={() => toggle(skill.id)} ariaLabel={skill.name} />
+        const unsafe = isUnsafeSkillContent(skill.body);
+        const enabled = !unsafe && linked && linkEnabled;
+        return <label key={skill.id} draggable={!unsafe && linked && linkEnabled} onDragStart={() => setDraggedId(skill.id)} onDragOver={(event) => { if (!unsafe && linked && linkEnabled) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); if (draggedId) reorderEnabled(draggedId, skill.id); setDraggedId(null); }} style={{ display: "flex", alignItems: "center", gap: 12, border: `1px solid ${unsafe ? "var(--crit)" : "var(--border)"}`, borderRadius: 8, padding: 12, background: unsafe ? "var(--crit-bg)" : undefined, opacity: draggedId === skill.id ? 0.55 : 1, cursor: !unsafe && linked && linkEnabled ? "grab" : undefined }}>
+          <Toggle on={enabled} onChange={(next) => { if (unsafe) return; if (!linked && next) toggle(skill.id); else if (linked) setEnabled.mutate({ agentId: agent.id, skillId: skill.id, enabled: next }); }} ariaLabel={`Enable ${skill.name}`} size={16} disabled={unsafe} />
           <span style={{ flex: 1 }}><strong>{skill.name}</strong>{skill.description && <span style={{ display: "block", color: "var(--text-secondary)", fontSize: 13 }}>{skill.description}</span>}</span>
-          <Badge color="var(--text-secondary)">{skill.type}</Badge>
-          <Badge color={skill.enabled ? "var(--green)" : "var(--text-muted)"}>{skill.enabled ? t("skills.enabled") : t("editor.disabled")}</Badge>
-          {linked && <Toggle on={linkEnabled} onChange={(enabled) => setEnabled.mutate({ agentId: agent.id, skillId: skill.id, enabled })} ariaLabel={`Enable ${skill.name}`} size={16} />}
-          {linked && <span style={{ display: "flex", gap: 4 }}>
-            <Button kind="ghost" size="sm" aria-label={t("skills.moveUp", { name: skill.name })} disabled={replace.isPending || !linkEnabled || position === 0} onClick={(event) => { event.preventDefault(); move(skill.id, -1); }}>↑</Button>
-            <Button kind="ghost" size="sm" aria-label={t("skills.moveDown", { name: skill.name })} disabled={replace.isPending || !linkEnabled || position === orderedIds.length - 1} onClick={(event) => { event.preventDefault(); move(skill.id, 1); }}>↓</Button>
-          </span>}
+          <Badge color={typeColors[skill.type]}>{skill.type}</Badge>
         </label>;
       })}
     </div>

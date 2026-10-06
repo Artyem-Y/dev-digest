@@ -46,23 +46,32 @@ export function ConventionsPageView() {
               {t("page.headingPrefix")}<span style={{ color: "var(--accent)" }}>{repo?.full_name ?? t("page.repoFallback")}</span>
             </h1>
             <p style={{ color: "var(--text-secondary)", marginTop: 8, fontSize: 13.5 }}>{t("page.subtitle")}</p>
+            <div style={{ marginTop: 14, maxWidth: 310 }}><SelectInput aria-label={t("page.repository")} value={selectedId ?? ""} onChange={setRepoId} options={repos.map((item) => ({ value: item.id, label: item.full_name }))} mono={false} /></div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <div style={{ minWidth: 190 }}><SelectInput aria-label={t("page.repository")} value={selectedId ?? ""} onChange={setRepoId} options={repos.map((item) => ({ value: item.id, label: item.full_name }))} mono={false} /></div>
-            <Button kind="secondary" size="sm" icon="RefreshCw" loading={scan.isPending} disabled={!canExtract} onClick={runScan}>{t("page.runScan")}</Button>
-            <Button kind="secondary" size="sm" icon="RefreshCw" loading={scan.isPending} disabled={!canExtract || visibleCandidates.length === 0} onClick={runScan}>{t("page.rescan")}</Button>
+            <Button kind="secondary" size="sm" icon="RefreshCw" loading={scan.isPending} disabled={!canExtract} onClick={runScan}>
+              {visibleCandidates.length > 0 ? t("page.rescan") : t("page.runScan")}
+            </Button>
+            <Button
+              kind="primary"
+              size="sm"
+              icon="Sparkles"
+              disabled={createSkill.isPending || accepted.length === 0}
+              onClick={() => setCreateOpen(true)}
+            >
+              {t("skill.create")}
+            </Button>
           </div>
         </header>
 
         {repo && !repo.clone_path && <div role="status"><Card style={{ marginBottom: 16, color: "var(--text-secondary)", fontSize: 13 }}>{t("page.cloneRequired")}</Card></div>}
 
         <section aria-label={t("page.candidates")}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <Badge color="var(--accent-text)" bg="var(--accent-bg)" icon="ListChecks">{t("page.acceptedCount", { count: accepted.length })}</Badge>
               {visibleCandidates.length > 0 && <span style={{ color: "var(--text-muted)", fontSize: 13 }}>{t("page.candidateCount", { count: visibleCandidates.length })}</span>}
             </div>
-            {accepted.length > 0 && <Button kind="primary" size="sm" icon="Sparkles" disabled={createSkill.isPending} onClick={() => setCreateOpen(true)}>{t("skill.create")}</Button>}
           </div>
 
           {isLoading ? <p style={{ color: "var(--text-secondary)" }}>{t("page.scanning")}</p> : visibleCandidates.length === 0 ? (
@@ -72,7 +81,7 @@ export function ConventionsPageView() {
             </Card>
           ) : (
             <div style={{ display: "grid", gap: 12 }}>
-              {visibleCandidates.map((candidate) => <ConventionCard key={candidate.id} candidate={candidate} repo={repo} editing={editing === candidate.id} onEdit={() => setEditing(candidate.id)} onSave={(rule) => {
+              {visibleCandidates.map((candidate) => <ConventionCard key={candidate.id} candidate={candidate} repo={repo} editing={editing === candidate.id} onEdit={() => setEditing(candidate.id)} onCancel={() => setEditing(null)} onSave={(rule) => {
                 if (!selectedId) return;
                 update.mutate({ repoId: selectedId, id: candidate.id, status: candidate.status, rule });
                 setEditing(null);
@@ -87,11 +96,12 @@ export function ConventionsPageView() {
   );
 }
 
-function ConventionCard({ candidate, repo, editing, onEdit, onSave, onStatus }: {
+function ConventionCard({ candidate, repo, editing, onEdit, onCancel, onSave, onStatus }: {
   candidate: ConventionCandidate;
   repo: { full_name: string; default_branch: string } | undefined;
   editing: boolean;
   onEdit: () => void;
+  onCancel: () => void;
   onSave: (rule: string) => void;
   onStatus: (status: ConventionCandidate["status"]) => void;
 }) {
@@ -103,9 +113,9 @@ function ConventionCard({ candidate, repo, editing, onEdit, onSave, onStatus }: 
 
   return <Card pad={false} style={{ borderLeft: `3px solid ${accepted ? "var(--ok)" : "var(--border-strong)"}`, overflow: "hidden" }}>
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 164px", gap: 18, padding: 18 }}>
-      <div style={{ minWidth: 0 }}>
-        {editing ? <div style={{ marginBottom: 12 }}><TextInput aria-label={t("card.rule")} value={rule} autoFocus onChange={setRule} onKeyDown={(event) => event.key === "Enter" && onSave(rule)} /></div> : <h3 style={{ fontSize: 15.5, fontStyle: "italic", lineHeight: 1.4 }}>{candidate.rule}</h3>}
-        <a href={source} target="_blank" rel="noreferrer" className="mono" style={{ display: "block", marginTop: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg-surface)", color: "var(--text-secondary)", padding: "8px 10px", fontSize: 12.5 }}>{candidate.evidence_path}:{candidate.evidence_line}</a>
+      <div style={{ minWidth: 0, cursor: editing ? "default" : "text" }} onClick={() => !editing && onEdit()}>
+        {editing ? <div style={{ marginBottom: 12 }} onClick={(event) => event.stopPropagation()}><Textarea aria-label={t("card.rule")} value={rule} autoFocus onChange={setRule} onKeyDown={(event) => event.key === "Enter" && (event.metaKey || event.ctrlKey) && onSave(rule)} rows={3} /><div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}><Button kind="ghost" size="sm" onClick={onCancel}>{t("skill.cancel")}</Button><Button kind="primary" size="sm" onClick={() => onSave(rule)}>{t("card.save")}</Button></div></div> : <h3 style={{ fontSize: 15.5, fontStyle: "italic", lineHeight: 1.4 }}>{candidate.rule}</h3>}
+        <a href={source} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="mono" style={{ display: "block", marginTop: 12, border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg-surface)", color: "var(--text-secondary)", padding: "8px 10px", fontSize: 12.5 }}>{candidate.evidence_path}:{candidate.evidence_line}</a>
         <pre className="mono" style={{ margin: 0, border: "1px solid var(--border)", borderTop: "none", borderRadius: "0 0 6px 6px", background: "var(--code-bg)", color: "var(--text-primary)", padding: "12px 14px", overflowX: "auto", fontSize: 12.5, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{candidate.evidence_snippet}</pre>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 13, maxWidth: 240 }}>
           <span style={{ color: "var(--text-muted)", fontSize: 12 }}>{t("card.confidence")}</span>
@@ -114,9 +124,9 @@ function ConventionCard({ candidate, repo, editing, onEdit, onSave, onStatus }: 
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, alignSelf: "start" }}>
-        <Button kind={accepted ? "primary" : "secondary"} size="sm" icon="Check" onClick={() => onStatus("accepted")}>{accepted ? t("card.accepted") : t("card.accept")}</Button>
-        <Button kind="ghost" size="sm" icon="X" onClick={() => onStatus("rejected")}>{t("card.reject")}</Button>
-        <Button kind="secondary" size="sm" onClick={onEdit}>{t("card.edit")}</Button>
+        <Button kind="primary" size="sm" full icon="Check" onClick={() => onStatus("accepted")}>{accepted ? t("card.accepted") : t("card.accept")}</Button>
+        <Button kind="ghost" size="sm" full icon="X" onClick={() => onStatus("rejected")}>{t("card.reject")}</Button>
+        <Button kind="secondary" size="sm" full onClick={onEdit}>{t("card.edit")}</Button>
       </div>
     </div>
   </Card>;

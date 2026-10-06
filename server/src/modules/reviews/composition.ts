@@ -4,6 +4,7 @@ import { ReviewRepository } from './repository.js';
 import { ReviewRunExecutor } from './run-executor.js';
 import { ReviewService } from './service.js';
 import { AgentsRepository } from '../agents/repository.js';
+import { isUnsafeSkillContent } from '../../vendor/shared/skill-safety.js';
 
 /** Wires review application services and external adapters at the outer boundary. */
 export function createReviewService(container: Container): ReviewService {
@@ -15,7 +16,9 @@ export function createReviewService(container: Container): ReviewService {
     loadDiff: (workspaceId, pull, repo) => loadDiff(container.git, repository, workspaceId, pull, repo),
     resolveSkills: async (agentId) => {
       const links = await new AgentsRepository(container.db).linkedSkills(agentId);
-      return links.filter(({ skill, enabled }) => skill.enabled && enabled).map(({ skill }) => skill.body);
+      return links
+        .filter(({ skill, enabled }) => skill.enabled && enabled && !isUnsafeSkillContent(skill.body))
+        .map(({ skill }) => skill.body);
     },
   }, repository);
   return new ReviewService({

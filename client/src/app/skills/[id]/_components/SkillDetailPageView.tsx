@@ -3,7 +3,7 @@
 import React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { Badge, Button, Card } from "@devdigest/ui";
+import { Badge, Button, Card, Icon } from "@devdigest/ui";
 import { useRestoreSkill, useSkill, useSkillVersions } from "@/lib/hooks/skills";
 import { ConfigTab } from "./SkillDetail/_components/ConfigTab";
 import { PreviewTab } from "./SkillDetail/_components/PreviewTab";
@@ -24,7 +24,7 @@ export function SkillDetailPageView() {
     <Button kind="ghost" size="sm" onClick={() => router.push("/skills")}>← All skills</Button>
     <Card pad={false} style={{ marginTop: 14, overflow: "hidden" }}>
       <header style={{ display: "flex", alignItems: "center", gap: 10, padding: "20px 24px", borderBottom: "1px solid var(--border)" }}><div style={{ minWidth: 0, flex: 1 }}><h1 style={{ fontSize: 22, letterSpacing: "-0.025em", overflow: "hidden", textOverflow: "ellipsis" }}>{skill.name}</h1><p style={{ color: "var(--text-secondary)", marginTop: 5 }}>{skill.description}</p></div><Badge color="var(--text-secondary)">v{skill.version}</Badge><Badge color={skill.enabled ? "var(--ok)" : "var(--text-muted)"}>{skill.enabled ? "Enabled" : "Disabled"}</Badge></header>
-      <div role="tablist" style={{ display: "flex", gap: 4, padding: "0 20px", borderBottom: "1px solid var(--border)" }}>{(["config", "preview", "versioning"] as Tab[]).map((item) => <button key={item} type="button" role="tab" aria-selected={tab === item} onClick={() => setTab(item)} style={{ padding: "12px 13px", border: 0, borderBottom: tab === item ? "2px solid var(--accent)" : "2px solid transparent", background: "transparent", color: tab === item ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: 600 }}> {item[0]!.toUpperCase() + item.slice(1)}</button>)}</div>
+      <div role="tablist" style={{ display: "flex", gap: 4, padding: "0 20px", borderBottom: "1px solid var(--border)" }}>{(["config", "preview", "versioning"] as Tab[]).map((item) => { const TabIcon = item === "config" ? Icon.Settings : item === "preview" ? Icon.Eye : Icon.History; return <button key={item} type="button" role="tab" aria-selected={tab === item} onClick={() => setTab(item)} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "12px 13px", border: 0, borderBottom: tab === item ? "2px solid var(--accent)" : "2px solid transparent", background: "transparent", color: tab === item ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: 600 }}><TabIcon aria-hidden size={14} />{item[0]!.toUpperCase() + item.slice(1)}</button>; })}</div>
       <section style={{ padding: 24 }}>{tab === "config" && <ConfigTab skill={skill} />}{tab === "preview" && <PreviewTab body={skill.body} />}{tab === "versioning" && <VersionsTab skill={skill} versions={versions} restoring={restore.isPending} onRestore={(version) => restore.mutate({ id: skill.id, version, expectedVersion: skill.version })} />}</section>
     </Card>
   </main></AppShell>;

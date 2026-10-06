@@ -33,6 +33,7 @@ describe("ConventionsPageView", () => {
 
     expect(screen.getByRole("heading", { name: "Conventions in acme/payments-api" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Run scan" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create skill" })).toBeDisabled();
     expect(screen.getByRole("status")).toHaveTextContent("This repository has no local checkout.");
     expect(screen.getByText("No conventions extracted yet")).toBeInTheDocument();
   });
@@ -52,12 +53,17 @@ describe("ConventionsPageView", () => {
 
     render(<NextIntlClientProvider locale="en" messages={{ conventions: messages }}><ConventionsPageView /></NextIntlClientProvider>);
 
+    expect(screen.getByRole("button", { name: "Accepted" })).toHaveStyle({ background: "var(--accent)" });
+    fireEvent.click(screen.getByText("Use async/await instead of then() chains."));
+    expect(screen.getByLabelText("Convention rule")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
     const create = screen.getByRole("button", { name: "Create skill" });
     expect(create).toBeEnabled();
     fireEvent.click(create);
 
     expect(screen.getByRole("dialog")).toHaveTextContent("Create skill from conventions");
     expect(screen.getByDisplayValue("repo-conventions")).toBeInTheDocument();
-    expect(screen.getByDisplayValue(/Use async\/await/)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/# repo-conventions/)).toBeInTheDocument();
   });
 });

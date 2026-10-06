@@ -17,7 +17,7 @@ vi.mock("@/lib/hooks/skills", () => ({
   useDeleteSkill: () => ({ mutate: remove, isPending: false }),
   useImportSkillPreview: () => ({ mutate: vi.fn(), isPending: false }),
   useImportSkill: () => ({ mutate: vi.fn(), isPending: false }),
-  useSkillVersions: () => ({ data: [{ version: 2, body: "Check empty input.", created_at: "2026-10-06T00:00:00.000Z" }], isLoading: false }),
+  useSkillVersions: () => ({ data: [{ version: 2, body: "Check empty input.", created_at: "2026-10-06T00:00:00.000Z" }, { version: 1, body: "Check input.", created_at: "2026-10-05T00:00:00.000Z" }], isLoading: false }),
   useRestoreSkill: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
@@ -47,11 +47,13 @@ describe("SkillsLab", () => {
     expect(screen.getByRole("tab", { name: "Versions" })).toBeInTheDocument();
     expect(screen.getAllByText("v2")).toHaveLength(2);
     expect(screen.getByText("Check empty input.")).toBeInTheDocument();
+    expect(screen.getByText("Manual")).toBeInTheDocument();
     expect(screen.getByLabelText("Skill name")).toHaveStyle({ border: "none" });
     expect(screen.getByLabelText("Type")).toHaveValue("rubric");
 
     fireEvent.click(screen.getByRole("tab", { name: "Versions" }));
     expect(screen.getByText("Current")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Diff" })).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText("Search skills…"), { target: { value: "missing" } });
     expect(screen.queryByText("Boundary cases")).not.toBeInTheDocument();
@@ -77,10 +79,14 @@ describe("SkillsLab", () => {
     renderLab();
 
     fireEvent.click(screen.getByRole("button", { name: "Add Skill" }));
-    expect(screen.getByRole("button", { name: "Create manually" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Import existing skill" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Create" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "From file" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Import from URL" })).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Skill name")[1]).toHaveValue("");
+    expect(screen.getAllByLabelText("Description")[1]).toHaveValue("");
+    expect(screen.getAllByLabelText("Skill body (Markdown)")[1]).toHaveValue("");
 
-    fireEvent.click(screen.getByRole("button", { name: "Create manually" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Create" }));
     fireEvent.change(screen.getAllByLabelText("Skill name")[1]!, { target: { value: "Regression checks" } });
     fireEvent.change(screen.getAllByLabelText("Description")[1]!, { target: { value: "Contract regressions" } });
     fireEvent.change(screen.getAllByLabelText("Skill body (Markdown)")[1]!, { target: { value: "Check contracts." } });
@@ -92,5 +98,25 @@ describe("SkillsLab", () => {
       body: "Check contracts.",
       type: "custom",
     }, expect.any(Object));
+  });
+
+  it("uses an English custom file chooser in the import modal", () => {
+    renderLab();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Skill" }));
+    fireEvent.click(screen.getByRole("tab", { name: "From file" }));
+
+    expect(screen.getByRole("button", { name: "Choose file" })).toBeInTheDocument();
+    expect(screen.getByText("No file selected")).toBeInTheDocument();
+  });
+
+  it("enables URL import as soon as a public skill URL is entered", () => {
+    renderLab();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Skill" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Import from URL" }));
+    fireEvent.change(screen.getByLabelText("Skill URL"), { target: { value: "https://example.com/skill.md" } });
+
+    expect(screen.getByRole("button", { name: "Import skill" })).toBeEnabled();
   });
 });

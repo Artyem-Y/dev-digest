@@ -44,7 +44,9 @@
     },
     "source": {
       "manual": "Manual",
-      "manual": "Manual"
+      "imported_url": "Imported URL",
+      "extracted": "Extracted",
+      "community": "Community"
     }
   },
   "preview": {
@@ -71,6 +73,10 @@
     "createSubtitle": "Choose metadata and Markdown content for a reusable review rule.",
     "cancel": "Cancel",
     "description": "Description",
-    "type": "Type"
+    "type": "Type",
+    "skillFile": "Skill file",
+    "supportedFormats": "Supported formats: .md, .markdown and .zip",
+    "chooseFile": "Choose file",
+    "noFileSelected": "No file selected"
   }
 }
