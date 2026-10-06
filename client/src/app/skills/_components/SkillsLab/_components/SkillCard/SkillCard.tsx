@@ -1,8 +1,10 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
 import { Badge, Icon, Toggle } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
+import { isUnsafeSkillContent } from "@/vendor/shared/skill-safety";
 
 const card: React.CSSProperties = { border: "1px solid var(--border)", borderRadius: 8, padding: 12, background: "var(--bg-surface)", transition: "border-color .15s ease, background .15s ease" };
 
@@ -21,7 +23,9 @@ const sourceLabels: Record<Skill["source"], string> = {
 };
 
 export function SkillCard({ skill, selected, onSelect, onToggle, onDelete }: { skill: Skill; selected: boolean; onSelect: () => void; onToggle: (enabled: boolean) => void; onDelete: () => void }) {
-  return <article style={{ ...card, borderColor: selected ? "var(--accent)" : undefined, background: selected ? "var(--accent-bg)" : undefined, boxShadow: selected ? "inset 2px 0 0 var(--accent)" : undefined }}>
+  const t = useTranslations("skills");
+  const unsafe = isUnsafeSkillContent(skill.body);
+  return <article style={{ ...card, borderColor: unsafe ? "var(--crit)" : selected ? "var(--accent)" : undefined, background: unsafe ? "var(--crit-bg)" : selected ? "var(--accent-bg)" : undefined, boxShadow: unsafe ? "inset 2px 0 0 var(--crit)" : selected ? "inset 2px 0 0 var(--accent)" : undefined }}>
     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
       <button type="button" onClick={onSelect} style={{ flex: 1, minWidth: 0, textAlign: "left", border: 0, background: "transparent", color: "inherit", padding: 0, cursor: "pointer", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{skill.name}</button>
       <Badge color="var(--text-secondary)">v{skill.version}</Badge>
@@ -30,7 +34,7 @@ export function SkillCard({ skill, selected, onSelect, onToggle, onDelete }: { s
     </div>
     <button type="button" onClick={onSelect} style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: "transparent", color: "inherit", padding: 0, cursor: "pointer" }}>
       <p style={{ margin: "4px 0", color: "var(--text-secondary)", fontSize: 12 }}>{skill.description}</p>
-      <div style={{ display: "flex", gap: 6, marginTop: 9, flexWrap: "wrap" }}><Badge color={typeColors[skill.type]}>{skill.type}</Badge><Badge color="var(--text-secondary)">{sourceLabels[skill.source]}</Badge><Badge color="var(--text-secondary)">{skill.agent_count ?? 0} agents</Badge></div>
+      <div style={{ display: "flex", gap: 6, marginTop: 9, flexWrap: "wrap" }}>{unsafe && <Badge color="var(--crit)" bg="var(--crit-bg)">{t("listItem.unsafe")}</Badge>}<Badge color={typeColors[skill.type]}>{skill.type}</Badge><Badge color="var(--text-secondary)">{sourceLabels[skill.source]}</Badge><Badge color="var(--text-secondary)">{skill.agent_count ?? 0} agents</Badge></div>
     </button>
   </article>;
 }

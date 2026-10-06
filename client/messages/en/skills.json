@@ -36,6 +36,7 @@
     "import": "Create skill"
   },
   "listItem": {
+    "unsafe": "Unsafe",
     "type": {
       "rubric": "rubric",
       "convention": "convention",
