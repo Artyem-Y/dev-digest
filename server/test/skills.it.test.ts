@@ -53,6 +53,15 @@ d('skills API', () => {
     await app.close();
   });
 
+  it('seeds API Contract Reviewer directives as security skills', async () => {
+    const skills = await pg.handle.db.select().from(t.skills);
+    const contractNames = ['breaking-change', 'response-schema', 'semver-discipline', 'deprecation-policy'];
+
+    expect(skills.filter((skill) => contractNames.includes(skill.name))).toEqual(
+      expect.arrayContaining(contractNames.map((name) => expect.objectContaining({ name, type: 'security' }))),
+    );
+  });
+
   it('versions a changed body and rejects a stale editor update', async () => {
     const app = await makeApp();
     const created = await app.inject({ method: 'POST', url: '/skills', payload: { name: 'Versioned', description: 'd', type: 'rubric', body: 'v1' } });

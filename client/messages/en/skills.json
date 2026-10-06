@@ -61,5 +61,16 @@
     "name": "Skill name",
     "description": "Description",
     "create": "Create skill"
+  },
+  "modal": {
+    "addTitle": "Add skill",
+    "addSubtitle": "Choose whether to author a new skill or import an existing one.",
+    "manual": "Create manually",
+    "import": "Import existing skill",
+    "createTitle": "Create skill",
+    "createSubtitle": "Choose metadata and Markdown content for a reusable review rule.",
+    "cancel": "Cancel",
+    "description": "Description",
+    "type": "Type"
   }
 }

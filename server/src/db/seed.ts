@@ -247,17 +247,19 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
 
   // ---- API Contract Reviewer + four directive contract skills -------------
   const apiContractDefinitions = [
-    ['breaking-change', 'Breaking changes to public API contracts.', 'Flag removal or incompatible modification of a public endpoint, parameter, field, enum value, or error contract.\n\nGood: add /v2 while retaining /v1.\nBad: rename customerId without compatibility.', 'imported_url'],
-    ['response-schema', 'Response schema compatibility.', 'Require backwards-compatible response shapes.\n\nGood: add an optional field.\nBad: make a formerly optional field required.', 'manual'],
-    ['semver-discipline', 'Semantic version discipline for APIs.', 'Require a major-version path for public incompatible changes.\n\nGood: ship a breaking change at /v2.\nBad: silently change /v1 semantics.', 'manual'],
-    ['deprecation-policy', 'Deprecate public API deliberately.', 'Require replacement and removal date before deleting public behavior.\n\nGood: deprecate legacy_id with a replacement.\nBad: remove it without notice.', 'manual'],
+    ['breaking-change', 'Breaking changes to public API contracts.', 'Flag removal or incompatible modification of a public endpoint, parameter, field, enum value, or error contract.\n\nGood: add /v2 while retaining /v1.\nBad: rename customerId without compatibility.', 'imported_url', 'security'],
+    ['response-schema', 'Response schema compatibility.', 'Require backwards-compatible response shapes.\n\nGood: add an optional field.\nBad: make a formerly optional field required.', 'manual', 'security'],
+    ['semver-discipline', 'Semantic version discipline for APIs.', 'Require a major-version path for public incompatible changes.\n\nGood: ship a breaking change at /v2.\nBad: silently change /v1 semantics.', 'manual', 'security'],
+    ['deprecation-policy', 'Deprecate public API deliberately.', 'Require replacement and removal date before deleting public behavior.\n\nGood: deprecate legacy_id with a replacement.\nBad: remove it without notice.', 'manual', 'security'],
   ] as const;
   const apiSkillRows: Array<typeof t.skills.$inferSelect> = [];
-  for (const [name, description, body, source] of apiContractDefinitions) {
+  for (const [name, description, body, source, type] of apiContractDefinitions) {
     let [skill] = await db.select().from(t.skills).where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, name)));
     if (!skill) {
-      [skill] = await db.insert(t.skills).values({ workspaceId, name, description, type: 'rubric', source, body, enabled: true, version: 1 }).returning();
+      [skill] = await db.insert(t.skills).values({ workspaceId, name, description, type, source, body, enabled: true, version: 1 }).returning();
       await db.insert(t.skillVersions).values({ skillId: skill!.id, version: 1, body: skill!.body }).onConflictDoNothing();
+    } else if (skill.type !== type) {
+      [skill] = await db.update(t.skills).set({ type }).where(eq(t.skills.id, skill.id)).returning();
     }
     apiSkillRows.push(skill!);
   }

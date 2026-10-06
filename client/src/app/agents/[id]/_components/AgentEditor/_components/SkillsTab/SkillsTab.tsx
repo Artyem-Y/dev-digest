@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge, ErrorState, Skeleton } from "@devdigest/ui";
+import { Badge, Button, Checkbox, ErrorState, Skeleton, TextInput, Toggle } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
 import { useAgentSkills, useReplaceAgentSkills, useSetAgentSkillEnabled, useSkills } from "@/lib/hooks/skills";
 
@@ -48,21 +48,21 @@ export function SkillsTab({ agent }: { agent: Agent }) {
   return <div style={{ padding: "24px 28px", maxWidth: 820 }}>
     <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}><h2 style={{ margin: 0 }}>{t("skills.title")}</h2><span style={{ color: "var(--text-secondary)" }}>{t("skills.enabledCount", { linked: enabledLinked, total: orderedIds.length })}</span></div>
     <p style={{ color: "var(--text-secondary)" }}>{t("skills.orderHint")}</p>
-    <input aria-label={t("skills.filterPlaceholder")} placeholder={t("skills.filterPlaceholder")} value={filter} onChange={(event) => setFilter(event.target.value)} style={{ width: "100%", marginBottom: 12 }} />
+    <div style={{ marginBottom: 12 }}><TextInput aria-label={t("skills.filterPlaceholder")} placeholder={t("skills.filterPlaceholder")} value={filter} onChange={setFilter} /></div>
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {filtered.map((skill) => {
         const linked = orderedIds.includes(skill.id);
         const linkEnabled = links?.find((link) => link.skill_id === skill.id)?.enabled !== false;
         const position = orderedIds.indexOf(skill.id);
         return <label key={skill.id} draggable={linked && linkEnabled} onDragStart={() => setDraggedId(skill.id)} onDragOver={(event) => { if (linked && linkEnabled) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); if (draggedId) reorderEnabled(draggedId, skill.id); setDraggedId(null); }} style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid var(--border)", borderRadius: 8, padding: 12, opacity: draggedId === skill.id ? 0.55 : 1, cursor: linked && linkEnabled ? "grab" : undefined }}>
-          <input aria-label={skill.name} type="checkbox" checked={linked} onChange={() => toggle(skill.id)} disabled={replace.isPending} />
+          <Checkbox checked={linked} onChange={() => toggle(skill.id)} ariaLabel={skill.name} />
           <span style={{ flex: 1 }}><strong>{skill.name}</strong>{skill.description && <span style={{ display: "block", color: "var(--text-secondary)", fontSize: 13 }}>{skill.description}</span>}</span>
           <Badge color="var(--text-secondary)">{skill.type}</Badge>
           <Badge color={skill.enabled ? "var(--green)" : "var(--text-muted)"}>{skill.enabled ? t("skills.enabled") : t("editor.disabled")}</Badge>
-          {linked && <input aria-label={`Enable ${skill.name}`} type="checkbox" checked={linkEnabled} onChange={(event) => setEnabled.mutate({ agentId: agent.id, skillId: skill.id, enabled: event.target.checked })} />}
+          {linked && <Toggle on={linkEnabled} onChange={(enabled) => setEnabled.mutate({ agentId: agent.id, skillId: skill.id, enabled })} ariaLabel={`Enable ${skill.name}`} size={16} />}
           {linked && <span style={{ display: "flex", gap: 4 }}>
-            <button type="button" aria-label={t("skills.moveUp", { name: skill.name })} disabled={replace.isPending || !linkEnabled || position === 0} onClick={(event) => { event.preventDefault(); move(skill.id, -1); }}>↑</button>
-            <button type="button" aria-label={t("skills.moveDown", { name: skill.name })} disabled={replace.isPending || !linkEnabled || position === orderedIds.length - 1} onClick={(event) => { event.preventDefault(); move(skill.id, 1); }}>↓</button>
+            <Button kind="ghost" size="sm" aria-label={t("skills.moveUp", { name: skill.name })} disabled={replace.isPending || !linkEnabled || position === 0} onClick={(event) => { event.preventDefault(); move(skill.id, -1); }}>↑</Button>
+            <Button kind="ghost" size="sm" aria-label={t("skills.moveDown", { name: skill.name })} disabled={replace.isPending || !linkEnabled || position === orderedIds.length - 1} onClick={(event) => { event.preventDefault(); move(skill.id, 1); }}>↓</Button>
           </span>}
         </label>;
       })}

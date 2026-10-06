@@ -7,7 +7,8 @@
     "subtitle": "Scan the cloned repo to surface house-rules — each backed by evidence you can turn into a Skill.",
     "scanning": "Scanning…",
     "rescan": "Re-scan",
-    "runExtraction": "Run extraction",
+    "repository": "Repository",
+    "runScan": "Run scan",
     "cloneRequired": "This repository has no local checkout. Add or re-sync a real GitHub repository before extracting conventions.",
     "extractionFailed": "Extraction failed",
     "loadError": "Could not load conventions.",
@@ -16,12 +17,34 @@
       "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
       "cta": "Run extraction"
     },
-    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
+    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files",
+    "acceptedCount": "{count, plural, =0 {No accepted conventions} one {# accepted convention} other {# accepted conventions}}",
+    "candidates": "Convention candidates"
   },
   "card": {
     "confidence": "Confidence",
     "accepted": "Accepted",
+    "accept": "Accept",
+    "reject": "Reject",
+    "edit": "Edit",
+    "rule": "Convention rule",
     "accepting": "Accepting…",
     "acceptAsSkill": "Accept as Skill"
+  },
+  "skill": {
+    "create": "Create skill",
+    "creating": "Creating…",
+    "cancel": "Cancel",
+    "modalTitle": "Create skill from conventions",
+    "modalSubtitle": "Everything below is editable before saving.",
+    "callout": "Merged from accepted conventions. The generated rule block will be added to Skills Lab.",
+    "name": "Name",
+    "description": "Description",
+    "agent": "Attach to agent",
+    "noAgent": "No agent",
+    "body": "Skill body",
+    "defaultDescription": "Repository conventions extracted from verified evidence",
+    "defaultInstruction": "Flag changes that violate these verified repository conventions.",
+    "evidence": "Evidence: `{path}:{line}`."
   }
 }
