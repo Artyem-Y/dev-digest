@@ -67,6 +67,9 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
   app.post('/skills/:id/versions/:version/restore', { schema: { params: VersionParams, body: RestoreSkill } }, async (req) =>
     service.restore((await getContext(app.container, req)).workspaceId, req.params.id, req.params.version, req.body.expected_version),
   );
+  app.delete('/skills/:id/versions/:version', { schema: { params: VersionParams } }, async (req) => ({
+    ok: await service.deleteVersion((await getContext(app.container, req)).workspaceId, req.params.id, req.params.version),
+  }));
   app.delete('/skills/:id', { schema: { params: IdParams } }, async (req) => ({
     ok: await service.delete((await getContext(app.container, req)).workspaceId, req.params.id),
   }));

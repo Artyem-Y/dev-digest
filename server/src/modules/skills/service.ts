@@ -41,4 +41,11 @@ export class SkillsService {
     if (!skill || !historic) throw new NotFoundError('Skill version not found');
     return this.update(workspaceId, id, { ...skill, body: historic.body, expected_version: expectedVersion });
   }
+  async deleteVersion(workspaceId: string, id: string, version: number) {
+    const skill = await this.get(workspaceId, id);
+    if (!skill) throw new NotFoundError('Skill not found');
+    if (skill.version === version) throw new AppError('current_version', 'The current skill version cannot be deleted', 409);
+    if (!(await this.repository.deleteVersion(workspaceId, id, version))) throw new NotFoundError('Skill version not found');
+    return true;
+  }
 }

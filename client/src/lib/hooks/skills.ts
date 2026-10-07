@@ -42,7 +42,21 @@ export function useRestoreSkill() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, version, expectedVersion }: { id: string; version: number; expectedVersion: number }) => api.post<Skill>(`/skills/${id}/versions/${version}/restore`, { expected_version: expectedVersion }),
-    onSuccess: (skill) => { qc.setQueryData(["skill", skill.id], skill); qc.invalidateQueries({ queryKey: ["skills"] }); qc.invalidateQueries({ queryKey: ["skill-versions", skill.id] }); },
+    onSuccess: (skill) => {
+      qc.setQueryData(["skill", skill.id], skill);
+      qc.setQueryData(["skills"], (skills: Skill[] | undefined) =>
+        skills?.map((item) => item.id === skill.id ? skill : item),
+      );
+      qc.invalidateQueries({ queryKey: ["skill-versions", skill.id] });
+    },
+  });
+}
+
+export function useDeleteSkillVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, version }: { id: string; version: number }) => api.del<{ ok: boolean }>(`/skills/${id}/versions/${version}`),
+    onSuccess: (_, { id }) => qc.invalidateQueries({ queryKey: ["skill-versions", id] }),
   });
 }
 
@@ -58,9 +72,13 @@ export function useUpdateSkill() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...input }: UpdateSkillInput) => api.put<Skill>(`/skills/${id}`, input),
-    onSuccess: (skill) => qc.setQueryData(["skills"], (skills: Skill[] | undefined) =>
-      skills?.map((item) => item.id === skill.id ? skill : item),
-    ),
+    onSuccess: (skill) => {
+      qc.setQueryData(["skills"], (skills: Skill[] | undefined) =>
+        skills?.map((item) => item.id === skill.id ? skill : item),
+      );
+      qc.setQueryData(["skill", skill.id], skill);
+      qc.invalidateQueries({ queryKey: ["skill-versions", skill.id] });
+    },
   });
 }
 

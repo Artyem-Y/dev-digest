@@ -74,6 +74,18 @@ d('skills API', () => {
     await app.close();
   });
 
+  it('deletes an old skill version but preserves the current version', async () => {
+    const app = await makeApp();
+    const created = await app.inject({ method: 'POST', url: '/skills', payload: { name: 'Prunable history', description: 'd', type: 'rubric', body: 'v1' } });
+    const id = created.json().id as string;
+    await app.inject({ method: 'PUT', url: `/skills/${id}`, payload: { name: 'Prunable history', description: 'd', type: 'rubric', body: 'v2', enabled: true, expected_version: 1 } });
+
+    expect((await app.inject({ method: 'DELETE', url: `/skills/${id}/versions/1` })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: `/skills/${id}/versions` })).json().map((version: { version: number }) => version.version)).toEqual([2]);
+    expect((await app.inject({ method: 'DELETE', url: `/skills/${id}/versions/2` })).statusCode).toBe(409);
+    await app.close();
+  });
+
   it('deletes an unlinked skill', async () => {
     const app = await makeApp();
     const created = await app.inject({ method: 'POST', url: '/skills', payload: { name: 'Disposable', description: 'd', type: 'custom', body: 'b' } });

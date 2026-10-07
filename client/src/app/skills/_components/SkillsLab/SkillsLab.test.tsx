@@ -20,6 +20,7 @@ vi.mock("@/lib/hooks/skills", () => ({
   useImportSkill: () => ({ mutate: vi.fn(), isPending: false }),
   useSkillVersions: () => ({ data: [{ version: 2, body: "Check empty input.", created_at: "2026-10-06T00:00:00.000Z" }, { version: 1, body: "Check input.", created_at: "2026-10-05T00:00:00.000Z" }], isLoading: false }),
   useRestoreSkill: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteSkillVersion: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 import { SkillsLab } from "./SkillsLab";
@@ -48,13 +49,15 @@ describe("SkillsLab", () => {
     expect(screen.getByRole("tab", { name: "Versions" })).toBeInTheDocument();
     expect(screen.getAllByText("v2")).toHaveLength(2);
     expect(screen.getByText("Check empty input.")).toBeInTheDocument();
-    expect(screen.getByText("Manual")).toBeInTheDocument();
+    expect(screen.getAllByText("Manual")).not.toHaveLength(0);
     expect(screen.getByLabelText("Skill name")).toHaveStyle({ border: "none" });
     expect(screen.getByLabelText("Type")).toHaveValue("rubric");
 
     fireEvent.click(screen.getByRole("tab", { name: "Versions" }));
     expect(screen.getByText("Current")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Diff" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete version 1" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete version 2" })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText("Search skills…"), { target: { value: "missing" } });
     expect(screen.queryByText("Boundary cases")).not.toBeInTheDocument();
