@@ -21,6 +21,7 @@ vi.mock("@/lib/hooks/skills", () => ({
   useSkillVersions: () => ({ data: [{ version: 2, body: "Check empty input.", created_at: "2026-10-06T00:00:00.000Z" }, { version: 1, body: "Check input.", created_at: "2026-10-05T00:00:00.000Z" }], isLoading: false }),
   useRestoreSkill: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteSkillVersion: () => ({ mutate: vi.fn(), isPending: false }),
+  useSkillUsage: () => ({ data: [{ id: "agent-1", name: "API Contract Reviewer" }], isLoading: false }),
 }));
 
 import { SkillsLab } from "./SkillsLab";
@@ -129,5 +130,12 @@ describe("SkillsLab", () => {
 
     expect(screen.getByText("Unsafe")).toBeInTheDocument();
     expect(screen.getByText("Unsafe").closest("article")).toHaveStyle({ borderColor: "var(--crit)" });
+  });
+
+  it("shows linked agents only in the delete-skill modal", () => {
+    renderLab();
+    fireEvent.click(screen.getByRole("button", { name: "Delete Boundary cases" }));
+    expect(screen.getByText("It will be removed from 1 agent:")).toBeInTheDocument();
+    expect(screen.getByText("API Contract Reviewer")).toBeInTheDocument();
   });
 });

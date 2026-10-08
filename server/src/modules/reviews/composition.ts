@@ -18,7 +18,7 @@ export function createReviewService(container: Container): ReviewService {
       const links = await new AgentsRepository(container.db).linkedSkills(agentId);
       return links
         .filter(({ skill, enabled }) => skill.enabled && enabled && !isUnsafeSkillContent(skill.body))
-        .map(({ skill }) => skill.body);
+        .map(({ skill }) => ({ name: skill.name, body: skill.body }));
     },
   }, repository);
   return new ReviewService({

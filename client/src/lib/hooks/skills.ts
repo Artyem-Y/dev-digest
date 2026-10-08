@@ -34,6 +34,10 @@ export function useSkill(id: string | null | undefined) {
   return useQuery({ queryKey: ["skill", id], queryFn: () => api.get<Skill>(`/skills/${id}`), enabled: Boolean(id) });
 }
 
+export function useSkillUsage(id: string | null | undefined) {
+  return useQuery({ queryKey: ["skill-usage", id], queryFn: () => api.get<Array<{ id: string; name: string }>>(`/skills/${id}/usage`), enabled: Boolean(id) });
+}
+
 export function useSkillVersions(id: string | null | undefined) {
   return useQuery({ queryKey: ["skill-versions", id], queryFn: () => api.get<SkillVersion[]>(`/skills/${id}/versions`), enabled: Boolean(id) });
 }

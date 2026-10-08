@@ -98,6 +98,8 @@ d('skill-enabled review experiments (Testcontainers pg)', () => {
     const trace = (await app.inject({ method: 'GET', url: `/runs/${enabled.runs[0].run_id}/trace` })).json();
     expect(trace.prompt_assembly.skills).toContain(scenario.marker);
     expect(trace.prompt_assembly.skill_tokens).toBeGreaterThan(0);
+    const events = await app.inject({ method: 'GET', url: `/runs/${enabled.runs[0].run_id}/events` });
+    expect(events.payload).toContain(`Skills attached: ${scenario.skill.name}`);
     expect(baseline.runs[0].run_id).not.toBe(enabled.runs[0].run_id);
     await app.close();
   }

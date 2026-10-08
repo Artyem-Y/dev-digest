@@ -26,10 +26,11 @@ export class SkillsService {
   }
   async delete(workspaceId: string, id: string) {
     if (!(await this.repository.get(workspaceId, id))) throw new NotFoundError('Skill not found');
-    if (await this.repository.linkedAgentCount(workspaceId, id)) {
-      throw new AppError('skill_in_use', 'Detach this skill from its agents before deleting it', 409);
-    }
     return this.repository.delete(workspaceId, id);
+  }
+  async usage(workspaceId: string, id: string) {
+    if (!(await this.repository.get(workspaceId, id))) throw new NotFoundError('Skill not found');
+    return this.repository.linkedAgents(workspaceId, id);
   }
   async listVersions(workspaceId: string, id: string): Promise<SkillVersion[] | undefined> {
     const rows = await this.repository.listVersions(workspaceId, id);

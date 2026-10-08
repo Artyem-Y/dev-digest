@@ -12,7 +12,9 @@ import { toJsonSchema, parseWithRepair } from '../../platform/structured.js';
 import { estimateCost } from './pricing.js';
 import { ExternalServiceError } from '../../platform/errors.js';
 
-const DEFAULT_TIMEOUT = 60_000;
+/** Long diffs and reasoning models can legitimately take longer than one minute. */
+export const REVIEW_COMPLETION_TIMEOUT_MS = 180_000;
+const EMBEDDING_TIMEOUT_MS = 60_000;
 const EMBED_MODEL = 'text-embedding-3-small';
 
 /**
@@ -64,7 +66,7 @@ export class OpenAIProvider implements LLMProvider {
 
   async complete(req: CompletionRequest): Promise<CompletionResult> {
     return withRetry(() =>
-      withTimeout(this.doComplete(req), req.timeoutMs ?? DEFAULT_TIMEOUT),
+      withTimeout(this.doComplete(req), req.timeoutMs ?? REVIEW_COMPLETION_TIMEOUT_MS),
     );
   }
 
@@ -106,7 +108,7 @@ export class OpenAIProvider implements LLMProvider {
               json_schema: { name: req.schemaName, schema: jsonSchema.schema, strict: true },
             },
           }),
-          req.timeoutMs ?? DEFAULT_TIMEOUT,
+          req.timeoutMs ?? REVIEW_COMPLETION_TIMEOUT_MS,
         ),
       );
       lastRaw = res.choices?.[0]?.message?.content ?? '';
@@ -140,7 +142,7 @@ export class OpenAIProvider implements LLMProvider {
     return withRetry(async () => {
       const res = await withTimeout(
         this.client.embeddings.create({ model: EMBED_MODEL, input: texts }),
-        DEFAULT_TIMEOUT,
+        EMBEDDING_TIMEOUT_MS,
       );
       return res.data.map((d) => d.embedding);
     });

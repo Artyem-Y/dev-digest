@@ -42,6 +42,13 @@ export class SkillsRepository {
     return Number(row?.count ?? 0);
   }
 
+  async linkedAgents(workspaceId: string, id: string) {
+    return this.db.select({ id: t.agents.id, name: t.agents.name }).from(t.agentSkills)
+      .innerJoin(t.agents, eq(t.agentSkills.agentId, t.agents.id))
+      .where(and(eq(t.agentSkills.skillId, id), eq(t.agents.workspaceId, workspaceId)))
+      .orderBy(asc(t.agents.name));
+  }
+
   async listVersions(workspaceId: string, id: string) {
     const skill = await this.get(workspaceId, id);
     if (!skill) return undefined;

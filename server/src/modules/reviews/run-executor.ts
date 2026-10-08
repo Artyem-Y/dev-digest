@@ -33,6 +33,14 @@ export type RunOutcome = {
   raw: Review;
 };
 
+export type ResolvedSkill = { name: string; body: string };
+
+export function skillsAttachedLogMessage(skills: ReadonlyArray<ResolvedSkill>): string {
+  return skills.length > 0
+    ? `Skills attached: ${skills.map((skill) => skill.name).join(', ')}`
+    : 'Skills attached: none';
+}
+
 export interface ReviewRunExecutorDependencies {
   runBus: import('../../platform/sse.js').RunBus;
   resolveLlm(provider: Provider): Promise<LLMProvider>;
@@ -42,7 +50,7 @@ export interface ReviewRunExecutorDependencies {
     pull: PullRow,
     repository: ReviewRepositoryRef,
   ): Promise<UnifiedDiff>;
-  resolveSkills(agentId: string): Promise<string[]>;
+  resolveSkills(agentId: string): Promise<ResolvedSkill[]>;
 }
 
 /**
@@ -192,7 +200,9 @@ export class ReviewRunExecutor {
       const rankNote = repoIntelOn ? await this.buildRankNote(pull.repoId, diff, runLog) : '';
 
       const task = taskLine(pull) + rankNote;
-      const skills = await this.dependencies.resolveSkills(agent.id);
+      const resolvedSkills = await this.dependencies.resolveSkills(agent.id);
+      runLog.info(skillsAttachedLogMessage(resolvedSkills));
+      const skills = resolvedSkills.map((skill) => skill.body);
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with

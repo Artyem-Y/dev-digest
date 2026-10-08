@@ -86,12 +86,25 @@ d('skills API', () => {
     await app.close();
   });
 
-  it('deletes an unlinked skill', async () => {
+  it('deletes a linked skill and detaches it from every agent', async () => {
     const app = await makeApp();
     const created = await app.inject({ method: 'POST', url: '/skills', payload: { name: 'Disposable', description: 'd', type: 'custom', body: 'b' } });
+    const firstAgent = await app.inject({ method: 'POST', url: '/agents', payload: { name: 'First skill consumer', provider: 'openai', model: 'gpt-4o-mini', system_prompt: 'Review.' } });
+    const secondAgent = await app.inject({ method: 'POST', url: '/agents', payload: { name: 'Second skill consumer', provider: 'openai', model: 'gpt-4o-mini', system_prompt: 'Review.' } });
+    const id = created.json().id as string;
+    await app.inject({ method: 'POST', url: `/agents/${firstAgent.json().id}/skills`, payload: { skill_ids: [id] } });
+    await app.inject({ method: 'POST', url: `/agents/${secondAgent.json().id}/skills`, payload: { skill_ids: [id] } });
+
+    expect((await app.inject({ method: 'GET', url: `/skills/${id}/usage` })).json()).toEqual([
+      { id: firstAgent.json().id, name: 'First skill consumer' },
+      { id: secondAgent.json().id, name: 'Second skill consumer' },
+    ]);
+
     const deleted = await app.inject({ method: 'DELETE', url: `/skills/${created.json().id}` });
     expect(deleted.statusCode).toBe(200);
     expect(await app.inject({ method: 'GET', url: `/skills/${created.json().id}` })).toMatchObject({ statusCode: 404 });
+    expect((await app.inject({ method: 'GET', url: `/agents/${firstAgent.json().id}/skills` })).json()).toEqual([]);
+    expect((await app.inject({ method: 'GET', url: `/agents/${secondAgent.json().id}/skills` })).json()).toEqual([]);
     await app.close();
   });
 
