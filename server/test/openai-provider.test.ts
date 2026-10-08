@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { OpenAIProvider } from '../src/adapters/llm/openai.js';
+import { OpenAIProvider, REVIEW_COMPLETION_TIMEOUT_MS } from '../src/adapters/llm/openai.js';
 
 const Result = z.object({ ok: z.boolean() });
 
 describe('OpenAIProvider structured requests', () => {
+  it('allows a long-running agent review up to three minutes', () => {
+    expect(REVIEW_COMPLETION_TIMEOUT_MS).toBe(180_000);
+  });
+
   it('omits temperature when the review does not explicitly set it', async () => {
     const provider = new OpenAIProvider('test-key');
     const calls: Record<string, unknown>[] = [];

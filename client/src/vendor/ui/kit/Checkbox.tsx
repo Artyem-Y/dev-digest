@@ -6,10 +6,12 @@ export function Checkbox({
   checked,
   onChange,
   label,
+  ariaLabel,
 }: {
   checked: boolean;
   onChange?: (v: boolean) => void;
   label?: React.ReactNode;
+  ariaLabel?: string;
 }) {
   return (
     <label
@@ -25,6 +27,7 @@ export function Checkbox({
       <button
         type="button"
         role="checkbox"
+        aria-label={ariaLabel}
         aria-checked={checked}
         onClick={() => onChange?.(!checked)}
         style={{

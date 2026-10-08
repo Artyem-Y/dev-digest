@@ -31,7 +31,6 @@ export function ReviewRunAccordion({
   headSha,
   targetRunId = null,
   targetNonce = 0,
-  severity = null,
 }: {
   review: ReviewRecord;
   prId: string;
@@ -42,7 +41,6 @@ export function ReviewRunAccordion({
    *  (driven from the Timeline: clicking an agent name navigates here). */
   targetRunId?: string | null;
   targetNonce?: number;
-  severity?: "CRITICAL" | "WARNING" | "SUGGESTION" | null;
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
@@ -154,7 +152,6 @@ export function ReviewRunAccordion({
             prId={prId}
             repoFullName={repoFullName}
             headSha={headSha}
-            severity={severity}
           />
         </div>
       )}

@@ -18,7 +18,7 @@ export function CreateAgentModal({ onClose }: { onClose: () => void }) {
   const [description, setDescription] = React.useState("");
   const [provider, setProvider] = React.useState<Provider>(DEFAULT_PROVIDER);
   const [model, setModel] = React.useState(DEFAULT_MODEL);
-  const [systemPrompt, setSystemPrompt] = React.useState(t("create.defaultSystemPrompt"));
+  const [systemPrompt, setSystemPrompt] = React.useState("");
 
   const submit = async () => {
     const agent = await create.mutateAsync({
@@ -43,7 +43,7 @@ export function CreateAgentModal({ onClose }: { onClose: () => void }) {
           <Button kind="ghost" onClick={onClose}>
             {t("create.cancel")}
           </Button>
-          <Button kind="primary" icon="Plus" onClick={submit} disabled={create.isPending}>
+          <Button kind="primary" icon="Plus" onClick={submit} disabled={create.isPending || !name.trim() || !systemPrompt.trim()}>
             {create.isPending ? t("create.creating") : t("create.create")}
           </Button>
         </div>

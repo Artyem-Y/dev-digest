@@ -14,3 +14,4 @@ New flow specifications should state the user journey, seed-data assumptions, de
 - `06-onboarding.flow.json` — add-repository form
 - `07-settings.flow.json` — settings sections
 - `08-agent-run-cost.flow.json` — cost in PR list, run timeline, and trace
+- `09-agent-enabled-toggle.flow.json` — toggle and restore a seeded agent's enabled state

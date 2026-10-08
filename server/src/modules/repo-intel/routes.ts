@@ -14,8 +14,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
-import { RepoIntelService } from './service.js';
-import { RESYNC_JOB_KIND } from './constants.js';
+import { createRepoIntelService } from './composition.js';
 import type { IndexState } from './types.js';
 
 export default async function repoIntelRoutes(appBase: FastifyInstance) {
@@ -26,7 +25,7 @@ export default async function repoIntelRoutes(appBase: FastifyInstance) {
   // JobRunner stores the handler closure, not the service instance, and the
   // lazy `container.repoIntel` getter constructs its own service for read
   // calls. Both share the same DB, so behaviour is identical.
-  const service = new RepoIntelService(container);
+  const service = createRepoIntelService(container);
   service.registerIndexJobHandlers();
 
   app.get(
@@ -48,15 +47,7 @@ export default async function repoIntelRoutes(appBase: FastifyInstance) {
       // 202 even when enqueue fails (no handler / DB hiccup) so the UI can
       // still poll /index-state without an inline error path. The actual
       // outcome shows up in `repo_index_state` once the worker runs.
-      let jobId: string | null = null;
-      try {
-        const job = await container.jobs.enqueue(workspaceId, RESYNC_JOB_KIND, {
-          repoId: req.params.id,
-        });
-        jobId = job.id;
-      } catch {
-        // swallow — degraded path
-      }
+      const jobId = await service.enqueueResync(workspaceId, req.params.id);
       reply.code(202);
       return jobId
         ? { status: 'accepted', jobId }

@@ -2,6 +2,7 @@
 "use client";
 
 import React from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -89,41 +90,38 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         style={s.findingsCell}
         onMouseEnter={(event) => {
           const rect = event.currentTarget.getBoundingClientRect();
+          const below = rect.bottom + 6;
+          // Keep the fixed portal in the viewport when the last table rows are hovered.
+          const top = below + 340 <= window.innerHeight || rect.top < 346
+            ? below
+            : Math.max(8, rect.top - 346);
           setPreviewPosition({
-            top: rect.bottom + 6,
+            top,
             left: Math.max(8, Math.min(rect.left, window.innerWidth - 408)),
           });
         }}
         onMouseLeave={() => setPreviewPosition(null)}
       >
         {hasReview ? (
-          FINDINGS_SEVERITIES.map((severity) => {
+          FINDINGS_SEVERITIES.filter((severity) => pr.findings_counts![severity] > 0).map((severity) => {
             const SeverityIcon = SEVERITY_ICON[severity];
             const color = SEVERITY_COLOR[severity];
             return (
-              <button
+              <span
                 key={severity}
-                type="button"
-                title={t("panel.showOnlySeverity", { severity })}
-                style={{ ...s.findingChipButton, color }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  router.push(`/repos/${repoId}/pulls/${pr.number}?tab=findings&severity=${severity}`);
-                }}
+                aria-label={t("list.findingsChipLabel", { severity, count: pr.findings_counts![severity] })}
+                style={{ ...s.findingChip, color }}
               >
                 <SeverityIcon size={13} />
                 <span className="tnum">{pr.findings_counts![severity]}</span>
-              </button>
+              </span>
             );
           })
         ) : (
           <span style={s.muted}>—</span>
         )}
-        {previewPosition && previewFindings.length > 0 && (
-          <div
-            style={s.findingsPreview(previewPosition.top, previewPosition.left)}
-            onClick={(event) => event.stopPropagation()}
-          >
+        {previewPosition && previewFindings.length > 0 && createPortal(
+          <div style={s.findingsPreview(previewPosition.top, previewPosition.left)}>
             <div style={s.findingsPreviewTitle}>
               <Icon.AlertOctagon size={12} />
               {t("list.findingsPreviewTitle", { count: previewFindings.length })}
@@ -131,13 +129,13 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
             {previewFindings.map((finding) => (
               <div key={finding.id} style={s.findingsPreviewItem}>
                 <div style={s.findingsPreviewHead}>
-                  <SeverityBadge severity={finding.severity as Severity} compact />
+                  <SeverityBadge severity={finding.severity as Severity} />
                   <span style={s.findingsPreviewItemTitle}>{finding.title}</span>
                   <CategoryTag category={finding.category as Category} />
                 </div>
                 <div style={s.findingsPreviewMeta}>
                   <span className="mono" style={{ color: "var(--accent)" }}>
-                    {finding.file}:{finding.start_line}
+                    {finding.file}:{finding.start_line}{finding.end_line && finding.end_line !== finding.start_line ? `-${finding.end_line}` : ""}
                   </span>
                   <span style={s.findingsPreviewConf}>{Math.round(finding.confidence * 100)}% conf</span>
                 </div>
@@ -145,7 +143,7 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
               </div>
             ))}
           </div>
-        )}
+        , document.body)}
       </div>
       <div>
         <Badge dot color={st.c} bg="transparent">

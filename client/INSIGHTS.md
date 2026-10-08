@@ -47,3 +47,13 @@ A value below one before rounding can become exactly one in the displayed precis
 - Implication: Keep the hover preview filtered to one latest review per agent whenever list chips are changed; otherwise counts and preview can disagree after a reviewer reruns.
 
 The PR list receives per-agent-current severity counts, whereas the preview fetches review history. Applying the same newest-review-per-agent rule in the client makes both views describe the same findings set.
+
+<!-- insight-id: eng-client-bc6b7818f603 -->
+## eng-client-bc6b7818f603 — Specialized finding categories are shared client API contract
+
+- Date: 2026-10-05
+- Category: invariant
+- Evidence: API Contract review integration required category contract in both server/src/vendor/shared/contracts/findings.ts and client/src/vendor/shared/contracts/findings.ts; the client consumes findings through the vendored Zod contract.
+- Implication: When a new reviewer specialization emits a category, update the client vendored FindingCategory in the same change or the client contract diverges from the API.
+
+Finding categories are a shared validation and rendering vocabulary, not server-only labels. Keeping the vendor copies synchronized makes contract-review findings safe to transport and display.

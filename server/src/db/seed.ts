@@ -221,6 +221,56 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     if (!existing) await db.insert(t.agents).values(a);
   }
 
+  // ---- Test Quality Reviewer + reusable text-only skills -----------------
+  const testSkillDefinitions = [
+    ['Behavioral Test Coverage', 'Check that changed behaviour has meaningful positive-path coverage.'],
+    ['Boundary and Failure Cases', 'Check empty, invalid, boundary, and error-path behaviour.'],
+    ['Regression and Compatibility', 'Check public contracts, migrations, and unintended regressions.'],
+    ['Test Determinism and Maintainability', 'Check timing, network isolation, and readable deterministic tests.'],
+  ] as const;
+  const skillRows: Array<typeof t.skills.$inferSelect> = [];
+  for (const [name, description] of testSkillDefinitions) {
+    let [skill] = await db.select().from(t.skills).where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, name)));
+    if (!skill) {
+      [skill] = await db.insert(t.skills).values({ workspaceId, name, description, type: 'rubric', source: 'manual', body: description, enabled: true, version: 1 }).returning();
+      await db.insert(t.skillVersions).values({ skillId: skill!.id, version: 1, body: skill!.body }).onConflictDoNothing();
+    }
+    skillRows.push(skill!);
+  }
+  let [testAgent] = await db.select().from(t.agents).where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Test Quality Reviewer')));
+  if (!testAgent) {
+    [testAgent] = await db.insert(t.agents).values({ workspaceId, name: 'Test Quality Reviewer', description: 'Reviews test quality, coverage, and determinism.', provider: DEFAULT_PROVIDER, model: DEFAULT_MODEL, systemPrompt: GENERAL_REVIEWER_PROMPT, enabled: true, version: 1, createdBy: userId }).returning();
+  }
+  for (const [order, skill] of skillRows.entries()) {
+    await db.insert(t.agentSkills).values({ agentId: testAgent!.id, skillId: skill.id, order }).onConflictDoNothing();
+  }
+
+  // ---- API Contract Reviewer + four directive contract skills -------------
+  const apiContractDefinitions = [
+    ['breaking-change', 'Breaking changes to public API contracts.', 'Flag removal or incompatible modification of a public endpoint, parameter, field, enum value, or error contract.\n\nGood: add /v2 while retaining /v1.\nBad: rename customerId without compatibility.', 'imported_url', 'security'],
+    ['response-schema', 'Response schema compatibility.', 'Require backwards-compatible response shapes.\n\nGood: add an optional field.\nBad: make a formerly optional field required.', 'manual', 'security'],
+    ['semver-discipline', 'Semantic version discipline for APIs.', 'Require a major-version path for public incompatible changes.\n\nGood: ship a breaking change at /v2.\nBad: silently change /v1 semantics.', 'manual', 'security'],
+    ['deprecation-policy', 'Deprecate public API deliberately.', 'Require replacement and removal date before deleting public behavior.\n\nGood: deprecate legacy_id with a replacement.\nBad: remove it without notice.', 'manual', 'security'],
+  ] as const;
+  const apiSkillRows: Array<typeof t.skills.$inferSelect> = [];
+  for (const [name, description, body, source, type] of apiContractDefinitions) {
+    let [skill] = await db.select().from(t.skills).where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, name)));
+    if (!skill) {
+      [skill] = await db.insert(t.skills).values({ workspaceId, name, description, type, source, body, enabled: true, version: 1 }).returning();
+      await db.insert(t.skillVersions).values({ skillId: skill!.id, version: 1, body: skill!.body }).onConflictDoNothing();
+    } else if (skill.type !== type) {
+      [skill] = await db.update(t.skills).set({ type }).where(eq(t.skills.id, skill.id)).returning();
+    }
+    apiSkillRows.push(skill!);
+  }
+  let [apiAgent] = await db.select().from(t.agents).where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'API Contract Reviewer')));
+  if (!apiAgent) {
+    [apiAgent] = await db.insert(t.agents).values({ workspaceId, name: 'API Contract Reviewer', description: 'Finds public API compatibility and versioning breaks.', provider: DEFAULT_PROVIDER, model: DEFAULT_MODEL, systemPrompt: GENERAL_REVIEWER_PROMPT, enabled: true, version: 1, createdBy: userId }).returning();
+  }
+  for (const [order, skill] of apiSkillRows.entries()) {
+    await db.insert(t.agentSkills).values({ agentId: apiAgent!.id, skillId: skill.id, order }).onConflictDoNothing();
+  }
+
   // ---- one completed demo run (no model call) ----
   // Keep cost on agent_runs: the stored trace deliberately contains usage but
   // never duplicates the provider-reported USD amount.

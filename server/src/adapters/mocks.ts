@@ -51,6 +51,12 @@ export interface MockLLMOptions {
    * by req.schemaName; falls back to `structured` when no entry matches.
    */
   structuredBySchema?: Record<string, unknown>;
+  /**
+   * Deterministic prompt-aware fixture selection for integration tests. It keeps
+   * provider I/O mocked while allowing a test to prove that prompt slots (such
+   * as linked skills) change the resulting grounded review.
+   */
+  structuredResolver?: (request: Pick<StructuredRequest<unknown>, 'schemaName' | 'messages'>) => unknown;
   completionText?: string;
   embedding?: number[];
 }
@@ -88,7 +94,10 @@ export class MockLLMProvider implements LLMProvider {
 
   async completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
     this.calls.push({ method: 'completeStructured', req });
-    const fixture = this.opts.structuredBySchema?.[req.schemaName] ?? this.opts.structured ?? {};
+    const fixture = this.opts.structuredResolver?.(req)
+      ?? this.opts.structuredBySchema?.[req.schemaName]
+      ?? this.opts.structured
+      ?? {};
     const parsed = (req.schema as z.ZodType<T>).safeParse(fixture);
     if (!parsed.success) {
       throw new Error(`MockLLMProvider fixture failed schema: ${parsed.error.message}`);

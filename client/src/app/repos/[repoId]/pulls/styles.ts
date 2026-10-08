@@ -47,14 +47,11 @@ export const s = {
     gap: 8,
     flexWrap: "nowrap",
   } satisfies CSSProperties,
-  findingChipButton: {
+  findingChip: {
     display: "inline-flex",
     alignItems: "center",
     gap: 3,
     padding: 0,
-    border: "none",
-    background: "none",
-    cursor: "pointer",
     fontSize: 12,
     fontWeight: 600,
     lineHeight: 1,

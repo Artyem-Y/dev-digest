@@ -5,7 +5,7 @@ import { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
-import { AgentsService } from './service.js';
+import { createAgentsService } from './composition.js';
 
 /** `/providers/:id` addresses a provider by name, not a uuid. */
 const ProviderParams = z.object({ id: Provider });
@@ -66,10 +66,11 @@ const SetSkillsBody = z
   .refine((b) => b.skill_ids !== undefined || b.skill_id !== undefined, {
     message: 'Provide skill_ids (set/reorder) or skill_id (link one)',
   });
+const SetSkillEnabled = z.object({ enabled: z.boolean() });
 
 export default async function agentsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const service = new AgentsService(app.container);
+  const service = createAgentsService(app.container);
 
   app.get('/agents', async (req) => {
     const { workspaceId } = await getContext(app.container, req);
@@ -163,6 +164,12 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
       return links;
     },
   );
+  app.patch('/agents/:id/skills/:skillId', { schema: { params: IdParams.extend({ skillId: z.string().uuid() }), body: SetSkillEnabled } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    const links = await service.setSkillEnabled(workspaceId, req.params.id, req.params.skillId, req.body.enabled);
+    if (!links) throw new NotFoundError('Agent not found');
+    return links;
+  });
 
   app.get('/agents/:id/models', { schema: { params: IdParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);

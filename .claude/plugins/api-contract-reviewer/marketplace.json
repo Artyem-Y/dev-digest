@@ -1,0 +1,4 @@
+{
+  "name": "devdigest-skills",
+  "plugins": [{ "name": "api-contract-reviewer", "source": "./.claude-plugin", "version": "1.0.0" }]
+}

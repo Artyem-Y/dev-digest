@@ -25,7 +25,7 @@ For a cross-module task, follow the workflow independently for every affected mo
 ### Before work
 
 1. Infer affected modules from the request and the files that may change.
-2. Read each module's `CLAUDE.md`, `README.md`, and entire `INSIGHTS.md` before the first implementation, diagnosis, review conclusion, or design decision.
+2. Read each module's `AGENTS.md`, `README.md`, and entire `INSIGHTS.md` before the first implementation, diagnosis, review conclusion, or design decision. `CLAUDE.md` is a compatibility symlink for Claude Code.
 3. Use existing insights as constraints. If the task expands into another module, read that module's files before continuing there.
 
 Time pressure, a request to avoid documentation, or a seemingly small change does not remove the initial read. The read prevents repeated mistakes; it does not require writing an entry.

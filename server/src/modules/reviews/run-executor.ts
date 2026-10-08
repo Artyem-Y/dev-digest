@@ -1,13 +1,12 @@
-import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import type { LLMProvider, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
-import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
-import { loadDiff } from './diff-loader.js';
+import type { ReviewRepositoryRef } from './diff-loader.js';
+import type { RepoIntel } from '../repo-intel/types.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -34,6 +33,26 @@ export type RunOutcome = {
   raw: Review;
 };
 
+export type ResolvedSkill = { name: string; body: string };
+
+export function skillsAttachedLogMessage(skills: ReadonlyArray<ResolvedSkill>): string {
+  return skills.length > 0
+    ? `Skills attached: ${skills.map((skill) => skill.name).join(', ')}`
+    : 'Skills attached: none';
+}
+
+export interface ReviewRunExecutorDependencies {
+  runBus: import('../../platform/sse.js').RunBus;
+  resolveLlm(provider: Provider): Promise<LLMProvider>;
+  repoIntel: Pick<RepoIntel, 'getCallerSignatures' | 'getRepoMap' | 'getFileRank'>;
+  loadDiff(
+    workspaceId: string,
+    pull: PullRow,
+    repository: ReviewRepositoryRef,
+  ): Promise<UnifiedDiff>;
+  resolveSkills(agentId: string): Promise<ResolvedSkill[]>;
+}
+
 /**
  * Owns the background execution of queued agent runs (extracted from
  * ReviewService; behaviour unchanged). Loads the diff + intent once, then
@@ -42,9 +61,8 @@ export type RunOutcome = {
  */
 export class ReviewRunExecutor {
   constructor(
-    private container: Container,
-    private repo: ReviewRepository,
-    private agents: Container['agentsRepo'],
+    private readonly dependencies: ReviewRunExecutorDependencies,
+    private readonly repo: ReviewRepository,
   ) {}
 
   /**
@@ -55,7 +73,7 @@ export class ReviewRunExecutor {
   async executeRuns(
     workspaceId: string,
     pull: PullRow,
-    repo: typeof schema.repos.$inferSelect,
+    repo: ReviewRepositoryRef,
     jobs: { agent: AgentRow; runId: string }[],
     logger?: Logger,
   ): Promise<void> {
@@ -63,7 +81,7 @@ export class ReviewRunExecutor {
     // intent) is streamed into each target agent's Live Log and persisted into
     // each run's trace. Per-agent work below narrows it to a single run.
     const runLog = new RunLogger(
-      this.container.runBus,
+      this.dependencies.runBus,
       jobs.map((j) => j.runId),
       logger,
       { prId: pull.id },
@@ -88,13 +106,13 @@ export class ReviewRunExecutor {
         await this.repo
           .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed'))
           .catch(() => undefined);
-        this.container.runBus.complete(runId);
+        this.dependencies.runBus.complete(runId);
       }
     };
 
     let diff: UnifiedDiff;
     try {
-      diff = await runLog.step('Loading PR diff', () => loadDiff(this.container, this.repo, workspaceId, pull, repo), {
+      diff = await runLog.step('Loading PR diff', () => this.dependencies.loadDiff(workspaceId, pull, repo), {
         kind: 'tool',
       });
     } catch (err) {
@@ -138,7 +156,7 @@ export class ReviewRunExecutor {
   private async runOneAgent(
     workspaceId: string,
     pull: PullRow,
-    repo: typeof schema.repos.$inferSelect,
+    repo: ReviewRepositoryRef,
     diff: UnifiedDiff,
     agent: AgentRow,
     runId: string,
@@ -157,7 +175,7 @@ export class ReviewRunExecutor {
       // key is missing — caught below and persisted as a failed run.)
       const llm = await runLog.step(
         `Resolving ${agent.provider} provider`,
-        () => this.container.llm(agent.provider as Provider),
+        () => this.dependencies.resolveLlm(agent.provider as Provider),
         { kind: 'tool' },
       );
 
@@ -182,6 +200,9 @@ export class ReviewRunExecutor {
       const rankNote = repoIntelOn ? await this.buildRankNote(pull.repoId, diff, runLog) : '';
 
       const task = taskLine(pull) + rankNote;
+      const resolvedSkills = await this.dependencies.resolveSkills(agent.id);
+      runLog.info(skillsAttachedLogMessage(resolvedSkills));
+      const skills = resolvedSkills.map((skill) => skill.body);
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
@@ -195,6 +216,7 @@ export class ReviewRunExecutor {
         // Per-agent review strategy (configured in the Agent editor); falls back
         // to the studio default. single-pass = whole diff in one call.
         strategy: agent.strategy ?? REVIEW_STRATEGY,
+        ...(skills.length > 0 ? { skills } : {}),
         // T1.3 — pass the callers digest only when we built one. assemblePrompt
         // omits the section when this is empty/undefined.
         ...(callersDigest ? { callers: callersDigest } : {}),
@@ -207,7 +229,7 @@ export class ReviewRunExecutor {
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
         checkCancelled: () => {
-          if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
+          if (this.dependencies.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
       });
       const { tokensIn, tokensOut, grounding, costUsd } = outcome;
@@ -285,7 +307,7 @@ export class ReviewRunExecutor {
       };
       runLog.info('Run complete; trace persisted');
       await this.repo.saveRunTrace(runId, trace);
-      this.container.runBus.complete(runId);
+      this.dependencies.runBus.complete(runId);
 
       return { review, findings: findingRows, grounding, raw: outcome.review };
     } catch (err) {
@@ -309,7 +331,7 @@ export class ReviewRunExecutor {
       await this.repo
         .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start))
         .catch(() => undefined);
-      this.container.runBus.complete(runId);
+      this.dependencies.runBus.complete(runId);
       throw err;
     }
   }
@@ -334,7 +356,7 @@ export class ReviewRunExecutor {
     if (changedFiles.length === 0) return undefined;
     let rows;
     try {
-      rows = await this.container.repoIntel.getCallerSignatures(repoId, changedFiles, 10);
+      rows = await this.dependencies.repoIntel.getCallerSignatures(repoId, changedFiles, 10);
     } catch (err) {
       // Never let an enrichment break the run — surface only as a Live Log info.
       runLog.info(`callers digest: repoIntel failed — ${(err as Error).message}`);
@@ -367,7 +389,7 @@ export class ReviewRunExecutor {
     runLog: RunLogger,
   ): Promise<string | undefined> {
     try {
-      const map = await this.container.repoIntel.getRepoMap(repoId);
+      const map = await this.dependencies.repoIntel.getRepoMap(repoId);
       if (map.degraded || map.text.trim().length === 0) return undefined;
       runLog.info(`repo map: ${map.tokens} token(s) attached (cached=${map.cached})`);
       return map.text;
@@ -390,7 +412,7 @@ export class ReviewRunExecutor {
     const changedFiles = diff.files.map((f) => f.path);
     if (changedFiles.length === 0) return '';
     try {
-      const ranks = await this.container.repoIntel.getFileRank(repoId, changedFiles);
+      const ranks = await this.dependencies.repoIntel.getFileRank(repoId, changedFiles);
       if (ranks.length === 0) return '';
       const hot = ranks.filter((r) => r.percentile >= 95);
       if (hot.length === 0) return '';
@@ -428,7 +450,7 @@ export class ReviewRunExecutor {
       raw_output: '',
       memory_pulled: [],
       specs_read: [],
-      log: this.container.runBus.buffer(runId).map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),
+      log: this.dependencies.runBus.buffer(runId).map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),
     };
   }
 }
