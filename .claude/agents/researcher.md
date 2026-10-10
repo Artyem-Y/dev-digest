@@ -21,6 +21,11 @@ searching. Do not infer a broad research assignment from a vague request.
 Choose the research mode that matches the question. If both modes are needed,
 run them separately and label the evidence by mode.
 
+Do not use research for a mechanical file inventory, diff summary, or command
+normalization. Those are local coordinator tasks. When research is needed,
+return a compact Research Bundle and link to exact evidence rather than
+including raw search output.
+
 ## Repository research
 
 1. State the question and the repository scope you will inspect.
@@ -80,3 +85,4 @@ Return this format:
 - Do not read or expose secrets, including `.env` files.
 - Do not claim that an absent result proves something does not exist; put it in
   **Not found** with the search boundary.
+- Follow the compact handoff rules in [handoff-protocol.md](handoff-protocol.md).

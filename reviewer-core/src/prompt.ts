@@ -1,4 +1,4 @@
-import type { ChatMessage, PromptAssembly } from '@devdigest/shared';
+import type { ChatMessage, DerivedIntent, PromptAssembly } from '@devdigest/shared';
 
 /**
  * Prompt assembly + prompt-injection hardening.
@@ -75,6 +75,8 @@ export interface PromptParts {
    * undefined → section omitted.
    */
   prDescription?: string;
+  /** Server-derived advisory intent. Always treated as untrusted data. */
+  intent?: DerivedIntent;
   /** The unified diff / user task (untrusted content). */
   diff: string;
   /** Optional task framing line, e.g. "Review PR #482 '…'". */
@@ -84,6 +86,43 @@ export interface PromptParts {
 export interface AssembledPrompt {
   messages: ChatMessage[];
   assembly: PromptAssembly;
+  /** Metadata-only description for structured logs; never contains prompt text. */
+  telemetry: PromptAssemblyTelemetry;
+}
+
+export type PromptSectionName =
+  | 'system'
+  | 'task'
+  | 'pr_description'
+  | 'derived_intent'
+  | 'skills'
+  | 'memory'
+  | 'repo_map'
+  | 'project_context'
+  | 'callers'
+  | 'diff';
+
+export type PromptSectionSource =
+  | 'agent_system_prompt'
+  | 'review_task'
+  | 'pr_description'
+  | 'derived_intent'
+  | 'linked_skills'
+  | 'retrieved_memory'
+  | 'repo_map'
+  | 'project_specs'
+  | 'callers_digest'
+  | 'pr_diff';
+
+export interface PromptSectionTelemetry {
+  section: PromptSectionName;
+  source: PromptSectionSource;
+  /** Rendered section length, including its header and safe delimiters. */
+  chars: number;
+}
+
+export interface PromptAssemblyTelemetry {
+  sections: PromptSectionTelemetry[];
 }
 
 /**
@@ -93,6 +132,9 @@ export interface AssembledPrompt {
  */
 export function assemblePrompt(parts: PromptParts): AssembledPrompt {
   const system = `${parts.system}\n\n${INJECTION_GUARD}`;
+  const telemetry: PromptAssemblyTelemetry = {
+    sections: [{ section: 'system', source: 'agent_system_prompt', chars: system.length }],
+  };
 
   const skillsBlock =
     parts.skills && parts.skills.length > 0 ? parts.skills.join('\n\n') : undefined;
@@ -111,22 +153,53 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
       : undefined;
 
   const userSections: string[] = [];
-  if (parts.task) userSections.push(parts.task);
+  const addUserSection = (
+    section: PromptSectionName,
+    source: PromptSectionSource,
+    content: string,
+  ) => {
+    userSections.push(content);
+    telemetry.sections.push({ section, source, chars: content.length });
+  };
+
+  if (parts.task) addUserSection('task', 'review_task', parts.task);
   if (prDescription) {
-    userSections.push(`## PR description\n${wrapUntrusted('pr-description', prDescription)}`);
+    addUserSection(
+      'pr_description',
+      'pr_description',
+      `## PR description\n${wrapUntrusted('pr-description', prDescription)}`,
+    );
   }
-  if (skillsBlock) userSections.push(`## Skills / rules\n${skillsBlock}`);
-  if (memoryBlock) userSections.push(`## Relevant memory\n${memoryBlock}`);
+  if (parts.intent) {
+    const intentText = [
+      `Intent: ${parts.intent.intent}`,
+      `In scope: ${parts.intent.in_scope.join('; ')}`,
+      `Out of scope: ${parts.intent.out_of_scope.join('; ')}`,
+    ].join('\n');
+    addUserSection(
+      'derived_intent',
+      'derived_intent',
+      `## Derived PR intent\n${wrapUntrusted('derived-intent', intentText)}`,
+    );
+  }
+  if (skillsBlock) addUserSection('skills', 'linked_skills', `## Skills / rules\n${skillsBlock}`);
+  if (memoryBlock) addUserSection('memory', 'retrieved_memory', `## Relevant memory\n${memoryBlock}`);
   if (parts.repoMap && parts.repoMap.trim().length > 0) {
-    userSections.push(`## Repo skeleton\n${wrapUntrusted('repo-map', parts.repoMap)}`);
+    addUserSection(
+      'repo_map',
+      'repo_map',
+      `## Repo skeleton\n${wrapUntrusted('repo-map', parts.repoMap)}`,
+    );
   }
-  if (specsBlock) userSections.push(`## Project context\n${specsBlock}`);
+  if (specsBlock) addUserSection('project_context', 'project_specs', `## Project context\n${specsBlock}`);
   if (parts.callers && parts.callers.trim().length > 0) {
-    userSections.push(
+    addUserSection(
+      'callers',
+      'callers_digest',
       `## Callers of changed symbols\n${wrapUntrusted('callers', parts.callers)}`,
     );
   }
-  userSections.push(`## Diff to review\n${wrapUntrusted('diff', parts.diff)}`);
+  addUserSection('diff', 'pr_diff', `## Diff to review\n${wrapUntrusted('diff', parts.diff)}`);
 
   const user = userSections.join('\n\n');
 
@@ -144,8 +217,9 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
     callers: parts.callers ?? null,
     repo_map: parts.repoMap ?? null,
     pr_description: prDescription ?? null,
+    derived_intent: parts.intent ? '[redacted]' : null,
     user,
   };
 
-  return { messages, assembly };
+  return { messages, assembly, telemetry };
 }

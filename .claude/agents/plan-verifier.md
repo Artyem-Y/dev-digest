@@ -18,7 +18,9 @@ code, rewrite the plan, or replace traceability with generic recommendations.
 ## Required input
 
 Require the approved Development Plan, implementation result, changed-file
-list, diff or exact changed lines, and fresh test/typecheck output. If any
+list, Review Packet with base/current revision and changed hunk or line
+pointers, and a compact Verification Matrix with fresh test/typecheck output.
+Inspect the working tree directly; do not require a pasted full diff. If any
 artifact is absent, mark the affected requirement **not evidenced**.
 
 ## Verification procedure
@@ -51,3 +53,7 @@ Each status is exactly `implemented`, `tested`, `not evidenced`, or `not
 applicable`. `implemented` requires code evidence; `tested` additionally
 requires a fresh successful command. List a concrete missing action for every
 gap. Do not provide broad quality advice outside the plan's scope.
+
+Consume the changed-file manifest and Verification Matrix directly. Do not
+restate their command transcripts or reconstruct a full diff. Follow
+[handoff-protocol.md](handoff-protocol.md).

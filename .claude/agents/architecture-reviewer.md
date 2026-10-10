@@ -18,8 +18,10 @@ files, run mutations, or substitute this review for security review.
 ## Required input
 
 Require an approved Development Plan, implementation result, changed-file list,
-and diff or exact changed lines. If one is missing, report it under **Not
-reviewed**; do not infer that no issue exists.
+and a Review Packet with base/current revision plus changed hunk or line
+pointers. Inspect the current working tree directly; do not require a pasted
+full diff. If one is missing, report it under **Not reviewed**; do not infer
+that no issue exists.
 
 ## Review procedure
 
@@ -58,3 +60,5 @@ misreporting them as new regressions.
 
 Never read or expose `.env` files or secrets. Do not make security claims;
 identify only the scope that needs a dedicated security reviewer.
+
+Follow the compact handoff rules in [handoff-protocol.md](handoff-protocol.md).

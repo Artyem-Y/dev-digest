@@ -46,6 +46,15 @@ requires it.
 - All agents preserve unrelated worktree changes and must not read or expose
   `.env` files.
 
+## Efficient handoffs
+
+The suite uses [the handoff protocol](handoff-protocol.md) to avoid repeating
+plans, diffs, and successful command transcripts. It defines the shared Context
+Manifest, Research Bundle, Task Card, Verification Matrix, and Review Packet,
+plus dispatch and model-routing rules. These compact artifacts do not replace
+required package instructions, Engineering Insights reads, or evidence-backed
+review.
+
 ## Planner rule sources
 
 | Rule group | Source |

@@ -15,8 +15,9 @@ is missing.
 
 ## Before changing code
 
-1. Read the approved plan and confirm its acceptance criteria, boundaries, and
-   named verification commands.
+1. Read the approved plan or its planner-produced task card and confirm its
+   acceptance criteria, boundaries, and named verification commands. When the
+   Context Manifest plan hash matches, do not restate or recopy the plan.
 2. Identify every affected package. For each, read `AGENTS.md`, `README.md`,
    `INSIGHTS.md`, `docs/README.md`, and `specs/README.md`; then read only the
    relevant documents, code, and tests.
@@ -80,3 +81,9 @@ or security review; list those review scopes for the dedicated agents instead.
 
 Do not label skipped checks as passed. Keep findings from self-verification
 limited to the changed implementation and its direct regressions.
+
+Use a changed-file manifest and the compact Verification Matrix in the result.
+Reference the current revision/worktree and exact paths; do not paste the full
+diff, package documents, or successful command transcripts. Execute dependent
+task cards sequentially, and request a separate implementer only for a
+non-overlapping task. Follow [handoff-protocol.md](handoff-protocol.md).

@@ -1,4 +1,5 @@
-import type { LLMProvider, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import type { DerivedIntent, LLMProvider, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import type { IntentDerivation } from '../intents/application/derive-intent.js';
 import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import type { AgentRow } from '../../db/rows.js';
@@ -51,6 +52,9 @@ export interface ReviewRunExecutorDependencies {
     repository: ReviewRepositoryRef,
   ): Promise<UnifiedDiff>;
   resolveSkills(agentId: string): Promise<ResolvedSkill[]>;
+  /** Detailed prompt metadata is opt-in and supplied only by local config. */
+  promptBuilderDebug: boolean;
+  deriveIntent(input: { workspaceId: string; prId: string; title: string; body: string | null; repo: ReviewRepositoryRef; }): Promise<IntentDerivation>;
 }
 
 /**
@@ -121,6 +125,21 @@ export class ReviewRunExecutor {
       return;
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
+    let intentResult: IntentDerivation;
+    try {
+      intentResult = await runLog.step('Deriving PR intent', () => this.dependencies.deriveIntent({
+        workspaceId, prId: pull.id, title: pull.title, body: pull.body, repo,
+      }), { kind: 'tool' });
+    } catch {
+      intentResult = { status: 'unavailable', reasonCode: 'intent_unexpected_failure', trace: { sourceCount: 0 } };
+      runLog.info('PR intent unavailable: intent_unexpected_failure');
+    }
+    const intent = intentResult.status === 'derived' ? intentResult.intent : undefined;
+    const intentUnavailableReason = intentResult.status === 'unavailable' ? intentResult.reasonCode : null;
+    const intentTrace = intentResult.status === 'derived'
+      ? { status: 'derived' as const, confidence: intentResult.trace.confidence, source_count: intentResult.trace.sourceCount, reason_code: null, provider: intentResult.trace.provider, model: intentResult.trace.model }
+      : { status: 'unavailable' as const, confidence: 'unknown' as const, source_count: intentResult.trace.sourceCount, reason_code: intentResult.reasonCode, provider: null, model: null };
+    runLog.info(intent ? `PR intent derived (${intent.confidence} confidence)` : `PR intent unavailable: ${intentUnavailableReason}`, intentTrace);
 
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
@@ -129,7 +148,7 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, intent, intentTrace, agent, runId, runLog);
         logger?.info(
           {
             runId,
@@ -158,6 +177,8 @@ export class ReviewRunExecutor {
     pull: PullRow,
     repo: ReviewRepositoryRef,
     diff: UnifiedDiff,
+    intent: DerivedIntent | undefined,
+    intentTrace: NonNullable<RunTrace['intent']>,
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
@@ -225,8 +246,11 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        ...(intent ? { intent } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
+        correlationId: runId,
+        promptAssemblyDetail: this.dependencies.promptBuilderDebug,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
         checkCancelled: () => {
           if (this.dependencies.runBus.isCancelled(runId)) throw new RunCancelledError();
@@ -292,6 +316,7 @@ export class ReviewRunExecutor {
           grounding,
         },
         prompt_assembly: outcome.assembly,
+        intent: intentTrace,
         tool_calls: outcome.chunks.map((c) => ({
           tool: 'review_file',
           args: c.label,
@@ -329,7 +354,7 @@ export class ReviewRunExecutor {
         })
         .catch(() => undefined);
       await this.repo
-        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start))
+        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, intentTrace))
         .catch(() => undefined);
       this.dependencies.runBus.complete(runId);
       throw err;
@@ -434,6 +459,7 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     grounding: string,
     durationMs = 0,
+    intent?: NonNullable<RunTrace['intent']>,
   ): RunTrace {
     return {
       config: {
@@ -450,6 +476,7 @@ export class ReviewRunExecutor {
       raw_output: '',
       memory_pulled: [],
       specs_read: [],
+      ...(intent ? { intent } : {}),
       log: this.dependencies.runBus.buffer(runId).map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),
     };
   }

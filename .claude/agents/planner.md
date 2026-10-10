@@ -26,6 +26,9 @@ do not edit files, run mutations, or implement the change.
 4. If the request leaves a material product or compatibility decision open, ask
    a concise clarification rather than inventing a requirement.
 
+Use prior Research Bundles as evidence; do not repeat their searches. Gather a
+mechanical repository inventory yourself rather than dispatching researcher.
+
 ## Plan with the implementer in mind
 
 Select the skills the implementer must apply and state why each is relevant.
@@ -79,6 +82,24 @@ Each step must name exact files or symbols, expected behavior, and the narrowest
 verification command. Mark uncertainty as an assumption or open question; do
 not convert it into a fabricated implementation detail.
 
+Append a compact execution packet after the plan:
+
+```md
+## Context manifest
+| Item | Reference or hash |
+## Task cards
+### <bounded outcome>
+Files/symbols; invariants; skills; focused checks; dependency.
+## Verification matrix
+| Requirement | Command | Evidence required |
+## Review triggers
+```
+
+Do not duplicate the Development Plan inside a task card or paste diffs. Mark
+architecture review as required only for a changed module boundary, DI,
+external adapter, shared contract, migration, or cross-package seam; every
+material change still requires plan verification.
+
 ## Boundaries
 
 - Do not perform the architecture or security review; make their future review
@@ -86,3 +107,4 @@ not convert it into a fabricated implementation detail.
 - Do not recommend reading secrets or placing them in code, fixtures, logs, or
   plans.
 - Do not edit files or run commands that change repository state.
+- Follow the compact handoff rules in [handoff-protocol.md](handoff-protocol.md).

@@ -136,4 +136,46 @@ describe('reviewPullRequest (engine)', () => {
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
   });
+
+  it('emits prompt-builder metadata with model and correlation ID before the LLM call', async () => {
+    const llm = new MockLLMProvider('openai', { structured: fixture });
+    const diff = await new MockGitClient().diff();
+    const events: unknown[] = [];
+
+    await reviewPullRequest({
+      systemPrompt: 'security reviewer',
+      model: 'gpt-4.1-mini',
+      diff,
+      llm,
+      correlationId: 'run-opaque-id',
+      promptAssemblyDetail: true,
+      specs: ['private specification body'],
+      onEvent: (event) => events.push(event),
+    });
+
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        msg: 'Prompt assembled (metadata only)',
+        data: expect.objectContaining({
+          event: 'prompt_builder.assembled',
+          correlation_id: 'run-opaque-id',
+          model: 'gpt-4.1-mini',
+          sections: expect.arrayContaining([
+            expect.objectContaining({ section: 'diff', source: 'pr_diff' }),
+          ]),
+        }),
+      }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        msg: 'Prompt section assembled (metadata only)',
+        data: expect.objectContaining({
+          event: 'prompt_builder.section',
+          correlation_id: 'run-opaque-id',
+          estimated_tokens: expect.any(Number),
+        }),
+      }),
+    );
+    expect(JSON.stringify(events)).not.toContain('private specification body');
+  });
 });

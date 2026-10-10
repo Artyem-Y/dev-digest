@@ -7,7 +7,7 @@ import { useSettings, useUpdateSettings } from "../../../../../../../lib/hooks";
 import { useProviderModels } from "../../../../../../../lib/hooks/agents";
 import { toModelOptions } from "../../../../../../../lib/model-label";
 import { FEATURE_MODELS } from "../../../../../../../lib/feature-models";
-import type { FeatureModelChoice, FeatureModelId } from "../../../../../../../lib/types";
+import type { FeatureModelChoice, FeatureModelId, Provider } from "../../../../../../../lib/types";
 import { SectionTitle } from "../SectionTitle";
 import { s } from "./styles";
 
@@ -21,15 +21,15 @@ export function SettingsModels() {
   const t = useTranslations("settings");
   const { data: settings } = useSettings();
   const update = useUpdateSettings();
-  const { data: models } = useProviderModels("openrouter");
-
   const chosen = (settings?.feature_models ?? {}) as Partial<Record<FeatureModelId, FeatureModelChoice>>;
+  const [activeProvider, setActiveProvider] = React.useState<Provider>("openrouter");
+  const { data: models } = useProviderModels(activeProvider);
   const baseOptions = toModelOptions(models);
   const noModels = models !== undefined && models.length === 0;
 
-  const setModel = (id: FeatureModelId, model: string) =>
+  const setModel = (id: FeatureModelId, provider: Provider, model: string) =>
     update.mutate({
-      feature_models: { ...chosen, [id]: { provider: "openrouter", model } },
+      feature_models: { ...chosen, [id]: { provider, model } },
     });
 
   return (
@@ -37,7 +37,9 @@ export function SettingsModels() {
       <SectionTitle title={t("models.title")} body={t("models.body")} />
 
       {FEATURE_MODELS.map((f) => {
-        const current = chosen[f.id]?.model ?? f.defaultModel;
+        const choice = chosen[f.id] ?? { provider: f.defaultProvider, model: f.defaultModel };
+        const current = choice.model;
+        const provider = choice.provider;
         const isDefault = !chosen[f.id];
         // Ensure the current value is selectable even if it isn't in the live
         // OpenRouter list (e.g. an OpenAI registry default, or an empty list).
@@ -56,8 +58,18 @@ export function SettingsModels() {
               hint={f.description}
             >
               <SearchableSelect
+                value={provider}
+                onChange={(next) => {
+                  const nextProvider = next as Provider;
+                  setActiveProvider(nextProvider);
+                  update.mutate({ feature_models: { ...chosen, [f.id]: { provider: nextProvider, model: current } } });
+                }}
+                options={["openai", "anthropic", "openrouter"]}
+                placeholder={t("models.provider")}
+              />
+              <SearchableSelect
                 value={current}
-                onChange={(m) => setModel(f.id, m)}
+                onChange={(m) => setModel(f.id, provider, m)}
                 options={options}
                 placeholder={t("models.search")}
               />

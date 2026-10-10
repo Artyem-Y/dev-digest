@@ -53,7 +53,7 @@ export const FEATURE_MODELS: FeatureModelDef[] = [
     label: 'PR Review · Intent',
     description: 'Derives a PR’s intent and scope before review.',
     defaultProvider: 'openai',
-    defaultModel: 'gpt-4.1',
+    defaultModel: 'gpt-6-luna',
   },
   {
     id: 'risk_brief',
