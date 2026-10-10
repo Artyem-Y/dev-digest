@@ -13,6 +13,25 @@ export const Intent = z.object({
 });
 export type Intent = z.infer<typeof Intent>;
 
+/** Trace-safe provenance only; source text and URLs are never transport data. */
+export const IntentEvidence = z.object({
+  source_kind: z.enum(['pr_title', 'pr_description', 'github_issue', 'plan_spec']),
+  status: z.enum(['used', 'unavailable', 'rejected']),
+  reason_code: z.string().max(80).nullable(),
+  content_fingerprint: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+});
+export type IntentEvidence = z.infer<typeof IntentEvidence>;
+
+export const DerivedIntent = Intent.extend({
+  confidence: z.enum(['high', 'medium', 'low']),
+  evidence: z.array(IntentEvidence).max(8),
+  source_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  model_provider: z.enum(['openai', 'anthropic', 'openrouter']),
+  model: z.string().min(1),
+  derived_at: z.string().datetime(),
+});
+export type DerivedIntent = z.infer<typeof DerivedIntent>;
+
 // ---- Blast radius ----
 export const ChangedSymbol = z.object({
   name: z.string(),

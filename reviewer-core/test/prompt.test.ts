@@ -87,3 +87,30 @@ describe('assemblePrompt — skills trace block', () => {
     expect((assembly as { skill_tokens?: number | null }).skill_tokens).toBeNull();
   });
 });
+
+describe('assemblePrompt — safe telemetry', () => {
+  it('reports only static section metadata, never prompt content', () => {
+    const secret = 'sk_live_not-for-logs';
+    const { telemetry } = assemblePrompt({
+      system: `sys ${secret}`,
+      task: 'Review private PR title',
+      prDescription: `private description ${secret}`,
+      specs: [`private specification ${secret}`],
+      diff: `+ const token = '${secret}';`,
+    });
+
+    expect(telemetry.sections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ section: 'system', source: 'agent_system_prompt' }),
+        expect.objectContaining({ section: 'task', source: 'review_task' }),
+        expect.objectContaining({ section: 'pr_description', source: 'pr_description' }),
+        expect.objectContaining({ section: 'project_context', source: 'project_specs' }),
+        expect.objectContaining({ section: 'diff', source: 'pr_diff' }),
+      ]),
+    );
+    expect(telemetry.sections.every((section) => section.chars > 0)).toBe(true);
+    expect(JSON.stringify(telemetry)).not.toContain(secret);
+    expect(JSON.stringify(telemetry)).not.toContain('private description');
+    expect(JSON.stringify(telemetry)).not.toContain('private specification');
+  });
+});

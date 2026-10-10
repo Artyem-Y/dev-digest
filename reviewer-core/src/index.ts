@@ -17,6 +17,10 @@ export {
   wrapUntrusted,
   type PromptParts,
   type AssembledPrompt,
+  type PromptAssemblyTelemetry,
+  type PromptSectionTelemetry,
+  type PromptSectionName,
+  type PromptSectionSource,
 } from './prompt.js';
 
 // Citation grounding — the mandatory mechanical gate for diff findings.
@@ -57,3 +61,10 @@ export {
 // The single OpenAI-compatible structured provider (OpenRouter), shared by the
 // CI runner and the server's openrouter path. Owns session grouping + guards.
 export { OpenRouterProvider, type OpenRouterProviderOptions } from './llm/openrouter.js';
+
+export {
+  derivePullIntent,
+  PullIntentClassification,
+  type DerivePullIntentInput,
+  type IntentSourceInput,
+} from './intent.js';

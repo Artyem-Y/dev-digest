@@ -22,11 +22,12 @@
   },
   "models": {
     "title": "Feature Models",
-    "body": "Choose the model each system feature uses. The list and live prices come from OpenRouter; a feature falls back to its default until you pick one.",
+    "body": "Choose the provider and model each system feature uses. PR intent uses a low-cost classification before review and remains unavailable if its provider cannot supply a model.",
     "usingDefault": "default",
     "search": "Search models…",
-    "liveNote": "Prices are pulled live from OpenRouter — USD per 1M input/output tokens.",
-    "noKeyNote": "Add an OpenRouter API key under API Keys to load the model list and prices."
+    "provider": "Provider",
+    "liveNote": "Models are loaded for the selected provider.",
+    "noKeyNote": "Add a key for the selected provider under API Keys to load its models."
   },
   "workspace": {
     "title": "Workspace",

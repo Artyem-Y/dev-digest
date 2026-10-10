@@ -1,6 +1,6 @@
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import type { Finding, Intent, RunSummary, RunTrace, RunTraceResponse } from '@devdigest/shared';
+import type { DerivedIntent, Finding, Intent, RunSummary, RunTrace, RunTraceResponse } from '@devdigest/shared';
 
 /**
  * A2 — review data-access. The ONLY layer touching the DB for the review
@@ -133,6 +133,14 @@ export class ReviewRepository {
 
   getIntent(prId: string): Promise<Intent | undefined> {
     return pullRepo.getIntent(this.db, prId);
+  }
+
+  getDerivedIntent(prId: string): Promise<DerivedIntent | undefined> {
+    return pullRepo.getDerivedIntent(this.db, prId);
+  }
+
+  upsertDerivedIntent(prId: string, intent: DerivedIntent): Promise<void> {
+    return pullRepo.upsertDerivedIntent(this.db, prId, intent);
   }
 
   // ---- observability: agent_runs + run_traces ----------------------------
