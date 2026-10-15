@@ -17,7 +17,7 @@ import { DiffTab } from "../DiffTab";
 import RunTraceDrawer from "../RunTraceDrawer";
 import { useDerivedIntent, usePullDetail, usePulls, useRerunIntent } from "@/lib/hooks";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun } from "@/lib/hooks/reviews";
+import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun, useRunReview } from "@/lib/hooks/reviews";
 import { useReviewRefresh } from "@/lib/hooks/use-review-refresh";
 import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
 import { ApiError } from "@/lib/api";
@@ -50,6 +50,7 @@ export function PRDetailView() {
   const { data: prRuns } = usePrRuns(prId);
   useReviewRefresh(prId, prRuns);
   const deleteRun = useDeleteRun(prId);
+  const recalculate = useRunReview();
   const liveRunIds = (activeRuns ?? []).map((r) => r.run_id);
   const reviewRunning = liveRunIds.length > 0;
   const cancel = useCancelRun();
@@ -61,6 +62,15 @@ export function PRDetailView() {
   const invalidateRunHistory = () => {
     if (prId) qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
     qc.invalidateQueries({ queryKey: ["pulls", repoId] });
+  };
+  const recalculateOverview = () => {
+    if (!prId) return;
+    recalculate.mutate({ prId, all: true }, {
+      onSuccess: () => {
+        invalidateActiveRuns();
+        invalidateRunHistory();
+      },
+    });
   };
 
   const tab = search.get("tab") ?? "overview";
@@ -151,6 +161,8 @@ export function PRDetailView() {
             risks={currentRiskFindings}
             onRerunIntent={() => rerunIntent.mutate()}
             intentRerunning={rerunIntent.isPending}
+            onRecalculate={recalculateOverview}
+            recalculating={recalculate.isPending}
           />
         )}
 

@@ -13,13 +13,21 @@ interface OverviewTabProps {
   risks?: FindingRecord[];
   onRerunIntent?: () => void;
   intentRerunning?: boolean;
+  onRecalculate?: () => void;
+  recalculating?: boolean;
 }
 
-export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, intentRerunning = false }: OverviewTabProps) {
+export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, intentRerunning = false, onRecalculate, recalculating = false }: OverviewTabProps) {
   const t = useTranslations("prReview");
   const usedSources = intent?.evidence.filter((source) => source.status === "used").length ?? 0;
   return (
     <>
+      {prBody && (
+        <section>
+          <SectionLabel icon="MessageSquare">Description</SectionLabel>
+          <div style={s.descriptionBox}>{prBody}</div>
+        </section>
+      )}
       <section>
         <SectionLabel
           icon="Target"
@@ -44,14 +52,15 @@ export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, 
           ) : <span style={s.intentUnavailable}>{t("intent.unavailable")}</span>}
           <div style={s.intentDivider} />
           <RiskAreas risks={risks} title={t("intent.riskAreas")} empty={t("intent.noRiskAreas")} />
+          {onRecalculate && (
+            <div style={s.recalculateAction}>
+              <Button kind="tertiary" size="sm" icon="RefreshCw" loading={recalculating} onClick={onRecalculate}>
+                {recalculating ? t("intent.recalculating") : t("intent.recalculate")}
+              </Button>
+            </div>
+          )}
         </div>
       </section>
-      {prBody && (
-        <section>
-          <SectionLabel icon="MessageSquare">Description</SectionLabel>
-          <div style={s.descriptionBox}>{prBody}</div>
-        </section>
-      )}
     </>
   );
 }

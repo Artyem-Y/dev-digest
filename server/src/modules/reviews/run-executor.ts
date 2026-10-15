@@ -139,7 +139,12 @@ export class ReviewRunExecutor {
     const intentTrace = intentResult.status === 'derived'
       ? { status: 'derived' as const, confidence: intentResult.trace.confidence, source_count: intentResult.trace.sourceCount, reason_code: null, provider: intentResult.trace.provider, model: intentResult.trace.model }
       : { status: 'unavailable' as const, confidence: 'unknown' as const, source_count: intentResult.trace.sourceCount, reason_code: intentResult.reasonCode, provider: null, model: null };
-    runLog.info(intent ? `PR intent derived (${intent.confidence} confidence)` : `PR intent unavailable: ${intentUnavailableReason}`, intentTrace);
+    runLog.info(
+      intentResult.status === 'derived'
+        ? `PR intent ${intentResult.trace.persistence} (${intentResult.intent.confidence} confidence)`
+        : `PR intent unavailable: ${intentUnavailableReason}`,
+      intentTrace,
+    );
 
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();

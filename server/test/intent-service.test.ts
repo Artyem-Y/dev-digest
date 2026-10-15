@@ -34,7 +34,7 @@ describe('DeriveIntentService', () => {
     } as never);
 
     expect(findLinkedIssue).toHaveBeenCalledWith({ owner: 'acme', name: 'payments' }, 'Fixes #42');
-    expect(result).toMatchObject({ status: 'derived', intent: { confidence: 'high' } });
+    expect(result).toMatchObject({ status: 'derived', intent: { confidence: 'high' }, trace: { persistence: 'created' } });
   });
 
   it('reuses an intent only when the selected model and source fingerprint still match, unless manually forced', async () => {
@@ -69,7 +69,7 @@ describe('DeriveIntentService', () => {
       repo: { owner: 'acme', name: 'payments' },
     } as never);
 
-    expect(result).toMatchObject({ status: 'derived', intent: { intent: 'Cacheable intent.' } });
+    expect(result).toMatchObject({ status: 'derived', intent: { intent: 'Cacheable intent.' }, trace: { persistence: 'reused' } });
     expect(completeStructured).not.toHaveBeenCalled();
 
     const forced = await service.derive({

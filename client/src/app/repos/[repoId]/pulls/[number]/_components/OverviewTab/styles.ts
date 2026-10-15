@@ -41,4 +41,5 @@ export const s = {
   riskCritical: { color: "var(--crit)", flexShrink: 0, marginTop: 2 } satisfies CSSProperties,
   riskWarning: { color: "var(--warn)", flexShrink: 0, marginTop: 2 } satisfies CSSProperties,
   riskSuggestion: { color: "var(--sugg)", flexShrink: 0, marginTop: 2 } satisfies CSSProperties,
+  recalculateAction: { display: "flex", marginTop: 14 } satisfies CSSProperties,
 } as const;

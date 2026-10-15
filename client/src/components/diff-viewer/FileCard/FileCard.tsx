@@ -6,7 +6,6 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Icon } from "@devdigest/ui";
 import type { FindingRecord, PrFile } from "@/lib/types";
-import { AUTO_EXPAND_MAX_LINES } from "../constants";
 import { parsePatch, type Line } from "../helpers";
 import {
   buildThreads,
@@ -37,18 +36,21 @@ export function FileCard({
   commenting,
   findings = [],
   showFindings = true,
+  allFilesOpen,
   renderFinding,
 }: {
   file: PrFile;
   commenting?: DiffCommentApi;
   findings?: FindingRecord[];
   showFindings?: boolean;
+  allFilesOpen?: boolean;
   renderFinding?: (finding: FindingRecord) => React.ReactNode;
 }) {
   const t = useTranslations("shell");
-  const [open, setOpen] = React.useState(
-    (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
-  );
+  const [open, setOpen] = React.useState(true);
+  React.useEffect(() => {
+    if (allFilesOpen !== undefined) setOpen(allFilesOpen);
+  }, [allFilesOpen]);
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
 
   // Group this file's comments into threads, then split into ones we can anchor

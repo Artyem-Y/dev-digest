@@ -19,7 +19,7 @@ export interface IntentInput {
   force?: boolean;
 }
 export type IntentDerivation =
-  | { status: 'derived'; intent: DerivedIntent; trace: { confidence: DerivedIntent['confidence']; sourceCount: number; provider: Provider; model: string } }
+  | { status: 'derived'; intent: DerivedIntent; trace: { confidence: DerivedIntent['confidence']; sourceCount: number; provider: Provider; model: string; persistence: 'created' | 'updated' | 'reused' } }
   | { status: 'unavailable'; reasonCode: string; trace: { sourceCount: number } };
 
 export class DeriveIntentService {
@@ -54,7 +54,7 @@ export class DeriveIntentService {
     const sourceFingerprint = digest(sources.map((source) => source.text).join('\n'));
     const cached = await this.deps.intents.getDerivedIntent(input.prId);
     if (!input.force && cached && cached.source_fingerprint === sourceFingerprint && cached.model_provider === resolved.provider && cached.model === resolved.model) {
-      return { status: 'derived', intent: cached, trace: { confidence: cached.confidence, sourceCount: cached.evidence.length, provider: cached.model_provider, model: cached.model } };
+      return { status: 'derived', intent: cached, trace: { confidence: cached.confidence, sourceCount: cached.evidence.length, provider: cached.model_provider, model: cached.model, persistence: 'reused' } };
     }
     try {
       const classification = await derivePullIntent({ provider: await this.deps.llm.resolve(resolved.provider), model: resolved.model, sources });
@@ -69,7 +69,7 @@ export class DeriveIntentService {
         confidence, evidence, source_fingerprint: sourceFingerprint, model_provider: resolved.provider, model: resolved.model, derived_at: new Date().toISOString(),
       };
       await this.deps.intents.upsertDerivedIntent(input.prId, intent);
-      return { status: 'derived', intent, trace: { confidence, sourceCount: evidence.length, provider: resolved.provider, model: resolved.model } };
+      return { status: 'derived', intent, trace: { confidence, sourceCount: evidence.length, provider: resolved.provider, model: resolved.model, persistence: cached ? 'updated' : 'created' } };
     } catch { return { status: 'unavailable', reasonCode: 'model_failed', trace: { sourceCount: sources.length } }; }
   }
 }

@@ -16,22 +16,26 @@ export function DiffViewer({
   commenting,
   findings = [],
   showFindings = true,
+  allFilesOpen,
   renderFinding,
 }: {
   files: PrFile[];
   commenting?: DiffCommentApi;
   findings?: FindingRecord[];
   showFindings?: boolean;
+  /** Applies a group-level expand/collapse command to every file card. */
+  allFilesOpen?: boolean;
   renderFinding?: (finding: FindingRecord) => React.ReactNode;
 }) {
   const t = useTranslations("shell");
   if (!files || files.length === 0) {
     return <div style={s.empty}>{t("diffViewer.noChangedFiles")}</div>;
   }
+  const visibleFindings = showFindings ? findings : [];
   return (
     <div style={s.list}>
       {files.map((f) => (
-        <FileCard key={f.path} file={f} commenting={commenting} findings={findings} showFindings={showFindings} renderFinding={renderFinding} />
+        <FileCard key={f.path} file={f} commenting={commenting} findings={visibleFindings} showFindings={showFindings} allFilesOpen={allFilesOpen} renderFinding={renderFinding} />
       ))}
     </div>
   );

@@ -38,5 +38,13 @@ describe('OverviewTab intent', () => {
     expect(screen.getByText('Medium confidence · 1 source used')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Run intent' }));
     expect(onRerunIntent).toHaveBeenCalledOnce();
+    const onRecalculate = vi.fn();
+    render(
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+        <OverviewTab prBody={null} onRecalculate={onRecalculate} />
+      </NextIntlClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Recalculate' }));
+    expect(onRecalculate).toHaveBeenCalledOnce();
   });
 });
