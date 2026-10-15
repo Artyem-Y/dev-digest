@@ -123,15 +123,17 @@ export function useCreatePrComment(prId: string | null | undefined) {
 export interface RunReviewInput {
   prId: string;
   agentId?: string;
+  agentIds?: string[];
   all?: boolean;
 }
 
 export function useRunReview() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ prId, agentId, all }: RunReviewInput) =>
+    mutationFn: ({ prId, agentId, agentIds, all }: RunReviewInput) =>
       api.post<ReviewRunResponse>(`/pulls/${prId}/review`, {
         ...(agentId ? { agentId } : {}),
+        ...(agentIds ? { agentIds } : {}),
         ...(all ? { all } : {}),
       }),
     onSuccess: (_d, { prId }) => {

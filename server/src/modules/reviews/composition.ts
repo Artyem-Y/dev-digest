@@ -47,6 +47,9 @@ export function createReviewService(container: Container): ReviewService {
     agents: container.agentsRepo,
     executor,
     runBus: container.runBus,
+    intentDeriver: {
+      derive: (input) => intentService.derive(input),
+    },
   });
 }
 

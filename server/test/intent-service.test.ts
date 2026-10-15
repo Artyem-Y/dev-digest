@@ -37,7 +37,7 @@ describe('DeriveIntentService', () => {
     expect(result).toMatchObject({ status: 'derived', intent: { confidence: 'high' } });
   });
 
-  it('reuses an intent only when the selected model and source fingerprint still match', async () => {
+  it('reuses an intent only when the selected model and source fingerprint still match, unless manually forced', async () => {
     const cached = {
       intent: 'Cacheable intent.',
       in_scope: ['payments'],
@@ -49,7 +49,10 @@ describe('DeriveIntentService', () => {
       model: 'gpt-6-luna',
       derived_at: '2026-10-10T00:00:00.000Z',
     };
-    const completeStructured = vi.fn();
+    const completeStructured = vi.fn().mockResolvedValue({
+      data: { intent: 'Refreshed cacheable intent.', in_scope: [], out_of_scope: [], source_refs: [0], insufficient_evidence: false },
+      model: 'gpt-6-luna', tokensIn: 0, tokensOut: 0, costUsd: null, raw: '', attempts: 1,
+    });
     const service = new DeriveIntentService({
       documents: { fetchPlanOrSpec: vi.fn() },
       linkedIssues: { findLinkedIssue: vi.fn().mockResolvedValue(undefined) },
@@ -68,6 +71,18 @@ describe('DeriveIntentService', () => {
 
     expect(result).toMatchObject({ status: 'derived', intent: { intent: 'Cacheable intent.' } });
     expect(completeStructured).not.toHaveBeenCalled();
+
+    const forced = await service.derive({
+      workspaceId: 'workspace-1',
+      prId: 'pr-1',
+      title: 'Cacheable PR',
+      body: null,
+      repo: { owner: 'acme', name: 'payments' },
+      force: true,
+    } as never);
+
+    expect(forced).toMatchObject({ status: 'derived', intent: { intent: 'Cacheable PR' } });
+    expect(completeStructured).toHaveBeenCalledOnce();
   });
 
   it('persists a low-confidence title-only intent when the classifier declines the sparse source', async () => {

@@ -15,6 +15,8 @@ export interface IntentInput {
   title: string;
   body: string | null;
   repo: IntentRepoRef;
+  /** A manual user request must bypass a matching persisted derivation. */
+  force?: boolean;
 }
 export type IntentDerivation =
   | { status: 'derived'; intent: DerivedIntent; trace: { confidence: DerivedIntent['confidence']; sourceCount: number; provider: Provider; model: string } }
@@ -51,7 +53,7 @@ export class DeriveIntentService {
     try { resolved = await this.deps.featureModels.resolve(input.workspaceId); } catch { return { status: 'unavailable', reasonCode: 'model_unavailable', trace: { sourceCount: sources.length } }; }
     const sourceFingerprint = digest(sources.map((source) => source.text).join('\n'));
     const cached = await this.deps.intents.getDerivedIntent(input.prId);
-    if (cached && cached.source_fingerprint === sourceFingerprint && cached.model_provider === resolved.provider && cached.model === resolved.model) {
+    if (!input.force && cached && cached.source_fingerprint === sourceFingerprint && cached.model_provider === resolved.provider && cached.model === resolved.model) {
       return { status: 'derived', intent: cached, trace: { confidence: cached.confidence, sourceCount: cached.evidence.length, provider: cached.model_provider, model: cached.model } };
     }
     try {

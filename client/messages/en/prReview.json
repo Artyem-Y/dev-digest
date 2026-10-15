@@ -37,6 +37,10 @@
   },
   "runReview": {
     "runAll": "Run all enabled agents",
+    "selectAllAgents": "Select all agents",
+    "selectedAgents": "{count} agent(s) selected",
+    "runSelected": "Run selected agents",
+    "noAgents": "No agents yet — create one to run a review.",
     "configureAgents": "Configure agents…",
     "running": "Running…",
     "runReview": "Run Review",
@@ -57,8 +61,12 @@
   "intent": {
     "title": "Intent",
     "unavailable": "Intent will appear after a review completes.",
+    "run": "Run intent",
+    "running": "Running intent…",
     "inScope": "In scope",
     "outOfScope": "Out of scope",
+    "riskAreas": "Risk areas",
+    "noRiskAreas": "No review risks yet.",
     "confidenceSources": "{confidence} confidence · {count, plural, one {# source used} other {# sources used}}",
     "high": "High",
     "medium": "Medium",

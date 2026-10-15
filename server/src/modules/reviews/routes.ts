@@ -33,6 +33,7 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     const body = RunRequest.parse(req.body ?? {});
     const targets = await service.resolveTargets(workspaceId, {
       ...(body.agentId !== undefined ? { agentId: body.agentId } : {}),
+      ...(body.agentIds !== undefined ? { agentIds: body.agentIds } : {}),
       ...(body.all !== undefined ? { all: body.all } : {}),
     });
     const { runs, reviews } = await service.runReview(
@@ -135,6 +136,15 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
   app.get('/pulls/:id/intent', { schema: { params: IdParams, response: { 200: DerivedIntent.nullable() } } }, async (req) => {
     const { workspaceId } = await getContext(container, req);
     return service.derivedIntent(workspaceId, req.params.id);
+  });
+
+  // Intent is a single model call and must not create a full review run.
+  app.post('/pulls/:id/intent', {
+    schema: { params: IdParams, response: { 200: DerivedIntent.nullable() } },
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+  }, async (req) => {
+    const { workspaceId } = await getContext(container, req);
+    return service.rerunIntent(workspaceId, req.params.id);
   });
 
   app.get('/pulls/:id/reviews', { schema: { params: IdParams } }, async (req) => {
