@@ -51,6 +51,7 @@ export function PRDetailView() {
   useReviewRefresh(prId, prRuns);
   const deleteRun = useDeleteRun(prId);
   const recalculate = useRunReview();
+  const [recalculateRunIds, setRecalculateRunIds] = React.useState<string[]>([]);
   const liveRunIds = (activeRuns ?? []).map((r) => r.run_id);
   const reviewRunning = liveRunIds.length > 0;
   const cancel = useCancelRun();
@@ -64,14 +65,22 @@ export function PRDetailView() {
     qc.invalidateQueries({ queryKey: ["pulls", repoId] });
   };
   const recalculateOverview = () => {
-    if (!prId) return;
+    if (!prId || recalculate.isPending || recalculateRunIds.length > 0) return;
     recalculate.mutate({ prId, all: true }, {
-      onSuccess: () => {
+      onSuccess: (result) => {
+        setRecalculateRunIds(result.runs.map((run) => run.run_id));
         invalidateActiveRuns();
         invalidateRunHistory();
       },
     });
   };
+  const recalculating = recalculate.isPending || recalculateRunIds.some((runId) => {
+    const run = prRuns?.find((entry) => entry.run_id === runId);
+    return !run || run.status === "running";
+  });
+  React.useEffect(() => {
+    if (!recalculating && recalculateRunIds.length > 0) setRecalculateRunIds([]);
+  }, [recalculateRunIds.length, recalculating]);
 
   const tab = search.get("tab") ?? "overview";
   const traceRunId = search.get("trace");
@@ -162,7 +171,7 @@ export function PRDetailView() {
             onRerunIntent={() => rerunIntent.mutate()}
             intentRerunning={rerunIntent.isPending}
             onRecalculate={recalculateOverview}
-            recalculating={recalculate.isPending}
+            recalculating={recalculating}
           />
         )}
 

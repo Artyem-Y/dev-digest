@@ -5,7 +5,7 @@ import { Button, Icon, SectionLabel } from "@devdigest/ui";
 import { DiffViewer, type DiffCommentApi } from "@/components/diff-viewer";
 import { usePrComments, useCreatePrComment, useFindingAction } from "@/lib/hooks/reviews";
 import { useSmartDiff } from "@/lib/hooks/smart-diff";
-import { latestFindingsPerAgent } from "@/lib/review-findings";
+import { findingsForFiles, latestFindingsPerAgent } from "@/lib/review-findings";
 import { FindingCard } from "../FindingCard";
 import { notify } from "@/lib/toast";
 import type { FindingRecord, PrFile, ReviewRecord, SmartDiffRole } from "@devdigest/shared";
@@ -34,7 +34,8 @@ function SmartDiffGroup({ role, files, findings, commenting, showFindings, rende
   role: SmartDiffRole; files: PrFile[]; findings: FindingRecord[]; commenting: DiffCommentApi; showFindings: boolean; renderFinding: (finding: FindingRecord) => React.ReactNode;
 }) {
   const t = useTranslations('prReview');
-  const findingFiles = new Set(findings.filter((finding) => files.some((file) => file.path === finding.file)).map((finding) => finding.file));
+  const groupFindings = findingsForFiles(files, findings);
+  const findingFiles = new Set(groupFindings.map((finding) => finding.file));
   const [groupOpen, setGroupOpen] = React.useState(() => role === 'core' || role === 'tests' || role === 'wiring' || findingFiles.size > 0);
   const [allFilesOpen, setAllFilesOpen] = React.useState(true);
   React.useEffect(() => {
@@ -56,7 +57,7 @@ function SmartDiffGroup({ role, files, findings, commenting, showFindings, rende
         </button>
       </span>
     </div>
-    {groupOpen && (files.length ? <DiffViewer files={files} commenting={commenting} findings={findings} showFindings={showFindings} allFilesOpen={allFilesOpen} renderFinding={renderFinding} /> : <div style={{ color: 'var(--text-muted)', fontSize: 13, paddingBottom: 8 }}>{t('smartDiff.noFiles')}</div>)}
+    {groupOpen && (files.length ? <DiffViewer files={files} commenting={commenting} findings={groupFindings} showFindings={showFindings} allFilesOpen={allFilesOpen} renderFinding={renderFinding} /> : <div style={{ color: 'var(--text-muted)', fontSize: 13, paddingBottom: 8 }}>{t('smartDiff.noFiles')}</div>)}
   </section>;
 }
 
