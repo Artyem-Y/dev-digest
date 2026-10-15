@@ -9,6 +9,7 @@ import { DeriveIntentService } from '../intents/application/derive-intent.js';
 import { SafePublicDocumentFetcher } from '../intents/infrastructure/public-document-fetcher.js';
 import { resolveFeatureModel } from '../settings/feature-models.js';
 import { SettingsRepository } from '../settings/repository.js';
+import { GetSmartDiff } from './smart-diff/application/get-smart-diff.js';
 
 /** Wires review application services and external adapters at the outer boundary. */
 export function createReviewService(container: Container): ReviewService {
@@ -46,5 +47,27 @@ export function createReviewService(container: Container): ReviewService {
     agents: container.agentsRepo,
     executor,
     runBus: container.runBus,
+  });
+}
+
+/** Wires Smart Diff's read-only use case to the review persistence adapter. */
+export function createSmartDiffService(container: Container): GetSmartDiff {
+  const repository = new ReviewRepository(container.db);
+  return new GetSmartDiff({
+    getPull: (workspaceId, prId) => repository.getPull(workspaceId, prId),
+    getPrFiles: async (prId) => (await repository.getPrFiles(prId)).map((file) => ({
+      path: file.path,
+      additions: file.additions,
+      deletions: file.deletions,
+    })),
+    reviewsForPull: async (prId) => (await repository.reviewsForPull(prId)).map(({ review, findings }) => ({
+      review: {
+        id: review.id,
+        agentId: review.agentId,
+        kind: review.kind,
+        createdAt: review.createdAt,
+      },
+      findings: findings.map((finding) => ({ file: finding.file, startLine: finding.startLine })),
+    })),
   });
 }

@@ -119,6 +119,16 @@ describe('AI contracts parse fixtures', () => {
     expect(d.groups[0]!.role).toBe('core');
   });
 
+  it('SmartDiff accepts all five ordered file roles', () => {
+    const roles = ['core', 'tests', 'wiring', 'docs', 'boilerplate'] as const;
+    const value = SmartDiff.parse({
+      groups: roles.map((role) => ({ role, files: [] })),
+      split_suggestion: { too_big: false, total_lines: 0, proposed_splits: [] },
+    });
+    expect(value.groups.map((group) => group.role)).toEqual(roles);
+    expect(SmartDiff.safeParse({ ...value, groups: [{ role: 'unknown', files: [] }] }).success).toBe(false);
+  });
+
   it('Conformance / Onboarding / EvalRun / MemoryItem', () => {
     expect(() =>
       Conformance.parse({

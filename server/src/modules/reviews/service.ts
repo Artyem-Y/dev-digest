@@ -1,4 +1,4 @@
-import type { FindingActionKind, RunEventKind, RunTrace, RunTraceResponse } from '@devdigest/shared';
+import type { DerivedIntent, FindingActionKind, RunEventKind, RunTrace, RunTraceResponse } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { AgentsRepository } from '../agents/repository.js';
@@ -23,6 +23,7 @@ export type ReviewRepositoryPort = Pick<
   | 'cancelRunIfRunning'
   | 'reapStaleRunningRuns'
   | 'getPull'
+  | 'getDerivedIntent'
   | 'getRepo'
   | 'createAgentRun'
   | 'reviewsForPull'
@@ -194,6 +195,13 @@ export class ReviewService {
     return rows.map(({ review, findings }) =>
       reviewToDto(review, findings, review.agentId ? names.get(review.agentId) : null),
     );
+  }
+
+  /** The persisted, source-safe intent for a pull request in this workspace. */
+  async derivedIntent(workspaceId: string, prId: string): Promise<DerivedIntent | null> {
+    const pull = await this.dependencies.repository.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    return (await this.dependencies.repository.getDerivedIntent(prId)) ?? null;
   }
 
   async getRunTrace(runId: string): Promise<RunTraceResponse | undefined> {

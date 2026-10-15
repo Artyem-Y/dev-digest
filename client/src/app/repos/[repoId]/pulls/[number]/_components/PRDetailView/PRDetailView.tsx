@@ -15,9 +15,10 @@ import { OverviewTab } from "../OverviewTab";
 import { FindingsTab } from "../FindingsTab";
 import { DiffTab } from "../DiffTab";
 import RunTraceDrawer from "../RunTraceDrawer";
-import { usePullDetail, usePulls } from "@/lib/hooks";
+import { useDerivedIntent, usePullDetail, usePulls } from "@/lib/hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun } from "@/lib/hooks/reviews";
+import { useReviewRefresh } from "@/lib/hooks/use-review-refresh";
 import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
 import { ApiError } from "@/lib/api";
 import { githubPrUrl } from "@/lib/github-urls";
@@ -35,6 +36,7 @@ export function PRDetailView() {
   const { data: pulls, isLoading: pullsLoading } = usePulls(repoId);
   const prId = pulls?.find((p) => p.number === Number(number))?.id ?? null;
   const { data: pr, isLoading: detailLoading, isError, error, refetch } = usePullDetail(prId);
+  const { data: intent } = useDerivedIntent(prId);
 
   const isLoading = pullsLoading || (prId != null && detailLoading);
   const { data: reviews, refetch: refetchReviews } = usePrReviews(prId);
@@ -44,6 +46,7 @@ export function PRDetailView() {
   const qc = useQueryClient();
   const { data: activeRuns } = usePrActiveRuns(prId);
   const { data: prRuns } = usePrRuns(prId);
+  useReviewRefresh(prId, prRuns);
   const deleteRun = useDeleteRun(prId);
   const liveRunIds = (activeRuns ?? []).map((r) => r.run_id);
   const reviewRunning = liveRunIds.length > 0;
@@ -135,7 +138,7 @@ export function PRDetailView() {
       />
 
       <div style={{ padding: "24px 32px 44px", display: "flex", flexDirection: "column", gap: 24, maxWidth: 1080, margin: "0 auto" }}>
-        {tab === "overview" && <OverviewTab prBody={pr.body} />}
+        {tab === "overview" && <OverviewTab prBody={pr.body} intent={intent} />}
 
         {tab === "findings" && (
           <FindingsTab
@@ -167,6 +170,7 @@ export function PRDetailView() {
             prId={prId}
             filesCount={pr.files_count}
             files={pr.files}
+            reviews={reviews}
             canComment={pr.status === "open"}
           />
         )}

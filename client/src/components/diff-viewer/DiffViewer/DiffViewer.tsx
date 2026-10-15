@@ -6,7 +6,7 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import type { PrFile } from "@/lib/types";
+import type { FindingRecord, PrFile } from "@/lib/types";
 import { type DiffCommentApi } from "../comments";
 import { s } from "../styles";
 import { FileCard } from "../FileCard";
@@ -14,9 +14,15 @@ import { FileCard } from "../FileCard";
 export function DiffViewer({
   files,
   commenting,
+  findings = [],
+  showFindings = true,
+  renderFinding,
 }: {
   files: PrFile[];
   commenting?: DiffCommentApi;
+  findings?: FindingRecord[];
+  showFindings?: boolean;
+  renderFinding?: (finding: FindingRecord) => React.ReactNode;
 }) {
   const t = useTranslations("shell");
   if (!files || files.length === 0) {
@@ -24,8 +30,8 @@ export function DiffViewer({
   }
   return (
     <div style={s.list}>
-      {files.map((f, i) => (
-        <FileCard key={i} file={f} commenting={commenting} />
+      {files.map((f) => (
+        <FileCard key={f.path} file={f} commenting={commenting} findings={findings} showFindings={showFindings} renderFinding={renderFinding} />
       ))}
     </div>
   );

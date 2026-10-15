@@ -54,15 +54,39 @@
     "findings": "{count} finding(s)",
     "blockers": " · {count} blockers"
   },
+  "intent": {
+    "title": "Intent",
+    "unavailable": "Intent will appear after a review completes.",
+    "inScope": "In scope",
+    "outOfScope": "Out of scope",
+    "confidenceSources": "{confidence} confidence · {count, plural, one {# source used} other {# sources used}}",
+    "high": "High",
+    "medium": "Medium",
+    "low": "Low"
+  },
   "smartDiff": {
     "coreLabel": "Core",
+    "testsLabel": "Tests",
     "wiringLabel": "Wiring",
+    "docsLabel": "Docs",
     "boilerplateLabel": "Boilerplate",
     "largeTitle": "This PR is large ({lines} changed lines)",
     "largeBody": "Consider splitting it into smaller, focused PRs for easier review:",
     "filesCount": "{count} files",
     "findingLines": "{count} finding-lines",
-    "groupedByRole": "Smart Diff · grouped by role"
+    "groupedByRole": "Smart Diff · grouped by role",
+    "smartOrder": "Smart order",
+    "originalOrder": "Original order",
+    "showComments": "Show comments",
+    "hideComments": "Hide comments",
+    "noReview": "No review has been run yet.",
+    "noFindings": "No current findings.",
+    "retry": "Retry",
+    "noFiles": "No files",
+    "findingFiles": "{count} files with findings",
+    "loading": "Loading…",
+    "unavailable": "Smart Diff is unavailable.",
+    "refreshing": "Smart Diff is refreshing; showing original order."
   },
   "list": {
     "breadcrumb": "Pull Requests",

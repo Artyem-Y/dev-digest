@@ -157,7 +157,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         severity: 'CRITICAL',
         category: 'security',
         title: 'Hardcoded Stripe secret key in commit',
-        rationale: 'Line 12 contains a literal `sk_live_` Stripe secret key.',
+        rationale: 'Line 12 contains a credential-like literal in source code.',
         suggestion: 'Move to env var and rotate the key immediately.',
         confidence: 0.98,
       },
@@ -345,6 +345,31 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         .set({ runId: run!.id, agentId: generalAgent.id })
         .where(eq(t.reviews.id, sampleReview.id));
     });
+  }
+
+  // ---- Smart Diff fixture: separate, idempotent and safe for browser flows ----
+  let [smartDiffPr] = await db
+    .select()
+    .from(t.pullRequests)
+    .where(and(eq(t.pullRequests.repoId, repoId), eq(t.pullRequests.number, 483)));
+  if (!smartDiffPr) {
+    [smartDiffPr] = await db.insert(t.pullRequests).values({
+      workspaceId, repoId, number: 483, title: 'Demonstrate Smart Diff ordering', author: 'devdigest',
+      branch: 'feat/smart-diff-demo', base: 'main', headSha: 'smart-diff-demo', additions: 17, deletions: 1,
+      filesCount: 5, status: 'needs_review', body: 'Deterministic Smart Diff browser fixture.',
+    }).returning();
+    await db.insert(t.prFiles).values([
+      { prId: smartDiffPr!.id, path: 'src/smart-diff.ts', additions: 4, deletions: 0, patch: '@@ -1,0 +1,4 @@\n+export const group = (path: string) => path;\n+export const enabled = true;\n+\n+' },
+      { prId: smartDiffPr!.id, path: 'src/smart-diff.test.ts', additions: 3, deletions: 0, patch: '@@ -1,0 +1,3 @@\n+test("groups", () => {\n+  expect(true).toBe(true);\n+});' },
+      { prId: smartDiffPr!.id, path: 'src/index.ts', additions: 1, deletions: 0, patch: '@@ -1,0 +1 @@\n+export * from "./smart-diff";' },
+      { prId: smartDiffPr!.id, path: 'docs/smart-diff.md', additions: 2, deletions: 0, patch: '@@ -1,0 +1,2 @@\n+# Smart Diff\n+Read code first.' },
+      { prId: smartDiffPr!.id, path: 'pnpm-lock.yaml', additions: 7, deletions: 1, patch: '@@ -1 +1 @@\n-lockfileVersion: old\n+lockfileVersion: new' },
+    ]);
+    const [review] = await db.insert(t.reviews).values({ workspaceId, prId: smartDiffPr!.id, kind: 'review', verdict: 'request_changes', summary: 'Seeded Smart Diff review.', score: 70, model: 'seed' }).returning();
+    await db.insert(t.findings).values([
+      { reviewId: review!.id, file: 'src/smart-diff.ts', startLine: 2, endLine: 2, severity: 'WARNING', category: 'bug', title: 'Seeded inline finding', rationale: 'The fixture anchors this finding to a changed line.', suggestion: null, confidence: 0.9 },
+      { reviewId: review!.id, file: 'src/smart-diff.ts', startLine: 99, endLine: 99, severity: 'SUGGESTION', category: 'style', title: 'Seeded unmatched finding', rationale: 'The fixture retains findings outside a rendered patch.', suggestion: null, confidence: 0.8 },
+    ]);
   }
 
   return { workspaceId, userId };

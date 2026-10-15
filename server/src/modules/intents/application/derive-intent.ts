@@ -56,10 +56,16 @@ export class DeriveIntentService {
     }
     try {
       const classification = await derivePullIntent({ provider: await this.deps.llm.resolve(resolved.provider), model: resolved.model, sources });
-      if (classification.classification.insufficient_evidence) return { status: 'unavailable', reasonCode: 'insufficient_evidence', trace: { sourceCount: sources.length } };
+      const titleOnly = evidence.length === 1 && evidence[0]?.source_kind === 'pr_title';
+      if (classification.classification.insufficient_evidence && !titleOnly) return { status: 'unavailable', reasonCode: 'insufficient_evidence', trace: { sourceCount: sources.length } };
       const hasExternal = evidence.some((item) => item.status === 'used' && (item.source_kind === 'github_issue' || item.source_kind === 'plan_spec'));
-      const confidence: DerivedIntent['confidence'] = hasExternal ? 'high' : input.body?.trim() ? 'medium' : 'low';
-      const intent: DerivedIntent = { intent: classification.classification.intent, in_scope: classification.classification.in_scope, out_of_scope: classification.classification.out_of_scope, confidence, evidence, source_fingerprint: sourceFingerprint, model_provider: resolved.provider, model: resolved.model, derived_at: new Date().toISOString() };
+      const confidence: DerivedIntent['confidence'] = titleOnly ? 'low' : hasExternal ? 'high' : input.body?.trim() ? 'medium' : 'low';
+      const intent: DerivedIntent = {
+        intent: titleOnly ? input.title.trim() : classification.classification.intent,
+        in_scope: titleOnly ? [] : classification.classification.in_scope,
+        out_of_scope: titleOnly ? [] : classification.classification.out_of_scope,
+        confidence, evidence, source_fingerprint: sourceFingerprint, model_provider: resolved.provider, model: resolved.model, derived_at: new Date().toISOString(),
+      };
       await this.deps.intents.upsertDerivedIntent(input.prId, intent);
       return { status: 'derived', intent, trace: { confidence, sourceCount: evidence.length, provider: resolved.provider, model: resolved.model } };
     } catch { return { status: 'unavailable', reasonCode: 'model_failed', trace: { sourceCount: sources.length } }; }

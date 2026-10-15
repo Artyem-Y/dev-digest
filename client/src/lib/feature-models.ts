@@ -20,8 +20,8 @@ export const FEATURE_MODELS: FeatureModelDef[] = [
   },
   {
     id: "review_intent",
-    label: "PR Review · Intent",
-    description: "Derives a PR’s intent and scope before review.",
+    label: "Standard Model",
+    description: "Used for: Intent.",
     defaultProvider: "openai",
     defaultModel: "gpt-6-luna",
   },

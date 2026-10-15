@@ -69,4 +69,22 @@ describe('DeriveIntentService', () => {
     expect(result).toMatchObject({ status: 'derived', intent: { intent: 'Cacheable intent.' } });
     expect(completeStructured).not.toHaveBeenCalled();
   });
+
+  it('persists a low-confidence title-only intent when the classifier declines the sparse source', async () => {
+    const upsertDerivedIntent = vi.fn();
+    const service = new DeriveIntentService({
+      documents: { fetchPlanOrSpec: vi.fn() },
+      linkedIssues: { findLinkedIssue: vi.fn().mockResolvedValue(undefined) },
+      featureModels: { resolve: vi.fn().mockResolvedValue({ provider: 'openai', model: 'gpt-6-luna' }) },
+      llm: { resolve: vi.fn().mockResolvedValue({ completeStructured: vi.fn().mockResolvedValue({ data: { intent: '', in_scope: [], out_of_scope: [], source_refs: [0], insufficient_evidence: true } }) }) },
+      intents: { getDerivedIntent: vi.fn().mockResolvedValue(undefined), upsertDerivedIntent },
+    } as never);
+
+    const result = await service.derive({
+      workspaceId: 'workspace-1', prId: 'pr-1', title: 'Add rate limiting', body: null, repo: { owner: 'acme', name: 'payments' },
+    } as never);
+
+    expect(result).toMatchObject({ status: 'derived', intent: { intent: 'Add rate limiting', confidence: 'low', in_scope: [], out_of_scope: [] } });
+    expect(upsertDerivedIntent).toHaveBeenCalledOnce();
+  });
 });
