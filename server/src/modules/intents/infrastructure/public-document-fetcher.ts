@@ -26,7 +26,7 @@ function isBlockedAddress(address: string): boolean {
     return a === 10 || a === 127 || a === 0 || a === 169 && b === 254 || a === 192 && b === 168 || a === 172 && b >= 16 && b <= 31 || a >= 224;
   }
   const ip = address.toLowerCase();
-  return ip === '::1' || ip.startsWith('fe80:') || ip.startsWith('fc') || ip.startsWith('fd') || ip.startsWith('ff');
+  return ip.startsWith('::ffff:') || ip === '::1' || ip.startsWith('fe80:') || ip.startsWith('fc') || ip.startsWith('fd') || ip.startsWith('ff');
 }
 
 async function validateUrl(value: string, lookupAddress: Lookup): Promise<(PinnedRequest & { url: URL }) | undefined> {

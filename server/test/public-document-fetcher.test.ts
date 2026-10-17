@@ -38,4 +38,14 @@ describe('SafePublicDocumentFetcher', () => {
     expect(request).toHaveBeenNthCalledWith(1, expect.objectContaining({ address: '203.0.113.10' }));
     expect(request).toHaveBeenNthCalledWith(2, expect.objectContaining({ address: '203.0.113.11' }));
   });
+
+  it.each(['::ffff:127.0.0.1', '::ffff:10.0.0.1', '::ffff:a9fe:a9fe'])('rejects mapped private IPv4 address %s', async (address) => {
+    const lookup = vi.fn().mockResolvedValue([{ address, family: 6 }]);
+    const request = vi.fn();
+    const Fetcher = SafePublicDocumentFetcher as unknown as new (deps: { lookup: typeof lookup; request: typeof request }) => SafePublicDocumentFetcher;
+
+    await expect(new Fetcher({ lookup, request }).fetchPlanOrSpec('https://plans.example/plan.md'))
+      .resolves.toEqual({ ok: false, reasonCode: 'url_rejected' });
+    expect(request).not.toHaveBeenCalled();
+  });
 });

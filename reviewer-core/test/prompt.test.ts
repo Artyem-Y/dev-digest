@@ -65,6 +65,32 @@ describe('assemblePrompt — ## PR description', () => {
   });
 });
 
+describe('assemblePrompt — derived intent trace redaction', () => {
+  it('keeps derived intent in the model message but excludes it from persisted assembly user text', () => {
+    const sentinel = 'INTENT-SENTINEL-MUST-NOT-BE-PERSISTED';
+    const { messages, assembly } = assemblePrompt({
+      system: 'sys',
+      diff: 'DIFF',
+      intent: {
+        intent: sentinel,
+        in_scope: [sentinel],
+        out_of_scope: [sentinel],
+        confidence: 'high',
+        evidence: [],
+        source_fingerprint: 'a'.repeat(64),
+        model_provider: 'openai',
+        model: 'gpt-6-luna',
+        derived_at: '2026-10-17T00:00:00.000Z',
+      },
+    });
+
+    expect(messages[1]!.content).toContain(sentinel);
+    expect(assembly.derived_intent).toBe('[redacted]');
+    expect(assembly.user).not.toContain('## Derived PR intent');
+    expect(assembly.user).not.toContain(sentinel);
+  });
+});
+
 describe('assemblePrompt — skills trace block', () => {
   it('preserves skill order and counts only the final skills block', () => {
     const { assembly, messages } = assemblePrompt({

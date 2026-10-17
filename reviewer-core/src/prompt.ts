@@ -153,12 +153,15 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
       : undefined;
 
   const userSections: string[] = [];
+  const traceUserSections: string[] = [];
   const addUserSection = (
     section: PromptSectionName,
     source: PromptSectionSource,
     content: string,
+    persistInTrace = true,
   ) => {
     userSections.push(content);
+    if (persistInTrace) traceUserSections.push(content);
     telemetry.sections.push({ section, source, chars: content.length });
   };
 
@@ -180,6 +183,7 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
       'derived_intent',
       'derived_intent',
       `## Derived PR intent\n${wrapUntrusted('derived-intent', intentText)}`,
+      false,
     );
   }
   if (skillsBlock) addUserSection('skills', 'linked_skills', `## Skills / rules\n${skillsBlock}`);
@@ -218,7 +222,7 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
     repo_map: parts.repoMap ?? null,
     pr_description: prDescription ?? null,
     derived_intent: parts.intent ? '[redacted]' : null,
-    user,
+    user: traceUserSections.join('\n\n'),
   };
 
   return { messages, assembly, telemetry };
