@@ -44,6 +44,26 @@ describe("web smoke (both themes)", () => {
     expect(screen.getByText("const c = 4;")).toBeInTheDocument();
   });
 
+  it("diff viewer can receive files after an empty state", () => {
+    const files: PrFile[] = [{
+      path: "src/config.ts",
+      additions: 1,
+      deletions: 0,
+      patch: "@@ -1,1 +1,2 @@\n const a = 1;\n+const b = 2;",
+    }];
+    const wrap = (viewerFiles: PrFile[]) => (
+      <NextIntlClientProvider locale="en" messages={{ shell: shellMessages }}>
+        <DiffViewer files={viewerFiles} />
+      </NextIntlClientProvider>
+    );
+    const { rerender } = render(wrap([]));
+
+    expect(screen.getByText("No changed files.")).toBeInTheDocument();
+    rerender(wrap(files));
+
+    expect(screen.getByText("src/config.ts")).toBeInTheDocument();
+  });
+
   it("renders an inline review finding and retains an unmatched finding", () => {
     const files: PrFile[] = [{ path: "src/config.ts", additions: 1, deletions: 0, patch: "@@ -1,1 +1,2 @@\n const a = 1;\n+const b = 2;" }];
     const findings = [

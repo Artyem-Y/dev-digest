@@ -36,7 +36,7 @@ export function PRDetailView() {
   // uuid — resolve number → uuid via the (cached) pulls list before fetching.
   const { data: pulls, isLoading: pullsLoading } = usePulls(repoId);
   const prId = pulls?.find((p) => p.number === Number(number))?.id ?? null;
-  const { data: pr, isLoading: detailLoading, isError, error, refetch } = usePullDetail(prId);
+  const { data: pr, isLoading: detailLoading, isFetching: detailFetching, isError, error, refetch } = usePullDetail(prId);
   const { data: intent } = useDerivedIntent(prId);
   const rerunIntent = useRerunIntent(prId);
 
@@ -207,6 +207,7 @@ export function PRDetailView() {
             files={pr.files}
             reviews={reviews}
             canComment={pr.status === "open"}
+            detailReady={!detailLoading && !detailFetching && !!pr}
           />
         )}
       </div>

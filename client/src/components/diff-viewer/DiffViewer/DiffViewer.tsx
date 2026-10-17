@@ -28,9 +28,6 @@ export function DiffViewer({
   renderFinding?: (finding: FindingRecord) => React.ReactNode;
 }) {
   const t = useTranslations("shell");
-  if (!files || files.length === 0) {
-    return <div style={s.empty}>{t("diffViewer.noChangedFiles")}</div>;
-  }
   const visibleFindings = showFindings ? findings : [];
   const findingsByFile = React.useMemo(() => {
     const grouped = new Map<string, FindingRecord[]>();
@@ -41,6 +38,9 @@ export function DiffViewer({
     }
     return grouped;
   }, [visibleFindings]);
+  if (!files || files.length === 0) {
+    return <div style={s.empty}>{t("diffViewer.noChangedFiles")}</div>;
+  }
   return (
     <div style={s.list}>
       {files.map((f) => (

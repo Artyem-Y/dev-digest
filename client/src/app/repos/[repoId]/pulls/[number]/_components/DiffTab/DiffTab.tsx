@@ -6,6 +6,7 @@ import { DiffViewer, type DiffCommentApi } from "@/components/diff-viewer";
 import { usePrComments, useCreatePrComment, useFindingAction } from "@/lib/hooks/reviews";
 import { useSmartDiff } from "@/lib/hooks/smart-diff";
 import { findingsForFiles, latestFindingsPerAgent } from "@/lib/review-findings";
+import { smartDiffPathMismatches } from "@/lib/smart-diff";
 import { FindingCard } from "../FindingCard";
 import { notify } from "@/lib/toast";
 import type { FindingRecord, PrFile, ReviewRecord, SmartDiffRole } from "@devdigest/shared";
@@ -17,6 +18,7 @@ interface DiffTabProps {
   files: PrFile[];
   reviews?: ReviewRecord[];
   canComment?: boolean;
+  detailReady: boolean;
 }
 
 const roles: SmartDiffRole[] = ['core', 'tests', 'wiring', 'docs', 'boilerplate'];
@@ -61,10 +63,10 @@ function SmartDiffGroup({ role, files, findings, commenting, showFindings, rende
   </section>;
 }
 
-export function DiffTab({ prId, filesCount, files, reviews = [], canComment }: DiffTabProps) {
+export function DiffTab({ prId, filesCount, files, reviews = [], canComment, detailReady }: DiffTabProps) {
   const t = useTranslations('prReview');
   const { data: comments } = usePrComments(prId);
-  const { data: smartDiff, isLoading: smartLoading, isError: smartError, refetch: retrySmartDiff } = useSmartDiff(prId);
+  const { data: smartDiff, isLoading: smartLoading, isError: smartError, refetch: retrySmartDiff } = useSmartDiff(prId, detailReady);
   const create = useCreatePrComment(prId);
   const findingAction = useFindingAction();
   const [showDetails, setShowDetails] = React.useState(true);
@@ -81,16 +83,16 @@ export function DiffTab({ prId, filesCount, files, reviews = [], canComment }: D
   };
   const renderFinding = (finding: FindingRecord) => <FindingCard f={finding} defaultExpanded pending={findingAction.isPending && findingAction.variables?.findingId === finding.id} onAction={(action) => findingAction.mutate({ findingId: finding.id, action, prId: prId ?? undefined })} />;
   const filesByPath = new Map(files.map((file) => [file.path, file]));
-  const missingPaths = smartDiff?.groups.flatMap((group) => group.files).filter((file) => !filesByPath.has(file.path)).map((file) => file.path) ?? [];
+  const snapshotMismatches = smartDiffPathMismatches(files, smartDiff);
   const orderedGroups = smartDiff?.groups.map((group) => ({ ...group, files: group.files.map((item) => filesByPath.get(item.path)).filter((file): file is PrFile => !!file) }));
-  const smartDiffReady = !smartLoading && !smartError && !!orderedGroups && missingPaths.length === 0;
+  const smartDiffReady = detailReady && !smartLoading && !smartError && !!orderedGroups && snapshotMismatches.length === 0;
   const effectiveOriginalOrder = originalOrder || !smartDiffReady;
   const additions = files.reduce((total, file) => total + file.additions, 0);
   const deletions = files.reduce((total, file) => total + file.deletions, 0);
 
   return <section>
     <SectionLabel icon="Code" right={<div style={{ display: 'flex', gap: 6 }}>
-      <Button kind={effectiveOriginalOrder ? 'ghost' : 'primary'} size="sm" onClick={() => setOriginalOrder(false)} active={!effectiveOriginalOrder} disabled={missingPaths.length > 0}>{t('smartDiff.smartOrder')}</Button>
+      <Button kind={effectiveOriginalOrder ? 'ghost' : 'primary'} size="sm" onClick={() => setOriginalOrder(false)} active={!effectiveOriginalOrder} disabled={snapshotMismatches.length > 0}>{t('smartDiff.smartOrder')}</Button>
       <Button kind={effectiveOriginalOrder ? 'primary' : 'ghost'} size="sm" onClick={() => setOriginalOrder(true)} active={effectiveOriginalOrder}>{t('smartDiff.originalOrder')}</Button>
       {(commentCount > 0 || currentFindings.length > 0) && <Button kind="ghost" size="sm" icon={showDetails ? 'EyeOff' : 'Eye'} onClick={() => setShowDetails((value) => !value)}>{showDetails ? t('smartDiff.hideComments') : t('smartDiff.showComments')}</Button>}
     </div>}>{`Files changed · ${filesCount} files`}</SectionLabel>
@@ -106,7 +108,7 @@ export function DiffTab({ prId, filesCount, files, reviews = [], canComment }: D
     {!effectiveOriginalOrder && smartDiff?.split_suggestion.too_big && <div style={{ border: '1px solid color-mix(in srgb, var(--warn) 40%, transparent)', borderRadius: 6, background: 'var(--warn-bg)', color: 'var(--warn)', padding: '7px 10px', fontSize: 12.5, marginBottom: 10 }}>
       {t('smartDiff.largeTitle', { lines: smartDiff.split_suggestion.total_lines })}
     </div>}
-    {missingPaths.length > 0 && <div style={{ color: 'var(--warn)', padding: '0 0 12px' }}>{t('smartDiff.refreshing')} <Button kind="ghost" size="sm" onClick={() => retrySmartDiff()}>{t('smartDiff.retry')}</Button></div>}
+    {snapshotMismatches.length > 0 && <div style={{ color: 'var(--warn)', padding: '0 0 12px' }}>{t('smartDiff.refreshing')} <Button kind="ghost" size="sm" onClick={() => retrySmartDiff()}>{t('smartDiff.retry')}</Button></div>}
     {effectiveOriginalOrder ? <DiffViewer files={files} commenting={commenting} findings={displayFindings} showFindings={showDetails} renderFinding={renderFinding} /> : (
       <div>{orderedGroups!.sort((a, b) => roles.indexOf(a.role) - roles.indexOf(b.role)).map((group) => <SmartDiffGroup key={group.role} role={group.role} files={group.files} findings={currentFindings} commenting={commenting} showFindings={showDetails} renderFinding={renderFinding} />)}</div>
     )}

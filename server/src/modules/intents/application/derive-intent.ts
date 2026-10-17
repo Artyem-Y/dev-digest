@@ -9,6 +9,8 @@ const digest = (value: string) => createHash('sha256').update(value).digest('hex
 const planSpecLinks = (body: string) => [...body.matchAll(/(?:plan|spec)\s*(?:\[[^\]]*\]\s*)?\(?\s*(https:\/\/[^\s)\]>]+)/gi)]
   .map((match) => match[1]).filter((value): value is string => Boolean(value)).slice(0, 3);
 const INTENT_CACHE_TTL_MS = 5 * 60_000;
+/** Revalidate external intent evidence frequently without refetching it per review. */
+export const INTENT_SOURCE_CACHE_TTL_MS = 30_000;
 const MAX_CONCURRENT_DOCUMENT_FETCHES = 2;
 
 /** Cache identity covers the content and availability of every derivation input. */
@@ -57,6 +59,11 @@ export type IntentDerivation =
   | { status: 'unavailable'; reasonCode: string; trace: { sourceCount: number } };
 
 export class DeriveIntentService {
+  private readonly sourceCache = new Map<string, {
+    expiresAt: number;
+    value: Promise<{ issue: Awaited<ReturnType<LinkedIssueReader['findLinkedIssue']>>; planSpecs: PublicDocumentResult[] }>;
+  }>();
+
   constructor(private readonly deps: {
     documents: PublicDocumentFetcher;
     linkedIssues: LinkedIssueReader;
@@ -64,6 +71,19 @@ export class DeriveIntentService {
     llm: IntentLlmResolver;
     intents: IntentRepositoryPort;
   }) {}
+
+  private loadSources(input: IntentInput) {
+    const key = digest(JSON.stringify({ repo: input.repo, body: input.body ?? '' }));
+    const cached = this.sourceCache.get(key);
+    if (!input.force && cached && cached.expiresAt > Date.now()) return cached.value;
+
+    const value = Promise.all([
+      this.deps.linkedIssues.findLinkedIssue(input.repo, input.body).catch(() => undefined),
+      fetchDocuments(planSpecLinks(input.body ?? ''), this.deps.documents),
+    ]).then(([issue, planSpecs]) => ({ issue, planSpecs }));
+    if (!input.force) this.sourceCache.set(key, { expiresAt: Date.now() + INTENT_SOURCE_CACHE_TTL_MS, value });
+    return value;
+  }
 
   async derive(input: IntentInput): Promise<IntentDerivation> {
     let resolved: { provider: Provider; model: string };
@@ -88,11 +108,7 @@ export class DeriveIntentService {
     };
     add('pr_title', input.title);
     if (input.body) add('pr_description', input.body);
-    const linkedIssue = this.deps.linkedIssues
-      .findLinkedIssue(input.repo, input.body)
-      .catch(() => undefined);
-    const documents = fetchDocuments(planSpecLinks(input.body ?? ''), this.deps.documents);
-    const [issue, planSpecs] = await Promise.all([linkedIssue, documents]);
+    const { issue, planSpecs } = await this.loadSources(input);
     if (issue) add('github_issue', `${issue.title}\n${issue.body ?? ''}`);
     for (const result of planSpecs) {
       if (result.ok) add('plan_spec', result.text);
