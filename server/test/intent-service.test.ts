@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { DeriveIntentService } from '../src/modules/intents/application/derive-intent.js';
 
 const fingerprint = (value: string) => createHash('sha256').update(value).digest('hex');
+const cachedFingerprint = (title: string, body: string | null) => `v2:${fingerprint(JSON.stringify({ title, body }))}`;
 
 describe('DeriveIntentService', () => {
   it('derives high-confidence intent from a linked issue through its application port', async () => {
@@ -38,16 +39,17 @@ describe('DeriveIntentService', () => {
   });
 
   it('reuses an intent only when the selected model and source fingerprint still match, unless manually forced', async () => {
+    const findLinkedIssue = vi.fn().mockResolvedValue(undefined);
     const cached = {
       intent: 'Cacheable intent.',
       in_scope: ['payments'],
       out_of_scope: [],
       confidence: 'low' as const,
       evidence: [{ source_kind: 'pr_title' as const, status: 'used' as const, reason_code: null, content_fingerprint: fingerprint('Cacheable PR') }],
-      source_fingerprint: fingerprint('Cacheable PR'),
+      source_fingerprint: cachedFingerprint('Cacheable PR', null),
       model_provider: 'openai' as const,
       model: 'gpt-6-luna',
-      derived_at: '2026-10-10T00:00:00.000Z',
+      derived_at: new Date().toISOString(),
     };
     const completeStructured = vi.fn().mockResolvedValue({
       data: { intent: 'Refreshed cacheable intent.', in_scope: [], out_of_scope: [], source_refs: [0], insufficient_evidence: false },
@@ -55,7 +57,7 @@ describe('DeriveIntentService', () => {
     });
     const service = new DeriveIntentService({
       documents: { fetchPlanOrSpec: vi.fn() },
-      linkedIssues: { findLinkedIssue: vi.fn().mockResolvedValue(undefined) },
+      linkedIssues: { findLinkedIssue },
       featureModels: { resolve: vi.fn().mockResolvedValue({ provider: 'openai', model: 'gpt-6-luna' }) },
       llm: { resolve: vi.fn().mockResolvedValue({ completeStructured }) },
       intents: { getDerivedIntent: vi.fn().mockResolvedValue(cached), upsertDerivedIntent: vi.fn() },
@@ -71,6 +73,7 @@ describe('DeriveIntentService', () => {
 
     expect(result).toMatchObject({ status: 'derived', intent: { intent: 'Cacheable intent.' }, trace: { persistence: 'reused' } });
     expect(completeStructured).not.toHaveBeenCalled();
+    expect(findLinkedIssue).not.toHaveBeenCalled();
 
     const forced = await service.derive({
       workspaceId: 'workspace-1',
@@ -83,6 +86,35 @@ describe('DeriveIntentService', () => {
 
     expect(forced).toMatchObject({ status: 'derived', intent: { intent: 'Cacheable PR' } });
     expect(completeStructured).toHaveBeenCalledOnce();
+  });
+
+  it('loads linked evidence and plan documents concurrently on a cache miss', async () => {
+    const linkedIssue = Promise.withResolvers<{ title: string; body: string | null } | undefined>();
+    const findLinkedIssue = vi.fn().mockReturnValue(linkedIssue.promise);
+    const fetchPlanOrSpec = vi.fn().mockResolvedValue({ ok: true, text: 'Plan details' });
+    const completeStructured = vi.fn().mockResolvedValue({
+      data: { intent: 'Add a cache.', in_scope: [], out_of_scope: [], source_refs: [0], insufficient_evidence: false },
+      model: 'gpt-6-luna', tokensIn: 0, tokensOut: 0, costUsd: null, raw: '', attempts: 1,
+    });
+    const service = new DeriveIntentService({
+      documents: { fetchPlanOrSpec },
+      linkedIssues: { findLinkedIssue },
+      featureModels: { resolve: vi.fn().mockResolvedValue({ provider: 'openai', model: 'gpt-6-luna' }) },
+      llm: { resolve: vi.fn().mockResolvedValue({ completeStructured }) },
+      intents: { getDerivedIntent: vi.fn().mockResolvedValue(undefined), upsertDerivedIntent: vi.fn() },
+    } as never);
+
+    const derivation = service.derive({
+      workspaceId: 'workspace-1', prId: 'pr-1', title: 'Add cache',
+      body: 'Fixes #42\nPlan https://plans.example/cache.md', repo: { owner: 'acme', name: 'payments' },
+    });
+
+    await vi.waitFor(() => {
+      expect(findLinkedIssue).toHaveBeenCalledOnce();
+      expect(fetchPlanOrSpec).toHaveBeenCalledOnce();
+    });
+    linkedIssue.resolve(undefined);
+    await derivation;
   });
 
   it('persists a low-confidence title-only intent when the classifier declines the sparse source', async () => {

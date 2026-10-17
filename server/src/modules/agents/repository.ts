@@ -71,6 +71,14 @@ export class AgentsRepository {
     return row;
   }
 
+  async getByIds(workspaceId: string, ids: string[]): Promise<AgentRow[]> {
+    if (ids.length === 0) return [];
+    return this.db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), inArray(t.agents.id, ids)));
+  }
+
   /** Delete an agent (scoped to workspace). Versions/skill-links cascade;
    *  agent_runs keep their history with agent_id set null. Returns false if
    *  no such agent existed in the workspace. */

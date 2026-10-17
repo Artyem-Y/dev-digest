@@ -37,7 +37,7 @@ export type ReviewRepositoryPort = Pick<
 
 export interface ReviewServiceDependencies {
   repository: ReviewRepositoryPort;
-  agents: Pick<AgentsRepository, 'listEnabled' | 'getById'>;
+  agents: Pick<AgentsRepository, 'listEnabled' | 'getById' | 'getByIds'>;
   executor: Pick<ReviewRunExecutor, 'executeRuns'>;
   runBus: Pick<RunBus, 'cancel' | 'complete' | 'publish'>;
   /** Intentionally separate from review execution so intent can be refreshed on demand. */
@@ -73,9 +73,10 @@ export class ReviewService {
     if (opts.all) return this.dependencies.agents.listEnabled(workspaceId);
     if (opts.agentIds?.length) {
       const agentIds = [...new Set(opts.agentIds)];
-      const agents = await Promise.all(agentIds.map((agentId) => this.dependencies.agents.getById(workspaceId, agentId)));
-      if (agents.some((agent) => !agent)) throw new NotFoundError('Agent not found');
-      return agents as AgentRow[];
+      const agents = await this.dependencies.agents.getByIds(workspaceId, agentIds);
+      const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
+      if (agentsById.size !== agentIds.length) throw new NotFoundError('Agent not found');
+      return agentIds.map((agentId) => agentsById.get(agentId)!);
     }
     if (opts.agentId) {
       const agent = await this.dependencies.agents.getById(workspaceId, opts.agentId);
