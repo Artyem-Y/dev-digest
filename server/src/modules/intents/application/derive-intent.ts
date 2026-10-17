@@ -11,6 +11,7 @@ const planSpecLinks = (body: string) => [...body.matchAll(/(?:plan|spec)\s*(?:\[
 const INTENT_CACHE_TTL_MS = 5 * 60_000;
 /** Revalidate external intent evidence frequently without refetching it per review. */
 export const INTENT_SOURCE_CACHE_TTL_MS = 30_000;
+const MAX_INTENT_SOURCE_CACHE_ENTRIES = 128;
 const MAX_CONCURRENT_DOCUMENT_FETCHES = 2;
 
 /** Cache identity covers the content and availability of every derivation input. */
@@ -72,16 +73,30 @@ export class DeriveIntentService {
     intents: IntentRepositoryPort;
   }) {}
 
+  private evictExpiredSources(now: number): void {
+    for (const [key, entry] of this.sourceCache) {
+      if (entry.expiresAt <= now) this.sourceCache.delete(key);
+    }
+  }
+
   private loadSources(input: IntentInput) {
+    const now = Date.now();
+    this.evictExpiredSources(now);
     const key = digest(JSON.stringify({ repo: input.repo, body: input.body ?? '' }));
     const cached = this.sourceCache.get(key);
-    if (!input.force && cached && cached.expiresAt > Date.now()) return cached.value;
+    if (!input.force && cached) return cached.value;
 
     const value = Promise.all([
       this.deps.linkedIssues.findLinkedIssue(input.repo, input.body).catch(() => undefined),
       fetchDocuments(planSpecLinks(input.body ?? ''), this.deps.documents),
     ]).then(([issue, planSpecs]) => ({ issue, planSpecs }));
-    if (!input.force) this.sourceCache.set(key, { expiresAt: Date.now() + INTENT_SOURCE_CACHE_TTL_MS, value });
+    if (!input.force) {
+      if (this.sourceCache.size >= MAX_INTENT_SOURCE_CACHE_ENTRIES) {
+        const oldestKey = this.sourceCache.keys().next().value;
+        if (oldestKey) this.sourceCache.delete(oldestKey);
+      }
+      this.sourceCache.set(key, { expiresAt: now + INTENT_SOURCE_CACHE_TTL_MS, value });
+    }
     return value;
   }
 

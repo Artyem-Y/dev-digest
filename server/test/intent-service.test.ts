@@ -131,15 +131,16 @@ describe('DeriveIntentService', () => {
     vi.useFakeTimers();
     try {
     let cached: Record<string, unknown> | undefined;
+    const findLinkedIssue = vi.fn()
+      .mockResolvedValueOnce({ title: 'Prevent duplicates', body: 'Use idempotency keys.' })
+      .mockResolvedValueOnce({ title: 'Prevent duplicates', body: 'Use idempotency keys and audit events.' });
     const completeStructured = vi.fn().mockResolvedValue({
       data: { intent: 'Prevent duplicate payments.', in_scope: [], out_of_scope: [], source_refs: [0, 2], insufficient_evidence: false },
       model: 'gpt-6-luna', tokensIn: 0, tokensOut: 0, costUsd: null, raw: '', attempts: 1,
     });
     const service = new DeriveIntentService({
       documents: { fetchPlanOrSpec: vi.fn() },
-      linkedIssues: { findLinkedIssue: vi.fn()
-        .mockResolvedValueOnce({ title: 'Prevent duplicates', body: 'Use idempotency keys.' })
-        .mockResolvedValueOnce({ title: 'Prevent duplicates', body: 'Use idempotency keys and audit events.' }) },
+      linkedIssues: { findLinkedIssue },
       featureModels: { resolve: vi.fn().mockResolvedValue({ provider: 'openai', model: 'gpt-6-luna' }) },
       llm: { resolve: vi.fn().mockResolvedValue({ completeStructured }) },
       intents: {
@@ -153,6 +154,7 @@ describe('DeriveIntentService', () => {
     await vi.advanceTimersByTimeAsync(INTENT_SOURCE_CACHE_TTL_MS + 1);
     await expect(service.derive(input)).resolves.toMatchObject({ status: 'derived', trace: { persistence: 'updated' } });
     expect(completeStructured).toHaveBeenCalledTimes(2);
+    expect(findLinkedIssue).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }
