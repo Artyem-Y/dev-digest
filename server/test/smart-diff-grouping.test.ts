@@ -38,4 +38,13 @@ describe('buildSmartDiff', () => {
       ],
     });
   });
+
+  it('maps findings with unified-diff path prefixes onto their repository file', () => {
+    const result = buildSmartDiff(
+      [{ path: 'src/rate-limit.ts', additions: 2, deletions: 1 }],
+      [{ file: 'b/src/rate-limit.ts', start_line: 14 }],
+    );
+
+    expect(result.groups[0]!.files[0]!.finding_lines).toEqual([14]);
+  });
 });

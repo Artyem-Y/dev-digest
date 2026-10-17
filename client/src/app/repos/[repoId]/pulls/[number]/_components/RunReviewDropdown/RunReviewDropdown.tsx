@@ -63,9 +63,13 @@ export function RunReviewDropdown({
   const selected = new Set(selectedIds);
   const allSelected = enabledIds.length > 0 && selectedIds.length === enabledIds.length && enabledIds.every((id) => selected.has(id));
   const toggleAgent = (agentId: string) => {
-    setSelectedIds((previous) => previous.includes(agentId)
-      ? previous.filter((id) => id !== agentId)
-      : previous.length < MAX_INDIVIDUAL_AGENTS ? [...previous, agentId] : previous);
+    setSelectedIds((previous) => {
+      if (previous.includes(agentId)) {
+        const remaining = previous.filter((id) => id !== agentId);
+        return remaining.length > MAX_INDIVIDUAL_AGENTS ? remaining.slice(0, MAX_INDIVIDUAL_AGENTS) : remaining;
+      }
+      return previous.length < MAX_INDIVIDUAL_AGENTS ? [...previous, agentId] : previous;
+    });
   };
   const toggleAll = () => setSelectedIds(allSelected ? [] : enabledIds);
   const kick = async () => {

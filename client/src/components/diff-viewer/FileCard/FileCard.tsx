@@ -70,7 +70,7 @@ export function FileCard({
   const commentCount = commenting
     ? commenting.comments.filter((c) => c.path === file.path).length
     : 0;
-  const fileFindings = findings.filter((finding) => finding.file === file.path);
+  const fileFindings = findings;
   const { matched: matchedFindings, unmatched: unmatchedFindings } = React.useMemo(() => {
     const renderedKeys = new Set<string>();
     for (const line of lines) {

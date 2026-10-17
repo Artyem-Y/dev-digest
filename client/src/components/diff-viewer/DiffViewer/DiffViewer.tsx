@@ -32,10 +32,19 @@ export function DiffViewer({
     return <div style={s.empty}>{t("diffViewer.noChangedFiles")}</div>;
   }
   const visibleFindings = showFindings ? findings : [];
+  const findingsByFile = React.useMemo(() => {
+    const grouped = new Map<string, FindingRecord[]>();
+    for (const finding of visibleFindings) {
+      const fileFindings = grouped.get(finding.file) ?? [];
+      fileFindings.push(finding);
+      grouped.set(finding.file, fileFindings);
+    }
+    return grouped;
+  }, [visibleFindings]);
   return (
     <div style={s.list}>
       {files.map((f) => (
-        <FileCard key={f.path} file={f} commenting={commenting} findings={visibleFindings} showFindings={showFindings} allFilesOpen={allFilesOpen} renderFinding={renderFinding} />
+        <FileCard key={f.path} file={f} commenting={commenting} findings={findingsByFile.get(f.path) ?? []} showFindings={showFindings} allFilesOpen={allFilesOpen} renderFinding={renderFinding} />
       ))}
     </div>
   );

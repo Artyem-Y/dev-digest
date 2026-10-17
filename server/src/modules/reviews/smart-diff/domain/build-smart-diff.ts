@@ -13,13 +13,19 @@ export interface SmartDiffSourceFinding {
   start_line: number;
 }
 
+/** Compare repository paths independently of unified-diff prefixes. */
+function repositoryPath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/^(?:\.\/|[ab]\/)+/, '');
+}
+
 /** Build a complete SmartDiff payload from persisted PR files and current findings. */
 export function buildSmartDiff(files: readonly SmartDiffSourceFile[], findings: readonly SmartDiffSourceFinding[]): SmartDiff {
   const linesByPath = new Map<string, Set<number>>();
   for (const finding of findings) {
-    const lines = linesByPath.get(finding.file) ?? new Set<number>();
+    const path = repositoryPath(finding.file);
+    const lines = linesByPath.get(path) ?? new Set<number>();
     lines.add(finding.start_line);
-    linesByPath.set(finding.file, lines);
+    linesByPath.set(path, lines);
   }
   const groups = new Map<SmartDiffRole, SmartDiff['groups'][number]>();
   for (const role of SMART_DIFF_ROLE_ORDER) groups.set(role, { role, files: [] });
@@ -28,7 +34,7 @@ export function buildSmartDiff(files: readonly SmartDiffSourceFile[], findings: 
       path: file.path,
       additions: file.additions,
       deletions: file.deletions,
-      finding_lines: [...(linesByPath.get(file.path) ?? [])].sort((a, b) => a - b),
+      finding_lines: [...(linesByPath.get(repositoryPath(file.path)) ?? [])].sort((a, b) => a - b),
     });
   }
   const orderedGroups = SMART_DIFF_ROLE_ORDER.map((role) => groups.get(role)!);

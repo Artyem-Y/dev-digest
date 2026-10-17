@@ -10,6 +10,7 @@ import { SafePublicDocumentFetcher } from '../intents/infrastructure/public-docu
 import { resolveFeatureModel } from '../settings/feature-models.js';
 import { SettingsRepository } from '../settings/repository.js';
 import { GetSmartDiff } from './smart-diff/application/get-smart-diff.js';
+import { closingIssueNumber } from '../intents/application/closing-reference.js';
 
 /** Wires review application services and external adapters at the outer boundary. */
 export function createReviewService(container: Container): ReviewService {
@@ -18,8 +19,8 @@ export function createReviewService(container: Container): ReviewService {
     documents: new SafePublicDocumentFetcher(),
     linkedIssues: {
       async findLinkedIssue(repo, body) {
-        const issueNumber = Number((body ?? '').match(/(?:closes|fixes|resolves)?\s*#(\d+)/i)?.[1]);
-        if (!Number.isFinite(issueNumber)) return undefined;
+        const issueNumber = closingIssueNumber(body);
+        if (issueNumber === undefined) return undefined;
         const issue = await container.github().then((github) => github.getIssue(repo, issueNumber));
         return { title: issue.title, body: issue.body ?? null };
       },

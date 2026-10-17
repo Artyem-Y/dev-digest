@@ -22,7 +22,14 @@ vi.mock("../../../../../../../lib/hooks/reviews", () => ({
 
 import { RunReviewDropdown } from "./RunReviewDropdown";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  mocks.agents = [
+    { id: "a1", name: "Security", model: "gpt-4.1", enabled: true },
+    { id: "a2", name: "Performance", model: "gpt-4.1", enabled: false },
+  ];
+  mocks.mutateAsync.mockReset();
+});
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
@@ -51,5 +58,23 @@ describe("RunReviewDropdown (smoke)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run selected agents" }));
 
     await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledWith({ prId: "pr1", all: true }));
+  });
+
+  it("reduces a manual selection from more than 20 agents to an API-valid request", async () => {
+    mocks.agents = Array.from({ length: 22 }, (_, index) => ({
+      id: `a${index + 1}`, name: `Agent ${index + 1}`, model: "gpt-4.1", enabled: true,
+    }));
+    mocks.mutateAsync.mockResolvedValue({ runs: [] });
+    renderWithIntl(<RunReviewDropdown prId="pr1" />);
+
+    fireEvent.click(screen.getByText("Run Review"));
+    await waitFor(() => expect(screen.getByText("22 agent(s) selected")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("checkbox", { name: "Agent 22" }));
+    expect(screen.getByText("20 agent(s) selected")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Run selected agents" }));
+
+    await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledWith({
+      prId: "pr1", agentIds: Array.from({ length: 20 }, (_, index) => `a${index + 1}`),
+    }));
   });
 });
