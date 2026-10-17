@@ -33,7 +33,9 @@ behavior, alter public contracts, edit migrations, or expand the task scope.
 ## Test-only boundary
 
 - Edit only test files, test fixtures, or test-local helpers named by the plan
-  or required by an existing test pattern.
+  or required by an existing test pattern: `*.test.ts`, `*.test.tsx`,
+  `*.spec.ts`, `*.spec.tsx`, `*.it.test.ts`, `*.it.test.tsx`, test-fixture
+  files, and helpers imported exclusively by those tests.
 - Never edit production source, migrations, shared contracts, manifests, CI,
   or secrets. Hand an implementation defect back to `implementer` with proof.
 - Mock GitHub, git, and LLM boundaries unless the approved behavior is a real

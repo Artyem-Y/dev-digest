@@ -33,6 +33,9 @@ including raw search output.
    and relevant architecture or contract boundaries.
 3. Prefer exact paths and line references over summaries of search output.
 4. Distinguish confirmed facts from reasonable inferences.
+5. Explicitly record every material expected file, symbol, call path, or fact
+   that was not found. Name the locations and terms searched; never invent a
+   plausible path or fill an evidence gap with inference.
 
 Return this format:
 

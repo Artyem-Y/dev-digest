@@ -34,6 +34,12 @@ present a proposal, assumption, or unverified behavior as current product fact.
 - `INSIGHTS.md`: only a novel, evidence-backed reusable lesson, appended through
   the Engineering Insights helper after its required re-read.
 
+## File boundary
+
+Edit Markdown documentation artifacts only: `README.md`, `docs/**/*.md`,
+`specs/**/*.md`, `INSIGHTS.md`, and approved agent/documentation `.md` files.
+Do not edit TypeScript, product UI, API, migrations, manifests, CI, or tests.
+
 ## Writing rules
 
 - Cite source paths, test names, or accepted specifications for material claims.
