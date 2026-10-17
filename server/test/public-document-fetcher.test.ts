@@ -59,6 +59,21 @@ describe('SafePublicDocumentFetcher', () => {
     expect(request).not.toHaveBeenCalled();
   });
 
+  it.each([
+    '0:0:0:0:0:0:0:1',
+    'fd00:0000:0000:0000:0000:0000:0000:0001',
+    'fe80:0000:0000:0000:0000:0000:0000:0001',
+    'ff00:0000:0000:0000:0000:0000:0000:0001',
+  ])('rejects expanded non-public IPv6 address %s', async (address) => {
+    const lookup = vi.fn().mockResolvedValue([{ address, family: 6 }]);
+    const request = vi.fn();
+    const Fetcher = SafePublicDocumentFetcher as unknown as new (deps: { lookup: typeof lookup; request: typeof request }) => SafePublicDocumentFetcher;
+
+    await expect(new Fetcher({ lookup, request }).fetchPlanOrSpec('https://plans.example/plan.md'))
+      .resolves.toEqual({ ok: false, reasonCode: 'url_rejected' });
+    expect(request).not.toHaveBeenCalled();
+  });
+
   it.each(['100.64.0.1', '192.0.2.1', '192.31.196.1', '192.52.193.1', '192.88.99.1', '192.175.48.1', '198.18.0.1'])('rejects non-public IPv4 address %s', async (address) => {
     const lookup = vi.fn().mockResolvedValue([{ address, family: 4 }]);
     const request = vi.fn();

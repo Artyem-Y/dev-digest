@@ -73,22 +73,18 @@ function isBlockedAddress(address: string): boolean {
       || a >= 224;
   }
   if (isIP(address) !== 6) return true;
-  const ip = address.toLowerCase();
-  return hasIpv6Prefix(address, 0, 0, 0, 0, 0, 0xffff)
-    || ip === '::'
-    || ip === '::1'
-    || ip.startsWith('fe8')
-    || ip.startsWith('fe9')
-    || ip.startsWith('fea')
-    || ip.startsWith('feb')
-    || ip.startsWith('fec')
-    || ip.startsWith('fed')
-    || ip.startsWith('fee')
-    || ip.startsWith('fef')
-    || ip.startsWith('fc')
-    || ip.startsWith('fd')
-    || ip.startsWith('ff')
-    || ip.startsWith('2001:db8:')
+  const hextets = ipv6Hextets(address);
+  if (!hextets) return true;
+  const first = hextets[0]!;
+  const ipv4Compatible = hextets.slice(0, 6).every((part) => part === 0);
+  const loopback = hextets.slice(0, 7).every((part) => part === 0) && hextets[7] === 1;
+  return hasIpv6Prefix(address, 0, 0, 0, 0, 0, 0xffff) // IPv4-mapped
+    || ipv4Compatible
+    || loopback
+    || (first & 0xfe00) === 0xfc00 // ULA: fc00::/7
+    || (first & 0xff00) === 0xfe00 // link-local and deprecated site-local: fe00::/8
+    || (first & 0xff00) === 0xff00 // multicast: ff00::/8
+    || hasIpv6Prefix(address, 0x2001, 0x0db8) // documentation: 2001:db8::/32
     // Translation prefixes can encode loopback or private IPv4 destinations.
     // Pinning them does not make those destinations public.
     || hasIpv6Prefix(address, 0x64, 0xff9b) // NAT64 (well-known + local-use)
