@@ -1,4 +1,4 @@
-import type { FindingActionKind, RunEventKind, RunTrace, RunTraceResponse } from '@devdigest/shared';
+import type { DerivedIntent, FindingActionKind, RunEventKind, RunTrace, RunTraceResponse } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { AgentsRepository } from '../agents/repository.js';
@@ -8,6 +8,7 @@ import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
 import { ReviewRunExecutor, type Logger } from './run-executor.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
 import { reviewToDto } from './helpers.js';
+import type { IntentDerivation, IntentInput } from '../intents/application/derive-intent.js';
 
 // Re-export DTO types + converters for backward-compatible imports from
 // './service.js' (these previously lived here; logic now in ./helpers.ts).
@@ -23,6 +24,7 @@ export type ReviewRepositoryPort = Pick<
   | 'cancelRunIfRunning'
   | 'reapStaleRunningRuns'
   | 'getPull'
+  | 'getDerivedIntent'
   | 'getRepo'
   | 'createAgentRun'
   | 'reviewsForPull'
@@ -35,9 +37,11 @@ export type ReviewRepositoryPort = Pick<
 
 export interface ReviewServiceDependencies {
   repository: ReviewRepositoryPort;
-  agents: Pick<AgentsRepository, 'listEnabled' | 'getById'>;
+  agents: Pick<AgentsRepository, 'listEnabled' | 'getById' | 'getByIds'>;
   executor: Pick<ReviewRunExecutor, 'executeRuns'>;
   runBus: Pick<RunBus, 'cancel' | 'complete' | 'publish'>;
+  /** Intentionally separate from review execution so intent can be refreshed on demand. */
+  intentDeriver: Pick<{ derive(input: IntentInput): Promise<IntentDerivation> }, 'derive'>;
 }
 
 /**
@@ -64,9 +68,16 @@ export class ReviewService {
    */
   async resolveTargets(
     workspaceId: string,
-    opts: { agentId?: string; all?: boolean },
+    opts: { agentId?: string; agentIds?: string[]; all?: boolean },
   ): Promise<AgentRow[]> {
     if (opts.all) return this.dependencies.agents.listEnabled(workspaceId);
+    if (opts.agentIds?.length) {
+      const agentIds = [...new Set(opts.agentIds)];
+      const agents = await this.dependencies.agents.getByIds(workspaceId, agentIds);
+      const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
+      if (agentsById.size !== agentIds.length) throw new NotFoundError('Agent not found');
+      return agentIds.map((agentId) => agentsById.get(agentId)!);
+    }
     if (opts.agentId) {
       const agent = await this.dependencies.agents.getById(workspaceId, opts.agentId);
       if (!agent) throw new NotFoundError('Agent not found');
@@ -194,6 +205,34 @@ export class ReviewService {
     return rows.map(({ review, findings }) =>
       reviewToDto(review, findings, review.agentId ? names.get(review.agentId) : null),
     );
+  }
+
+  /** The persisted, source-safe intent for a pull request in this workspace. */
+  async derivedIntent(workspaceId: string, prId: string): Promise<DerivedIntent | null> {
+    const pull = await this.dependencies.repository.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    return (await this.dependencies.repository.getDerivedIntent(prId)) ?? null;
+  }
+
+  /** Rebuild intent only; it does not create review runs or findings. */
+  async rerunIntent(workspaceId: string, prId: string): Promise<DerivedIntent | null> {
+    const pull = await this.dependencies.repository.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    const repo = await this.dependencies.repository.getRepo(pull.repoId);
+    if (!repo) throw new NotFoundError('Repo not found');
+
+    const result = await this.dependencies.intentDeriver.derive({
+      workspaceId,
+      prId: pull.id,
+      title: pull.title,
+      body: pull.body,
+      repo: { owner: repo.owner, name: repo.name },
+      force: true,
+    });
+    // A transient derivation failure must preserve a previously safe intent.
+    return result.status === 'derived'
+      ? result.intent
+      : (await this.dependencies.repository.getDerivedIntent(prId)) ?? null;
   }
 
   async getRunTrace(runId: string): Promise<RunTraceResponse | undefined> {

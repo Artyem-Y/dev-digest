@@ -99,6 +99,7 @@ flowchart TB
 | `DEVDIGEST_CLONE_DIR` | `./clones` | imported-repo checkouts (git-ignored) |
 | `LOG_LEVEL` | `info` (`silent` in test) | pino level |
 | `NODE_ENV` | `development` | `test` → silent logs + global rate-limit disabled |
+| `PROMPT_BUILDER_DEBUG` | `false` | Set to `true` only with `NODE_ENV=development` for per-section, metadata-only prompt telemetry; ignored outside local development. |
 
 Secrets (API keys, `GITHUB_TOKEN`) are **not** part of `AppConfig` — they go
 through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with

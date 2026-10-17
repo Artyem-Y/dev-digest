@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
-import type { Intent } from '@devdigest/shared';
+import { DerivedIntent, type Intent } from '@devdigest/shared';
 import type { PullRow } from '../../../db/rows.js';
 
 // ---- PR lookup (workspace-scoped) -----------------------------------------
@@ -65,4 +65,44 @@ export async function getIntent(db: Db, prId: string): Promise<Intent | undefine
   const [row] = await db.select().from(t.prIntent).where(eq(t.prIntent.prId, prId));
   if (!row) return undefined;
   return { intent: row.intent, in_scope: row.inScope, out_of_scope: row.outOfScope };
+}
+
+export async function getDerivedIntent(db: Db, prId: string): Promise<DerivedIntent | undefined> {
+  const [row] = await db.select().from(t.prIntent).where(eq(t.prIntent.prId, prId));
+  if (!row || !row.confidence || !row.evidence || !row.sourceFingerprint || !row.modelProvider || !row.model || !row.derivedAt) return undefined;
+  const parsed = DerivedIntent.safeParse({
+    intent: row.intent,
+    in_scope: row.inScope,
+    out_of_scope: row.outOfScope,
+    confidence: row.confidence,
+    evidence: row.evidence,
+    source_fingerprint: row.sourceFingerprint,
+    model_provider: row.modelProvider,
+    model: row.model,
+    derived_at: row.derivedAt.toISOString(),
+  });
+  return parsed.success ? parsed.data : undefined;
+}
+
+/** A transient classifier failure never reaches this method, preserving the last valid intent. */
+export async function upsertDerivedIntent(db: Db, prId: string, intent: DerivedIntent): Promise<void> {
+  await db.insert(t.prIntent).values({
+    prId,
+    intent: intent.intent,
+    inScope: intent.in_scope,
+    outOfScope: intent.out_of_scope,
+    confidence: intent.confidence,
+    evidence: intent.evidence,
+    sourceFingerprint: intent.source_fingerprint,
+    modelProvider: intent.model_provider,
+    model: intent.model,
+    derivedAt: new Date(intent.derived_at),
+  }).onConflictDoUpdate({
+    target: t.prIntent.prId,
+    set: {
+      intent: intent.intent, inScope: intent.in_scope, outOfScope: intent.out_of_scope,
+      confidence: intent.confidence, evidence: intent.evidence, sourceFingerprint: intent.source_fingerprint,
+      modelProvider: intent.model_provider, model: intent.model, derivedAt: new Date(intent.derived_at),
+    },
+  });
 }
