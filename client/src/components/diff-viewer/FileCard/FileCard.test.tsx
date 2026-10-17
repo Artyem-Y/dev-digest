@@ -19,4 +19,27 @@ describe('FileCard findings', () => {
     expect(screen.getByText('Findings outside this patch')).toBeInTheDocument();
     expect(screen.getByText('Unmapped finding')).toBeInTheDocument();
   });
+
+  it('starts a large file collapsed until a group command expands it', () => {
+    const file = {
+      path: 'src/large.ts',
+      additions: 201,
+      deletions: 0,
+      patch: '@@ -1 +1 @@\n+large-file-line',
+    };
+    const { rerender } = render(
+      <NextIntlClientProvider locale="en" messages={{ shell: messages }}>
+        <FileCard file={file} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.queryByText('large-file-line')).not.toBeInTheDocument();
+
+    rerender(
+      <NextIntlClientProvider locale="en" messages={{ shell: messages }}>
+        <FileCard file={file} allFilesOpen />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.getByText('large-file-line')).toBeInTheDocument();
+  });
 });

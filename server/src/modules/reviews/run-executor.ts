@@ -114,6 +114,9 @@ export class ReviewRunExecutor {
       }
     };
 
+    const intentDerivation = runLog.step('Deriving PR intent', () => this.dependencies.deriveIntent({
+      workspaceId, prId: pull.id, title: pull.title, body: pull.body, repo,
+    }), { kind: 'tool' });
     let diff: UnifiedDiff;
     try {
       diff = await runLog.step('Loading PR diff', () => this.dependencies.loadDiff(workspaceId, pull, repo), {
@@ -121,15 +124,14 @@ export class ReviewRunExecutor {
       });
     } catch (err) {
       runLog.error(`Failed to load PR diff: ${(err as Error).message}`);
+      void intentDerivation.catch(() => undefined);
       await failAll(`Failed to load PR diff: ${(err as Error).message}`);
       return;
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
     let intentResult: IntentDerivation;
     try {
-      intentResult = await runLog.step('Deriving PR intent', () => this.dependencies.deriveIntent({
-        workspaceId, prId: pull.id, title: pull.title, body: pull.body, repo,
-      }), { kind: 'tool' });
+      intentResult = await intentDerivation;
     } catch {
       intentResult = { status: 'unavailable', reasonCode: 'intent_unexpected_failure', trace: { sourceCount: 0 } };
       runLog.info('PR intent unavailable: intent_unexpected_failure');

@@ -64,6 +64,10 @@ export class ReviewRepository {
     return reviewRepo.reviewsForPull(this.db, prId);
   }
 
+  currentReviewsForPull(prId: string): Promise<{ review: ReviewRow; findings: FindingRow[] }[]> {
+    return reviewRepo.currentReviewsForPull(this.db, prId);
+  }
+
   getReview(reviewId: string): Promise<ReviewRow | undefined> {
     return reviewRepo.getReview(this.db, reviewId);
   }

@@ -6,6 +6,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Icon } from "@devdigest/ui";
 import type { FindingRecord, PrFile } from "@/lib/types";
+import { AUTO_EXPAND_MAX_LINES } from "../constants";
 import { parsePatch, type Line } from "../helpers";
 import {
   buildThreads,
@@ -47,7 +48,9 @@ export function FileCard({
   renderFinding?: (finding: FindingRecord) => React.ReactNode;
 }) {
   const t = useTranslations("shell");
-  const [open, setOpen] = React.useState(true);
+  const [open, setOpen] = React.useState(
+    () => (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES,
+  );
   React.useEffect(() => {
     if (allFilesOpen !== undefined) setOpen(allFilesOpen);
   }, [allFilesOpen]);

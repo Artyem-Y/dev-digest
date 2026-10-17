@@ -23,5 +23,5 @@ export interface SmartDiffFindingRow {
 export interface SmartDiffReadPort {
   getPull(workspaceId: string, prId: string): Promise<SmartDiffPull | undefined>;
   getPrFiles(prId: string): Promise<SmartDiffFileRow[]>;
-  reviewsForPull(prId: string): Promise<{ review: SmartDiffReviewRow; findings: SmartDiffFindingRow[] }[]>;
+  currentReviewsForPull(prId: string): Promise<{ review: SmartDiffReviewRow; findings: SmartDiffFindingRow[] }[]>;
 }

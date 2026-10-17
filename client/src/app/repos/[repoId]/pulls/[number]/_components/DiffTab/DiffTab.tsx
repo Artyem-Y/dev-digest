@@ -37,7 +37,7 @@ function SmartDiffGroup({ role, files, findings, commenting, showFindings, rende
   const groupFindings = findingsForFiles(files, findings);
   const findingFiles = new Set(groupFindings.map((finding) => finding.file));
   const [groupOpen, setGroupOpen] = React.useState(() => role === 'core' || role === 'tests' || role === 'wiring' || findingFiles.size > 0);
-  const [allFilesOpen, setAllFilesOpen] = React.useState(true);
+  const [allFilesOpen, setAllFilesOpen] = React.useState<boolean | undefined>(undefined);
   React.useEffect(() => {
     if ((role === 'docs' || role === 'boilerplate') && findingFiles.size > 0) setGroupOpen(true);
   }, [findingFiles.size, role]);
@@ -52,7 +52,7 @@ function SmartDiffGroup({ role, files, findings, commenting, showFindings, rende
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, color: 'var(--text-muted)', fontSize: 12.5 }}>
         {findingFiles.size > 0 && <span aria-label={t('smartDiff.findingFiles', { count: findingFiles.size })} style={{ color: 'var(--crit)' }}>● {findingFiles.size}</span>}
         <span>{t('smartDiff.filesCount', { count: files.length })}</span>
-        <button type="button" aria-label={allFilesOpen ? t('smartDiff.collapseFiles') : t('smartDiff.expandFiles')} title={allFilesOpen ? t('smartDiff.collapseFiles') : t('smartDiff.expandFiles')} onClick={() => { if (!groupOpen) { setGroupOpen(true); setAllFilesOpen(true); } else setAllFilesOpen((value) => !value); }} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, border: '1px solid var(--border)', borderRadius: 5, background: 'transparent', color: 'var(--text-muted)' }}>
+        <button type="button" aria-label={allFilesOpen === true ? t('smartDiff.collapseFiles') : t('smartDiff.expandFiles')} title={allFilesOpen === true ? t('smartDiff.collapseFiles') : t('smartDiff.expandFiles')} onClick={() => { if (!groupOpen) { setGroupOpen(true); setAllFilesOpen(true); } else setAllFilesOpen((value) => value === true ? false : true); }} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, border: '1px solid var(--border)', borderRadius: 5, background: 'transparent', color: 'var(--text-muted)' }}>
           <Icon.ChevronsUpDown size={13} />
         </button>
       </span>

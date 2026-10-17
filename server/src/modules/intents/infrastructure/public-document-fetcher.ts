@@ -22,11 +22,42 @@ type Dependencies = { lookup: Lookup; request: Request };
 
 function isBlockedAddress(address: string): boolean {
   if (isIP(address) === 4) {
-    const [a = -1, b = -1] = address.split('.').map(Number);
-    return a === 10 || a === 127 || a === 0 || a === 169 && b === 254 || a === 192 && b === 168 || a === 172 && b >= 16 && b <= 31 || a >= 224;
+    const [a = -1, b = -1, c = -1] = address.split('.').map(Number);
+    return a === 0
+      || a === 10
+      || a === 100 && b >= 64 && b <= 127
+      || a === 127
+      || a === 169 && b === 254
+      || a === 172 && b >= 16 && b <= 31
+      || a === 192 && (
+        b === 0
+        || b === 2
+        || b === 31 && c === 196
+        || b === 52 && c === 193
+        || b === 88 && c === 99
+        || b === 168
+        || b === 175 && c === 48
+      )
+      || a === 198 && (b === 18 || b === 19 || b === 51)
+      || a === 203 && b === 0 && c === 113
+      || a >= 224;
   }
   const ip = address.toLowerCase();
-  return ip.startsWith('::ffff:') || ip === '::1' || ip.startsWith('fe80:') || ip.startsWith('fc') || ip.startsWith('fd') || ip.startsWith('ff');
+  return ip.startsWith('::ffff:')
+    || ip === '::'
+    || ip === '::1'
+    || ip.startsWith('fe8')
+    || ip.startsWith('fe9')
+    || ip.startsWith('fea')
+    || ip.startsWith('feb')
+    || ip.startsWith('fec')
+    || ip.startsWith('fed')
+    || ip.startsWith('fee')
+    || ip.startsWith('fef')
+    || ip.startsWith('fc')
+    || ip.startsWith('fd')
+    || ip.startsWith('ff')
+    || ip.startsWith('2001:db8:');
 }
 
 async function validateUrl(value: string, lookupAddress: Lookup): Promise<(PinnedRequest & { url: URL }) | undefined> {

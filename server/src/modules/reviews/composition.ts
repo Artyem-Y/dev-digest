@@ -63,7 +63,7 @@ export function createSmartDiffService(container: Container): GetSmartDiff {
       additions: file.additions,
       deletions: file.deletions,
     })),
-    reviewsForPull: async (prId) => (await repository.reviewsForPull(prId)).map(({ review, findings }) => ({
+    currentReviewsForPull: async (prId) => (await repository.currentReviewsForPull(prId)).map(({ review, findings }) => ({
       review: {
         id: review.id,
         agentId: review.agentId,
