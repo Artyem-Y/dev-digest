@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { DeriveIntentService } from '../src/modules/intents/application/derive-intent.js';
 
 const fingerprint = (value: string) => createHash('sha256').update(value).digest('hex');
-const cachedFingerprint = (title: string, body: string | null) => `v2:${fingerprint(JSON.stringify({ title, body }))}`;
+const cachedFingerprint = (title: string, body: string | null) => fingerprint(JSON.stringify({ title, body }));
 
 describe('DeriveIntentService', () => {
   it('derives high-confidence intent from a linked issue through its application port', async () => {
@@ -13,7 +13,7 @@ describe('DeriveIntentService', () => {
         intent: 'Prevent duplicate payment captures.',
         in_scope: ['capture deduplication'],
         out_of_scope: ['refunds'],
-        source_refs: [0, 1],
+        source_refs: [0, 2],
         insufficient_evidence: false,
       },
       model: 'gpt-6-luna', tokensIn: 0, tokensOut: 0, costUsd: null, raw: '', attempts: 1,
@@ -36,6 +36,43 @@ describe('DeriveIntentService', () => {
 
     expect(findLinkedIssue).toHaveBeenCalledWith({ owner: 'acme', name: 'payments' }, 'Fixes #42');
     expect(result).toMatchObject({ status: 'derived', intent: { confidence: 'high' }, trace: { persistence: 'created' } });
+  });
+
+  it('records only classifier-referenced sources as used and persists a contract-valid fingerprint', async () => {
+    const completeStructured = vi.fn().mockResolvedValue({
+      data: {
+        intent: 'Prevent duplicate payment captures.', in_scope: [], out_of_scope: [],
+        source_refs: [0, 2], insufficient_evidence: false,
+      },
+      model: 'gpt-6-luna', tokensIn: 0, tokensOut: 0, costUsd: null, raw: '', attempts: 1,
+    });
+    const service = new DeriveIntentService({
+      documents: { fetchPlanOrSpec: vi.fn().mockResolvedValue({ ok: true, text: 'Implementation plan.' }) },
+      linkedIssues: { findLinkedIssue: vi.fn().mockResolvedValue({ title: 'Prevent duplicates', body: 'Use idempotency keys.' }) },
+      featureModels: { resolve: vi.fn().mockResolvedValue({ provider: 'openai', model: 'gpt-6-luna' }) },
+      llm: { resolve: vi.fn().mockResolvedValue({ completeStructured }) },
+      intents: { getDerivedIntent: vi.fn().mockResolvedValue(undefined), upsertDerivedIntent: vi.fn() },
+    } as never);
+
+    const result = await service.derive({
+      workspaceId: 'workspace-1', prId: 'pr-1', title: 'Deduplicate captures',
+      body: 'Plan https://plans.example/idempotency.md', repo: { owner: 'acme', name: 'payments' },
+    } as never);
+
+    expect(result).toMatchObject({
+      status: 'derived',
+      intent: {
+        confidence: 'high',
+        evidence: [
+          { source_kind: 'pr_title', status: 'used' },
+          { source_kind: 'pr_description', status: 'unused' },
+          { source_kind: 'github_issue', status: 'used' },
+          { source_kind: 'plan_spec', status: 'unused' },
+        ],
+      },
+      trace: { sourceCount: 2 },
+    });
+    if (result.status === 'derived') expect(result.intent.source_fingerprint).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it('reuses an intent only when the selected model and source fingerprint still match, unless manually forced', async () => {

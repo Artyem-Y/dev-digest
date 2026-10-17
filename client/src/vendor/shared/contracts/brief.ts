@@ -16,7 +16,7 @@ export type Intent = z.infer<typeof Intent>;
 /** Trace-safe provenance only; source text and URLs are never transport data. */
 export const IntentEvidence = z.object({
   source_kind: z.enum(['pr_title', 'pr_description', 'github_issue', 'plan_spec']),
-  status: z.enum(['used', 'unavailable', 'rejected']),
+  status: z.enum(['used', 'unused', 'unavailable', 'rejected']),
   reason_code: z.string().max(80).nullable(),
   content_fingerprint: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
 });

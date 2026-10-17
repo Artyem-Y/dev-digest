@@ -10,6 +10,8 @@ import { useAgents } from "../../../../../../../lib/hooks/agents";
 import { useRunReview } from "../../../../../../../lib/hooks/reviews";
 import { DROPDOWN_WIDTH } from "./constants";
 
+const MAX_INDIVIDUAL_AGENTS = 20;
+
 export function RunReviewDropdown({
   prId,
   size = "sm",
@@ -32,6 +34,7 @@ export function RunReviewDropdown({
   const { data: agents } = useAgents();
   const run = useRunReview();
   const all = agents ?? [];
+  const enabledIds = React.useMemo(() => all.filter((agent) => agent.enabled).map((agent) => agent.id), [all]);
   const [open, setOpen] = React.useState(false);
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
   const initialized = React.useRef(false);
@@ -39,7 +42,7 @@ export function RunReviewDropdown({
 
   React.useEffect(() => {
     if (!initialized.current && all.length > 0) {
-      setSelectedIds(all.filter((agent) => agent.enabled).map((agent) => agent.id));
+      setSelectedIds(enabledIds);
       initialized.current = true;
       return;
     }
@@ -47,7 +50,7 @@ export function RunReviewDropdown({
       const retained = previous.filter((id) => all.some((agent) => agent.id === id));
       return retained.length === previous.length ? previous : retained;
     });
-  }, [agents]);
+  }, [agents, enabledIds]);
 
   React.useEffect(() => {
     const closeOnOutsidePress = (event: MouseEvent) => {
@@ -58,18 +61,18 @@ export function RunReviewDropdown({
   }, []);
 
   const selected = new Set(selectedIds);
-  const allSelected = all.length > 0 && selectedIds.length === all.length;
+  const allSelected = enabledIds.length > 0 && selectedIds.length === enabledIds.length && enabledIds.every((id) => selected.has(id));
   const toggleAgent = (agentId: string) => {
     setSelectedIds((previous) => previous.includes(agentId)
       ? previous.filter((id) => id !== agentId)
-      : [...previous, agentId]);
+      : previous.length < MAX_INDIVIDUAL_AGENTS ? [...previous, agentId] : previous);
   };
-  const toggleAll = () => setSelectedIds(allSelected ? [] : all.map((agent) => agent.id));
+  const toggleAll = () => setSelectedIds(allSelected ? [] : enabledIds);
   const kick = async () => {
     if (selectedIds.length === 0) return;
     onRunStart?.();
     try {
-      const result = await run.mutateAsync({ prId, agentIds: selectedIds });
+      const result = await run.mutateAsync(allSelected ? { prId, all: true } : { prId, agentIds: selectedIds });
       onRunsStarted?.(result.runs.map((entry) => entry.run_id));
       setOpen(false);
     } finally {
@@ -113,6 +116,7 @@ export function RunReviewDropdown({
               </div>
               <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10 }}>
                 <div style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 8 }}>{t("runReview.selectedAgents", { count: selectedIds.length })}</div>
+                {!allSelected && <div style={{ color: "var(--text-muted)", fontSize: 11.5, marginBottom: 8 }}>{t("runReview.individualLimit", { count: MAX_INDIVIDUAL_AGENTS })}</div>}
                 <Button kind="primary" size="sm" icon="Play" full onClick={kick} disabled={selectedIds.length === 0}>
                   {t("runReview.runSelected")}
                 </Button>

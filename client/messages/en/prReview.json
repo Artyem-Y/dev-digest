@@ -39,6 +39,7 @@
     "runAll": "Run all enabled agents",
     "selectAllAgents": "Select all agents",
     "selectedAgents": "{count} agent(s) selected",
+    "individualLimit": "Select up to {count} agents, or select all enabled agents.",
     "runSelected": "Run selected agents",
     "noAgents": "No agents yet — create one to run a review.",
     "configureAgents": "Configure agents…",

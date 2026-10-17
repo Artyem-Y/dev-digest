@@ -11,7 +11,8 @@ const planSpecLinks = (body: string) => [...body.matchAll(/(?:plan|spec)\s*(?:\[
 const INTENT_CACHE_TTL_MS = 5 * 60_000;
 const MAX_CONCURRENT_DOCUMENT_FETCHES = 2;
 
-const cacheFingerprint = (title: string, body: string | null) => `v2:${digest(JSON.stringify({ title, body }))}`;
+/** The persisted contract requires a bare SHA-256 hex digest. */
+const cacheFingerprint = (title: string, body: string | null) => digest(JSON.stringify({ title, body }));
 const isFresh = (derivedAt: string) => {
   const timestamp = Date.parse(derivedAt);
   return Number.isFinite(timestamp) && Date.now() - timestamp < INTENT_CACHE_TTL_MS;
@@ -73,12 +74,19 @@ export class DeriveIntentService {
     }
     const sourceFingerprint = cacheFingerprint(input.title, input.body);
     if (!input.force && cached && cached.source_fingerprint === sourceFingerprint && cached.model_provider === resolved.provider && cached.model === resolved.model && isFresh(cached.derived_at)) {
-      return { status: 'derived', intent: cached, trace: { confidence: cached.confidence, sourceCount: cached.evidence.length, provider: cached.model_provider, model: cached.model, persistence: 'reused' } };
+      return { status: 'derived', intent: cached, trace: { confidence: cached.confidence, sourceCount: cached.evidence.filter((item) => item.status === 'used').length, provider: cached.model_provider, model: cached.model, persistence: 'reused' } };
     }
 
     const evidence: Evidence[] = [];
     const sources: { kind: SourceKind; text: string }[] = [];
-    const add = (kind: SourceKind, text: string) => { const value = text.trim(); if (value) { sources.push({ kind, text: value }); evidence.push({ source_kind: kind, status: 'used', reason_code: null, content_fingerprint: digest(value) }); } };
+    const sourceEvidenceIndexes: number[] = [];
+    const add = (kind: SourceKind, text: string) => {
+      const value = text.trim();
+      if (!value) return;
+      sources.push({ kind, text: value });
+      sourceEvidenceIndexes.push(evidence.length);
+      evidence.push({ source_kind: kind, status: 'unused', reason_code: null, content_fingerprint: digest(value) });
+    };
     add('pr_title', input.title);
     if (input.body) add('pr_description', input.body);
     const linkedIssue = this.deps.linkedIssues
@@ -94,10 +102,19 @@ export class DeriveIntentService {
     if (sources.length === 0) return { status: 'unavailable', reasonCode: 'no_usable_evidence', trace: { sourceCount: 0 } };
     try {
       const classification = await derivePullIntent({ provider: await this.deps.llm.resolve(resolved.provider), model: resolved.model, sources });
-      const titleOnly = evidence.length === 1 && evidence[0]?.source_kind === 'pr_title';
+      const usedSourceIndexes = new Set(
+        classification.classification.source_refs.filter((index) => Number.isInteger(index) && index >= 0 && index < sources.length),
+      );
+      for (const index of usedSourceIndexes) {
+        const evidenceIndex = sourceEvidenceIndexes[index]!;
+        evidence[evidenceIndex]!.status = 'used';
+      }
+      const titleOnly = sources.length === 1 && sources[0]?.kind === 'pr_title';
       if (classification.classification.insufficient_evidence && !titleOnly) return { status: 'unavailable', reasonCode: 'insufficient_evidence', trace: { sourceCount: sources.length } };
-      const hasExternal = evidence.some((item) => item.status === 'used' && (item.source_kind === 'github_issue' || item.source_kind === 'plan_spec'));
-      const confidence: DerivedIntent['confidence'] = titleOnly ? 'low' : hasExternal ? 'high' : input.body?.trim() ? 'medium' : 'low';
+      const usedSources = [...usedSourceIndexes].map((index) => sources[index]!);
+      const hasExternal = usedSources.some((source) => source.kind === 'github_issue' || source.kind === 'plan_spec');
+      const hasDescription = usedSources.some((source) => source.kind === 'pr_description');
+      const confidence: DerivedIntent['confidence'] = titleOnly ? 'low' : hasExternal ? 'high' : hasDescription ? 'medium' : 'low';
       const intent: DerivedIntent = {
         intent: titleOnly ? input.title.trim() : classification.classification.intent,
         in_scope: titleOnly ? [] : classification.classification.in_scope,
@@ -105,7 +122,7 @@ export class DeriveIntentService {
         confidence, evidence, source_fingerprint: sourceFingerprint, model_provider: resolved.provider, model: resolved.model, derived_at: new Date().toISOString(),
       };
       await this.deps.intents.upsertDerivedIntent(input.prId, intent);
-      return { status: 'derived', intent, trace: { confidence, sourceCount: evidence.length, provider: resolved.provider, model: resolved.model, persistence: cached ? 'updated' : 'created' } };
+      return { status: 'derived', intent, trace: { confidence, sourceCount: usedSources.length, provider: resolved.provider, model: resolved.model, persistence: cached ? 'updated' : 'created' } };
     } catch { return { status: 'unavailable', reasonCode: 'model_failed', trace: { sourceCount: sources.length } }; }
   }
 }
