@@ -20,6 +20,36 @@ type PinnedResponse = {
 type Request = (request: PinnedRequest) => Promise<PinnedResponse>;
 type Dependencies = { lookup: Lookup; request: Request };
 
+function ipv6Hextets(address: string): number[] | undefined {
+  const parts = address.split('::');
+  if (parts.length > 2) return undefined;
+  const parseSide = (side: string): number[] | undefined => {
+    if (!side) return [];
+    const values: number[] = [];
+    for (const group of side.split(':')) {
+      if (group.includes('.')) {
+        const octets = group.split('.').map(Number);
+        if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) return undefined;
+        values.push((octets[0]! << 8) + octets[1]!, (octets[2]! << 8) + octets[3]!);
+      } else if (/^[0-9a-f]{1,4}$/i.test(group)) {
+        values.push(Number.parseInt(group, 16));
+      } else return undefined;
+    }
+    return values;
+  };
+  const left = parseSide(parts[0] ?? '');
+  const right = parseSide(parts[1] ?? '');
+  if (!left || !right) return undefined;
+  const zeroes = 8 - left.length - right.length;
+  if (zeroes < 0 || (parts.length === 1 && zeroes !== 0)) return undefined;
+  return [...left, ...Array<number>(zeroes).fill(0), ...right];
+}
+
+function hasIpv6Prefix(address: string, ...prefix: number[]): boolean {
+  const hextets = ipv6Hextets(address);
+  return hextets !== undefined && prefix.every((value, index) => hextets[index] === value);
+}
+
 function isBlockedAddress(address: string): boolean {
   if (isIP(address) === 4) {
     const [a = -1, b = -1, c = -1] = address.split('.').map(Number);
@@ -42,8 +72,9 @@ function isBlockedAddress(address: string): boolean {
       || a === 203 && b === 0 && c === 113
       || a >= 224;
   }
+  if (isIP(address) !== 6) return true;
   const ip = address.toLowerCase();
-  return ip.startsWith('::ffff:')
+  return hasIpv6Prefix(address, 0, 0, 0, 0, 0, 0xffff)
     || ip === '::'
     || ip === '::1'
     || ip.startsWith('fe8')
@@ -57,7 +88,12 @@ function isBlockedAddress(address: string): boolean {
     || ip.startsWith('fc')
     || ip.startsWith('fd')
     || ip.startsWith('ff')
-    || ip.startsWith('2001:db8:');
+    || ip.startsWith('2001:db8:')
+    // Translation prefixes can encode loopback or private IPv4 destinations.
+    // Pinning them does not make those destinations public.
+    || hasIpv6Prefix(address, 0x64, 0xff9b) // NAT64 (well-known + local-use)
+    || hasIpv6Prefix(address, 0x2002) // 6to4
+    || hasIpv6Prefix(address, 0x2001, 0x0000); // Teredo
 }
 
 async function validateUrl(value: string, lookupAddress: Lookup): Promise<(PinnedRequest & { url: URL }) | undefined> {

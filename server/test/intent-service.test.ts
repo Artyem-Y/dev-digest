@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { DeriveIntentService } from '../src/modules/intents/application/derive-intent.js';
 
 const fingerprint = (value: string) => createHash('sha256').update(value).digest('hex');
-const cachedFingerprint = (title: string, body: string | null) => fingerprint(JSON.stringify({ title, body }));
+const cachedFingerprint = (title: string) => fingerprint(JSON.stringify([{
+  source_kind: 'pr_title', reason_code: null, content_fingerprint: fingerprint(title),
+}]));
 
 describe('DeriveIntentService', () => {
   it('derives high-confidence intent from a linked issue through its application port', async () => {
@@ -83,7 +85,7 @@ describe('DeriveIntentService', () => {
       out_of_scope: [],
       confidence: 'low' as const,
       evidence: [{ source_kind: 'pr_title' as const, status: 'used' as const, reason_code: null, content_fingerprint: fingerprint('Cacheable PR') }],
-      source_fingerprint: cachedFingerprint('Cacheable PR', null),
+      source_fingerprint: cachedFingerprint('Cacheable PR'),
       model_provider: 'openai' as const,
       model: 'gpt-6-luna',
       derived_at: new Date().toISOString(),
@@ -110,7 +112,7 @@ describe('DeriveIntentService', () => {
 
     expect(result).toMatchObject({ status: 'derived', intent: { intent: 'Cacheable intent.' }, trace: { persistence: 'reused' } });
     expect(completeStructured).not.toHaveBeenCalled();
-    expect(findLinkedIssue).not.toHaveBeenCalled();
+    expect(findLinkedIssue).toHaveBeenCalledOnce();
 
     const forced = await service.derive({
       workspaceId: 'workspace-1',
@@ -123,6 +125,31 @@ describe('DeriveIntentService', () => {
 
     expect(forced).toMatchObject({ status: 'derived', intent: { intent: 'Cacheable PR' } });
     expect(completeStructured).toHaveBeenCalledOnce();
+  });
+
+  it('re-derives when linked evidence changes during the intent cache TTL', async () => {
+    let cached: Record<string, unknown> | undefined;
+    const completeStructured = vi.fn().mockResolvedValue({
+      data: { intent: 'Prevent duplicate payments.', in_scope: [], out_of_scope: [], source_refs: [0, 2], insufficient_evidence: false },
+      model: 'gpt-6-luna', tokensIn: 0, tokensOut: 0, costUsd: null, raw: '', attempts: 1,
+    });
+    const service = new DeriveIntentService({
+      documents: { fetchPlanOrSpec: vi.fn() },
+      linkedIssues: { findLinkedIssue: vi.fn()
+        .mockResolvedValueOnce({ title: 'Prevent duplicates', body: 'Use idempotency keys.' })
+        .mockResolvedValueOnce({ title: 'Prevent duplicates', body: 'Use idempotency keys and audit events.' }) },
+      featureModels: { resolve: vi.fn().mockResolvedValue({ provider: 'openai', model: 'gpt-6-luna' }) },
+      llm: { resolve: vi.fn().mockResolvedValue({ completeStructured }) },
+      intents: {
+        getDerivedIntent: vi.fn().mockImplementation(() => cached),
+        upsertDerivedIntent: vi.fn().mockImplementation((_prId, intent) => { cached = intent; }),
+      },
+    } as never);
+    const input = { workspaceId: 'workspace-1', prId: 'pr-1', title: 'Deduplicate captures', body: 'Fixes #42', repo: { owner: 'acme', name: 'payments' } } as never;
+
+    await expect(service.derive(input)).resolves.toMatchObject({ status: 'derived', trace: { persistence: 'created' } });
+    await expect(service.derive(input)).resolves.toMatchObject({ status: 'derived', trace: { persistence: 'updated' } });
+    expect(completeStructured).toHaveBeenCalledTimes(2);
   });
 
   it('loads linked evidence and plan documents concurrently on a cache miss', async () => {

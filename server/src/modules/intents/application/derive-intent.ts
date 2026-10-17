@@ -11,8 +11,12 @@ const planSpecLinks = (body: string) => [...body.matchAll(/(?:plan|spec)\s*(?:\[
 const INTENT_CACHE_TTL_MS = 5 * 60_000;
 const MAX_CONCURRENT_DOCUMENT_FETCHES = 2;
 
-/** The persisted contract requires a bare SHA-256 hex digest. */
-const cacheFingerprint = (title: string, body: string | null) => digest(JSON.stringify({ title, body }));
+/** Cache identity covers the content and availability of every derivation input. */
+const cacheFingerprint = (evidence: readonly Evidence[]) => digest(JSON.stringify(evidence.map((item) => ({
+  source_kind: item.source_kind,
+  reason_code: item.reason_code,
+  content_fingerprint: item.content_fingerprint,
+}))));
 const isFresh = (derivedAt: string) => {
   const timestamp = Date.parse(derivedAt);
   return Number.isFinite(timestamp) && Date.now() - timestamp < INTENT_CACHE_TTL_MS;
@@ -72,11 +76,6 @@ export class DeriveIntentService {
     } catch {
       return { status: 'unavailable', reasonCode: 'model_unavailable', trace: { sourceCount: 0 } };
     }
-    const sourceFingerprint = cacheFingerprint(input.title, input.body);
-    if (!input.force && cached && cached.source_fingerprint === sourceFingerprint && cached.model_provider === resolved.provider && cached.model === resolved.model && isFresh(cached.derived_at)) {
-      return { status: 'derived', intent: cached, trace: { confidence: cached.confidence, sourceCount: cached.evidence.filter((item) => item.status === 'used').length, provider: cached.model_provider, model: cached.model, persistence: 'reused' } };
-    }
-
     const evidence: Evidence[] = [];
     const sources: { kind: SourceKind; text: string }[] = [];
     const sourceEvidenceIndexes: number[] = [];
@@ -98,6 +97,10 @@ export class DeriveIntentService {
     for (const result of planSpecs) {
       if (result.ok) add('plan_spec', result.text);
       else evidence.push({ source_kind: 'plan_spec', status: result.reasonCode === 'url_rejected' ? 'rejected' : 'unavailable', reason_code: result.reasonCode, content_fingerprint: null });
+    }
+    const sourceFingerprint = cacheFingerprint(evidence);
+    if (!input.force && cached && cached.source_fingerprint === sourceFingerprint && cached.model_provider === resolved.provider && cached.model === resolved.model && isFresh(cached.derived_at)) {
+      return { status: 'derived', intent: cached, trace: { confidence: cached.confidence, sourceCount: cached.evidence.filter((item) => item.status === 'used').length, provider: cached.model_provider, model: cached.model, persistence: 'reused' } };
     }
     if (sources.length === 0) return { status: 'unavailable', reasonCode: 'no_usable_evidence', trace: { sourceCount: 0 } };
     try {

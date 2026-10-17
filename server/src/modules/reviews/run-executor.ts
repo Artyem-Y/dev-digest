@@ -9,6 +9,9 @@ import { taskLine } from './helpers.js';
 import type { ReviewRepositoryRef } from './diff-loader.js';
 import type { RepoIntel } from '../repo-intel/types.js';
 
+/** Review agents must not wait indefinitely for optional intent enrichment. */
+export const REVIEW_INTENT_DEADLINE_MS = 1_500;
+
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
   constructor() {
@@ -129,12 +132,32 @@ export class ReviewRunExecutor {
       return;
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
+    const unavailableIntent = (): IntentDerivation => ({
+      status: 'unavailable', reasonCode: 'intent_unexpected_failure', trace: { sourceCount: 0 },
+    });
     let intentResult: IntentDerivation;
+    let intentTimedOut = false;
+    let intentDeadline: ReturnType<typeof setTimeout> | undefined;
     try {
-      intentResult = await intentDerivation;
-    } catch {
-      intentResult = { status: 'unavailable', reasonCode: 'intent_unexpected_failure', trace: { sourceCount: 0 } };
-      runLog.info('PR intent unavailable: intent_unexpected_failure');
+      const result = await Promise.race([
+        intentDerivation.then(
+          (value) => ({ value, timedOut: false }),
+          () => ({ value: unavailableIntent(), timedOut: false }),
+        ),
+        new Promise<{ value: IntentDerivation; timedOut: true }>((resolve) => {
+          intentDeadline = setTimeout(() => resolve({
+            value: { status: 'unavailable', reasonCode: 'intent_deadline_exceeded', trace: { sourceCount: 0 } },
+            timedOut: true,
+          }), REVIEW_INTENT_DEADLINE_MS);
+        }),
+      ]);
+      intentResult = result.value;
+      intentTimedOut = result.timedOut;
+    } finally {
+      if (intentDeadline) clearTimeout(intentDeadline);
+    }
+    if (intentTimedOut) {
+      runLog.info(`PR intent deadline exceeded after ${REVIEW_INTENT_DEADLINE_MS}ms; starting reviews without it`);
     }
     const intent = intentResult.status === 'derived' ? intentResult.intent : undefined;
     const intentUnavailableReason = intentResult.status === 'unavailable' ? intentResult.reasonCode : null;
