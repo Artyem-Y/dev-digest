@@ -186,6 +186,30 @@ describe('DeriveIntentService', () => {
     expect(completeStructured).toHaveBeenCalledOnce();
   });
 
+  it('replaces cached sources after a forced refresh', async () => {
+    let cached: Record<string, unknown> | undefined;
+    const findLinkedIssue = vi.fn()
+      .mockResolvedValueOnce({ title: 'Issue', body: 'Version one' })
+      .mockResolvedValueOnce({ title: 'Issue', body: 'Version two' });
+    const completeStructured = vi.fn().mockResolvedValue({
+      data: { intent: 'Implement the issue.', in_scope: [], out_of_scope: [], source_refs: [0, 2], insufficient_evidence: false },
+      model: 'gpt-6-luna', tokensIn: 0, tokensOut: 0, costUsd: null, raw: '', attempts: 1,
+    });
+    const service = new DeriveIntentService({
+      documents: { fetchPlanOrSpec: vi.fn() }, linkedIssues: { findLinkedIssue },
+      featureModels: { resolve: vi.fn().mockResolvedValue({ provider: 'openai', model: 'gpt-6-luna' }) },
+      llm: { resolve: vi.fn().mockResolvedValue({ completeStructured }) },
+      intents: { getDerivedIntent: vi.fn().mockImplementation(() => cached), upsertDerivedIntent: vi.fn().mockImplementation((_prId, intent) => { cached = intent; }) },
+    } as never);
+    const input = { workspaceId: 'workspace-1', prId: 'pr-1', title: 'Implement issue', body: 'Fixes #42', repo: { owner: 'acme', name: 'payments' } } as never;
+
+    await service.derive(input);
+    await service.derive({ ...input, force: true });
+    await expect(service.derive(input)).resolves.toMatchObject({ status: 'derived', trace: { persistence: 'reused' } });
+    expect(findLinkedIssue).toHaveBeenCalledTimes(2);
+    expect(completeStructured).toHaveBeenCalledTimes(2);
+  });
+
   it('loads linked evidence and plan documents concurrently on a cache miss', async () => {
     const linkedIssue = Promise.withResolvers<{ title: string; body: string | null } | undefined>();
     const findLinkedIssue = vi.fn().mockReturnValue(linkedIssue.promise);
@@ -215,13 +239,13 @@ describe('DeriveIntentService', () => {
     await derivation;
   });
 
-  it('persists a low-confidence title-only intent when the classifier declines the sparse source', async () => {
+  it('persists a title-only fallback with title evidence marked used', async () => {
     const upsertDerivedIntent = vi.fn();
     const service = new DeriveIntentService({
       documents: { fetchPlanOrSpec: vi.fn() },
       linkedIssues: { findLinkedIssue: vi.fn().mockResolvedValue(undefined) },
       featureModels: { resolve: vi.fn().mockResolvedValue({ provider: 'openai', model: 'gpt-6-luna' }) },
-      llm: { resolve: vi.fn().mockResolvedValue({ completeStructured: vi.fn().mockResolvedValue({ data: { intent: '', in_scope: [], out_of_scope: [], source_refs: [0], insufficient_evidence: true } }) }) },
+      llm: { resolve: vi.fn().mockResolvedValue({ completeStructured: vi.fn().mockResolvedValue({ data: { intent: '', in_scope: [], out_of_scope: [], source_refs: [], insufficient_evidence: true } }) }) },
       intents: { getDerivedIntent: vi.fn().mockResolvedValue(undefined), upsertDerivedIntent },
     } as never);
 
@@ -229,7 +253,21 @@ describe('DeriveIntentService', () => {
       workspaceId: 'workspace-1', prId: 'pr-1', title: 'Add rate limiting', body: null, repo: { owner: 'acme', name: 'payments' },
     } as never);
 
-    expect(result).toMatchObject({ status: 'derived', intent: { intent: 'Add rate limiting', confidence: 'low', in_scope: [], out_of_scope: [] } });
+    expect(result).toMatchObject({ status: 'derived', intent: { intent: 'Add rate limiting', confidence: 'low', in_scope: [], out_of_scope: [], evidence: [{ source_kind: 'pr_title', status: 'used' }] }, trace: { sourceCount: 1 } });
     expect(upsertDerivedIntent).toHaveBeenCalledOnce();
+  });
+
+  it('does not persist a non-title intent when the classifier cites no evidence', async () => {
+    const upsertDerivedIntent = vi.fn();
+    const service = new DeriveIntentService({
+      documents: { fetchPlanOrSpec: vi.fn() }, linkedIssues: { findLinkedIssue: vi.fn().mockResolvedValue(undefined) },
+      featureModels: { resolve: vi.fn().mockResolvedValue({ provider: 'openai', model: 'gpt-6-luna' }) },
+      llm: { resolve: vi.fn().mockResolvedValue({ completeStructured: vi.fn().mockResolvedValue({ data: { intent: 'Ungrounded intent', in_scope: [], out_of_scope: [], source_refs: [], insufficient_evidence: false } }) }) },
+      intents: { getDerivedIntent: vi.fn().mockResolvedValue(undefined), upsertDerivedIntent },
+    } as never);
+
+    await expect(service.derive({ workspaceId: 'workspace-1', prId: 'pr-1', title: 'Add rate limiting', body: 'Add Redis-backed limits.', repo: { owner: 'acme', name: 'payments' } } as never))
+      .resolves.toMatchObject({ status: 'unavailable', reasonCode: 'no_referenced_evidence' });
+    expect(upsertDerivedIntent).not.toHaveBeenCalled();
   });
 });

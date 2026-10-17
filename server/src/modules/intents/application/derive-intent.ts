@@ -90,13 +90,13 @@ export class DeriveIntentService {
       this.deps.linkedIssues.findLinkedIssue(input.repo, input.body).catch(() => undefined),
       fetchDocuments(planSpecLinks(input.body ?? ''), this.deps.documents),
     ]).then(([issue, planSpecs]) => ({ issue, planSpecs }));
-    if (!input.force) {
-      if (this.sourceCache.size >= MAX_INTENT_SOURCE_CACHE_ENTRIES) {
-        const oldestKey = this.sourceCache.keys().next().value;
-        if (oldestKey) this.sourceCache.delete(oldestKey);
-      }
-      this.sourceCache.set(key, { expiresAt: now + INTENT_SOURCE_CACHE_TTL_MS, value });
+    if (!this.sourceCache.has(key) && this.sourceCache.size >= MAX_INTENT_SOURCE_CACHE_ENTRIES) {
+      const oldestKey = this.sourceCache.keys().next().value;
+      if (oldestKey) this.sourceCache.delete(oldestKey);
     }
+    // A manual refresh deliberately bypasses the previous value, then replaces
+    // it so the next automatic derivation observes the refreshed evidence.
+    this.sourceCache.set(key, { expiresAt: now + INTENT_SOURCE_CACHE_TTL_MS, value });
     return value;
   }
 
@@ -139,11 +139,15 @@ export class DeriveIntentService {
       const usedSourceIndexes = new Set(
         classification.classification.source_refs.filter((index) => Number.isInteger(index) && index >= 0 && index < sources.length),
       );
+      const titleOnly = sources.length === 1 && sources[0]?.kind === 'pr_title';
+      if (titleOnly) usedSourceIndexes.add(0);
+      if (usedSourceIndexes.size === 0) {
+        return { status: 'unavailable', reasonCode: 'no_referenced_evidence', trace: { sourceCount: 0 } };
+      }
       for (const index of usedSourceIndexes) {
         const evidenceIndex = sourceEvidenceIndexes[index]!;
         evidence[evidenceIndex]!.status = 'used';
       }
-      const titleOnly = sources.length === 1 && sources[0]?.kind === 'pr_title';
       if (classification.classification.insufficient_evidence && !titleOnly) return { status: 'unavailable', reasonCode: 'insufficient_evidence', trace: { sourceCount: sources.length } };
       const usedSources = [...usedSourceIndexes].map((index) => sources[index]!);
       const hasExternal = usedSources.some((source) => source.kind === 'github_issue' || source.kind === 'plan_spec');

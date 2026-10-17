@@ -9,9 +9,6 @@ import { taskLine } from './helpers.js';
 import type { ReviewRepositoryRef } from './diff-loader.js';
 import type { RepoIntel } from '../repo-intel/types.js';
 
-/** Review agents must not wait indefinitely for optional intent enrichment. */
-export const REVIEW_INTENT_DEADLINE_MS = 1_500;
-
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
   constructor() {
@@ -120,6 +117,11 @@ export class ReviewRunExecutor {
     const intentDerivation = runLog.step('Deriving PR intent', () => this.dependencies.deriveIntent({
       workspaceId, prId: pull.id, title: pull.title, body: pull.body, repo,
     }), { kind: 'tool' });
+    let completedIntent: IntentDerivation | undefined;
+    void intentDerivation.then(
+      (result) => { completedIntent = result; },
+      () => { completedIntent = { status: 'unavailable', reasonCode: 'intent_unexpected_failure', trace: { sourceCount: 0 } }; },
+    );
     let diff: UnifiedDiff;
     try {
       diff = await runLog.step('Loading PR diff', () => this.dependencies.loadDiff(workspaceId, pull, repo), {
@@ -132,33 +134,12 @@ export class ReviewRunExecutor {
       return;
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
-    const unavailableIntent = (): IntentDerivation => ({
-      status: 'unavailable', reasonCode: 'intent_unexpected_failure', trace: { sourceCount: 0 },
-    });
-    let intentResult: IntentDerivation;
-    let intentTimedOut = false;
-    let intentDeadline: ReturnType<typeof setTimeout> | undefined;
-    try {
-      const result = await Promise.race([
-        intentDerivation.then(
-          (value) => ({ value, timedOut: false }),
-          () => ({ value: unavailableIntent(), timedOut: false }),
-        ),
-        new Promise<{ value: IntentDerivation; timedOut: true }>((resolve) => {
-          intentDeadline = setTimeout(() => resolve({
-            value: { status: 'unavailable', reasonCode: 'intent_deadline_exceeded', trace: { sourceCount: 0 } },
-            timedOut: true,
-          }), REVIEW_INTENT_DEADLINE_MS);
-        }),
-      ]);
-      intentResult = result.value;
-      intentTimedOut = result.timedOut;
-    } finally {
-      if (intentDeadline) clearTimeout(intentDeadline);
-    }
-    if (intentTimedOut) {
-      runLog.info(`PR intent deadline exceeded after ${REVIEW_INTENT_DEADLINE_MS}ms; starting reviews without it`);
-    }
+    const intentResult = completedIntent ?? {
+      status: 'unavailable' as const,
+      reasonCode: 'intent_still_deriving',
+      trace: { sourceCount: 0 },
+    };
+    if (!completedIntent) runLog.info('PR intent is still deriving; starting reviews without it');
     const intent = intentResult.status === 'derived' ? intentResult.intent : undefined;
     const intentUnavailableReason = intentResult.status === 'unavailable' ? intentResult.reasonCode : null;
     const intentTrace = intentResult.status === 'derived'
