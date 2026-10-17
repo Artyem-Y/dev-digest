@@ -8,6 +8,17 @@ export const SMART_DIFF_ROLE_ORDER: readonly SmartDiffRole[] = [
   'boilerplate',
 ];
 
+/** A Smart Diff above this size should be reviewed as smaller focused changes. */
+export const SMART_DIFF_LARGE_PR_LINES = 5_000;
+
+export const SMART_DIFF_ROLE_LABEL: Record<SmartDiffRole, string> = {
+  core: 'Core logic',
+  tests: 'Tests',
+  wiring: 'Wiring',
+  docs: 'Documentation',
+  boilerplate: 'Boilerplate',
+};
+
 const BOILERPLATE = [
   /(^|\/)pnpm-lock\.yaml$/i,
   /(^|\/)(package-lock\.json|yarn\.lock|[^/]+\.lock)$/i,

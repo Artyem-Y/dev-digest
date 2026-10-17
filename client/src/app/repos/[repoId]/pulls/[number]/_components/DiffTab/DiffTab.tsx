@@ -70,6 +70,7 @@ export function DiffTab({ prId, filesCount, files, reviews = [], canComment }: D
   const [showDetails, setShowDetails] = React.useState(true);
   const [originalOrder, setOriginalOrder] = React.useState(false);
   const currentFindings = React.useMemo(() => latestFindingsPerAgent(reviews), [reviews]);
+  const displayFindings = React.useMemo(() => findingsForFiles(files, currentFindings), [files, currentFindings]);
   const commentCount = comments?.length ?? 0;
   const commenting: DiffCommentApi = {
     comments: comments ?? [], canComment: !!canComment && !!prId, showComments: showDetails, posting: create.isPending,
@@ -82,7 +83,8 @@ export function DiffTab({ prId, filesCount, files, reviews = [], canComment }: D
   const filesByPath = new Map(files.map((file) => [file.path, file]));
   const missingPaths = smartDiff?.groups.flatMap((group) => group.files).filter((file) => !filesByPath.has(file.path)).map((file) => file.path) ?? [];
   const orderedGroups = smartDiff?.groups.map((group) => ({ ...group, files: group.files.map((item) => filesByPath.get(item.path)).filter((file): file is PrFile => !!file) }));
-  const effectiveOriginalOrder = originalOrder || missingPaths.length > 0;
+  const smartDiffReady = !smartLoading && !smartError && !!orderedGroups && missingPaths.length === 0;
+  const effectiveOriginalOrder = originalOrder || !smartDiffReady;
   const additions = files.reduce((total, file) => total + file.additions, 0);
   const deletions = files.reduce((total, file) => total + file.deletions, 0);
 
@@ -105,11 +107,10 @@ export function DiffTab({ prId, filesCount, files, reviews = [], canComment }: D
       {t('smartDiff.largeTitle', { lines: smartDiff.split_suggestion.total_lines })}
     </div>}
     {missingPaths.length > 0 && <div style={{ color: 'var(--warn)', padding: '0 0 12px' }}>{t('smartDiff.refreshing')} <Button kind="ghost" size="sm" onClick={() => retrySmartDiff()}>{t('smartDiff.retry')}</Button></div>}
-    {effectiveOriginalOrder ? <DiffViewer files={files} commenting={commenting} findings={currentFindings} showFindings={showDetails} renderFinding={renderFinding} /> : (
-      smartLoading ? <div style={{ color: 'var(--text-muted)', padding: 16 }}>{t('smartDiff.loading')}</div> :
-      smartError || !orderedGroups ? <div style={{ color: 'var(--crit)', padding: 16 }}>{t('smartDiff.unavailable')} <Button kind="ghost" size="sm" onClick={() => retrySmartDiff()}>{t('smartDiff.retry')}</Button></div> :
-      <div>{orderedGroups.sort((a, b) => roles.indexOf(a.role) - roles.indexOf(b.role)).map((group) => <SmartDiffGroup key={group.role} role={group.role} files={group.files} findings={currentFindings} commenting={commenting} showFindings={showDetails} renderFinding={renderFinding} />)}</div>
+    {effectiveOriginalOrder ? <DiffViewer files={files} commenting={commenting} findings={displayFindings} showFindings={showDetails} renderFinding={renderFinding} /> : (
+      <div>{orderedGroups!.sort((a, b) => roles.indexOf(a.role) - roles.indexOf(b.role)).map((group) => <SmartDiffGroup key={group.role} role={group.role} files={group.files} findings={currentFindings} commenting={commenting} showFindings={showDetails} renderFinding={renderFinding} />)}</div>
     )}
+    {!originalOrder && smartError && <div style={{ color: 'var(--crit)', padding: '12px 0' }}>{t('smartDiff.unavailable')} <Button kind="ghost" size="sm" onClick={() => retrySmartDiff()}>{t('smartDiff.retry')}</Button></div>}
     {!smartLoading && currentFindings.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>{reviews.length ? t('smartDiff.noFindings') : t('smartDiff.noReview')}</p>}
   </section>;
 }

@@ -21,4 +21,21 @@ describe('buildSmartDiff', () => {
     expect(result.groups[3]!.files[0]!.finding_lines).toEqual([1]);
     expect(result.split_suggestion).toEqual({ too_big: false, total_lines: 17, proposed_splits: [] });
   });
+
+  it('marks an oversized PR and proposes deterministic category splits', () => {
+    const result = buildSmartDiff(
+      [
+        { path: 'src/core.ts', additions: 4_900, deletions: 100 },
+      ],
+      [],
+    );
+
+    expect(result.split_suggestion).toEqual({
+      too_big: true,
+      total_lines: 5_000,
+      proposed_splits: [
+        { name: 'Core logic', files: ['src/core.ts'] },
+      ],
+    });
+  });
 });

@@ -19,7 +19,15 @@ type FeatureModelRowProps = {
 
 function FeatureModelRow({ feature, choice, isDefault, onChange }: FeatureModelRowProps) {
   const t = useTranslations("settings");
-  const { data: models } = useProviderModels(choice.provider);
+  const { data: openaiModels } = useProviderModels('openai');
+  const { data: anthropicModels } = useProviderModels('anthropic');
+  const { data: openrouterModels } = useProviderModels('openrouter');
+  const modelsByProvider: Record<Provider, typeof openaiModels> = {
+    openai: openaiModels,
+    anthropic: anthropicModels,
+    openrouter: openrouterModels,
+  };
+  const models = modelsByProvider[choice.provider];
   const baseOptions = toModelOptions(models);
   const current = choice.model;
   const options = baseOptions.some((option) => (typeof option === "string" ? option : option.value) === current)
@@ -39,7 +47,14 @@ function FeatureModelRow({ feature, choice, isDefault, onChange }: FeatureModelR
       >
         <SearchableSelect
           value={choice.provider}
-          onChange={(next) => onChange(next as Provider, current)}
+          onChange={(next) => {
+            const provider = next as Provider;
+            const providerModels = modelsByProvider[provider] ?? [];
+            const model = providerModels.some(({ id }) => id === current)
+              ? current
+              : providerModels[0]?.id ?? (provider === feature.defaultProvider ? feature.defaultModel : undefined);
+            if (model) onChange(provider, model);
+          }}
           options={["openai", "anthropic", "openrouter"]}
           placeholder={t("models.provider")}
         />
