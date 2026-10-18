@@ -150,13 +150,38 @@ export class DeriveIntentService {
       return { status: 'derived', intent: cached, trace: { confidence: cached.confidence, sourceCount: cached.evidence.filter((item) => item.status === 'used').length, provider: cached.model_provider, model: cached.model, persistence: 'reused' } };
     }
     if (sources.length === 0) return { status: 'unavailable', reasonCode: 'no_usable_evidence', trace: { sourceCount: 0 } };
+    const titleOnly = sources.length === 1 && sources[0]?.kind === 'pr_title';
+    if (titleOnly) {
+      evidence[sourceEvidenceIndexes[0]!]!.status = 'used';
+      const intent: DerivedIntent = {
+        intent: input.title.trim(),
+        in_scope: [],
+        out_of_scope: [],
+        confidence: 'low',
+        evidence,
+        source_fingerprint: sourceFingerprint,
+        model_provider: resolved.provider,
+        model: resolved.model,
+        derived_at: new Date().toISOString(),
+      };
+      await this.deps.intents.upsertDerivedIntent(input.prId, intent);
+      return {
+        status: 'derived',
+        intent,
+        trace: {
+          confidence: 'low',
+          sourceCount: 1,
+          provider: resolved.provider,
+          model: resolved.model,
+          persistence: cached ? 'updated' : 'created',
+        },
+      };
+    }
     try {
       const classification = await derivePullIntent({ provider: await this.deps.llm.resolve(resolved.provider), model: resolved.model, sources });
       const usedSourceIndexes = new Set(
         classification.classification.source_refs.filter((index) => Number.isInteger(index) && index >= 0 && index < sources.length),
       );
-      const titleOnly = sources.length === 1 && sources[0]?.kind === 'pr_title';
-      if (titleOnly) usedSourceIndexes.add(0);
       if (usedSourceIndexes.size === 0) {
         return { status: 'unavailable', reasonCode: 'no_referenced_evidence', trace: { sourceCount: 0 } };
       }
@@ -164,15 +189,15 @@ export class DeriveIntentService {
         const evidenceIndex = sourceEvidenceIndexes[index]!;
         evidence[evidenceIndex]!.status = 'used';
       }
-      if (classification.classification.insufficient_evidence && !titleOnly) return { status: 'unavailable', reasonCode: 'insufficient_evidence', trace: { sourceCount: sources.length } };
+      if (classification.classification.insufficient_evidence) return { status: 'unavailable', reasonCode: 'insufficient_evidence', trace: { sourceCount: sources.length } };
       const usedSources = [...usedSourceIndexes].map((index) => sources[index]!);
       const hasExternal = usedSources.some((source) => source.kind === 'github_issue' || source.kind === 'plan_spec');
       const hasDescription = usedSources.some((source) => source.kind === 'pr_description');
-      const confidence: DerivedIntent['confidence'] = titleOnly ? 'low' : hasExternal ? 'high' : hasDescription ? 'medium' : 'low';
+      const confidence: DerivedIntent['confidence'] = hasExternal ? 'high' : hasDescription ? 'medium' : 'low';
       const intent: DerivedIntent = {
-        intent: titleOnly ? input.title.trim() : classification.classification.intent,
-        in_scope: titleOnly ? [] : classification.classification.in_scope,
-        out_of_scope: titleOnly ? [] : classification.classification.out_of_scope,
+        intent: classification.classification.intent,
+        in_scope: classification.classification.in_scope,
+        out_of_scope: classification.classification.out_of_scope,
         confidence, evidence, source_fingerprint: sourceFingerprint, model_provider: resolved.provider, model: resolved.model, derived_at: new Date().toISOString(),
       };
       await this.deps.intents.upsertDerivedIntent(input.prId, intent);

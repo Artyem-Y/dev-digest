@@ -80,17 +80,22 @@ describe('useReviewRefresh', () => {
     }
   });
 
-  it('does not open an intent stream for terminal runs loaded as history', () => {
+  it('watches intent completion when terminal runs are first loaded as history', () => {
     class MockEventSource {
       static instances: MockEventSource[] = [];
-      constructor() { MockEventSource.instances.push(this); }
-      addEventListener() {}
+      private listeners = new Map<string, EventListener>();
+      constructor(readonly url: string) { MockEventSource.instances.push(this); }
+      addEventListener(type: string, listener: EventListener) { this.listeners.set(type, listener); }
       close() {}
+      emit(type: string, data: string) { this.listeners.get(type)?.(new MessageEvent(type, { data })); }
     }
     vi.stubGlobal('EventSource', MockEventSource);
     try {
       render(<Refresh runs={[done('historical-run')]} />);
-      expect(MockEventSource.instances).toHaveLength(0);
+      expect(MockEventSource.instances).toHaveLength(1);
+      expect(MockEventSource.instances[0]!.url).toContain('/pulls/pr-1/intent/events');
+      MockEventSource.instances[0]!.emit('result', JSON.stringify({ data: { intentSettled: true } }));
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['pull-intent', 'pr-1'] });
     } finally {
       vi.unstubAllGlobals();
     }

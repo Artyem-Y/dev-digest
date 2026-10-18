@@ -57,3 +57,13 @@ The PR list receives per-agent-current severity counts, whereas the preview fetc
 - Implication: When a new reviewer specialization emits a category, update the client vendored FindingCategory in the same change or the client contract diverges from the API.
 
 Finding categories are a shared validation and rendering vocabulary, not server-only labels. Keeping the vendor copies synchronized makes contract-review findings safe to transport and display.
+
+<!-- insight-id: eng-client-cf3a951954b7 -->
+## eng-client-cf3a951954b7 — Initial terminal history must still watch intent completion
+
+- Date: 2026-10-18
+- Category: invariant
+- Evidence: client/src/lib/hooks/use-review-refresh.ts previously marked terminal runs from the first history response as refreshed and returned; use-review-refresh.test.tsx now covers subscribing to the PR-scoped intent stream and invalidating pull-intent when it settles.
+- Implication: When review work has an independent post-run enrichment, initialize its completion subscription from terminal history as well as from live run transitions.
+
+Terminal agent runs do not prove that their PR-level intent derivation has persisted. Treating initial terminal history as already handled can leave Overview on a null or stale intent forever, so the client must observe the separate PR-scoped completion signal even on first load.

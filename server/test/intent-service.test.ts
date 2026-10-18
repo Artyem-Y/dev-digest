@@ -124,7 +124,7 @@ describe('DeriveIntentService', () => {
     } as never);
 
     expect(forced).toMatchObject({ status: 'derived', intent: { intent: 'Cacheable PR' } });
-    expect(completeStructured).toHaveBeenCalledOnce();
+    expect(completeStructured).not.toHaveBeenCalled();
   });
 
   it('re-derives when linked evidence changes during the intent cache TTL', async () => {
@@ -271,11 +271,12 @@ describe('DeriveIntentService', () => {
 
   it('persists a title-only fallback with title evidence marked used', async () => {
     const upsertDerivedIntent = vi.fn();
+    const resolve = vi.fn();
     const service = new DeriveIntentService({
       documents: { fetchPlanOrSpec: vi.fn() },
       linkedIssues: { findLinkedIssue: vi.fn().mockResolvedValue(undefined) },
       featureModels: { resolve: vi.fn().mockResolvedValue({ provider: 'openai', model: 'gpt-6-luna' }) },
-      llm: { resolve: vi.fn().mockResolvedValue({ completeStructured: vi.fn().mockResolvedValue({ data: { intent: '', in_scope: [], out_of_scope: [], source_refs: [], insufficient_evidence: true } }) }) },
+      llm: { resolve },
       intents: { getDerivedIntent: vi.fn().mockResolvedValue(undefined), upsertDerivedIntent },
     } as never);
 
@@ -284,6 +285,7 @@ describe('DeriveIntentService', () => {
     } as never);
 
     expect(result).toMatchObject({ status: 'derived', intent: { intent: 'Add rate limiting', confidence: 'low', in_scope: [], out_of_scope: [], evidence: [{ source_kind: 'pr_title', status: 'used' }] }, trace: { sourceCount: 1 } });
+    expect(resolve).not.toHaveBeenCalled();
     expect(upsertDerivedIntent).toHaveBeenCalledOnce();
   });
 

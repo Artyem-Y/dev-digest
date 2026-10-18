@@ -29,10 +29,22 @@ export function useReviewRefresh(prId: string | null | undefined, runs: RunSumma
   React.useEffect(() => {
     if (!prId || !runs) return;
     if (initializedPr.current !== prId) {
+      let hasTerminalRun = false;
       for (const run of runs) {
-        if (run.status !== 'running') refreshed.current.add(run.run_id);
+        if (run.status !== 'running') {
+          refreshed.current.add(run.run_id);
+          hasTerminalRun = true;
+        }
       }
       initializedPr.current = prId;
+      // A completed run can be loaded while its independent intent derivation
+      // is still in flight. Watch the PR-scoped completion stream even though
+      // the run itself is historical, so Overview does not retain null/stale
+      // intent until a later page refresh.
+      if (hasTerminalRun) {
+        intentCompletionHandled.current = false;
+        setIntentWatch((current) => current + 1);
+      }
       return;
     }
     const hasUnseenTerminalRun = runs.some((run) => run.status !== 'running' && !refreshed.current.has(run.run_id));
