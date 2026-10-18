@@ -26,6 +26,9 @@ function client(overrides: Record<string, unknown> = {}) {
     getConventions: vi.fn().mockResolvedValue([
       { id: 'c-1', status: 'accepted', rule: 'Use strict types.', category: 'style', evidence_path: 'src/a.ts', evidence_line: 1, confidence: 0.9 },
     ]),
+    getBlastRadius: vi.fn().mockResolvedValue({
+      changed_symbols: [], downstream: [], summary: '0 symbols · 0 callers · 0 endpoints · 0 cron/jobs', degraded: false, reason: null,
+    }),
     ...overrides,
   };
 }
@@ -140,13 +143,16 @@ describe('DevDigest MCP tool behavior', () => {
     });
   });
 
-  it('returns the blast-radius placeholder without an HTTP call', async () => {
+  it('returns the API blast map without starting a review or index operation', async () => {
     const api = client();
     const result = await tool(createToolDefinitions(api as never), 'devdigest_get_blast_radius').handler({
       repository: 'acme/payments', pr_number: 3,
     });
 
-    expect(result.structuredContent).toEqual({ status: 'unavailable', reason: 'not_implemented', blast_radius: null });
-    expect(api.listRepos).not.toHaveBeenCalled();
+    expect(api.getBlastRadius).toHaveBeenCalledWith('pull-1');
+    expect(api.runReview).not.toHaveBeenCalled();
+    expect(result.structuredContent).toEqual({
+      changed_symbols: [], downstream: [], summary: '0 symbols · 0 callers · 0 endpoints · 0 cron/jobs', degraded: false, reason: null,
+    });
   });
 });

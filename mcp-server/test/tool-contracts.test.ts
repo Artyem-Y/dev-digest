@@ -22,7 +22,7 @@ describe('DevDigest MCP tool contracts', () => {
       devdigest_get_conventions:
         'Get accepted, evidence-backed conventions for a DevDigest repository. Call when the user asks for repository rules or review guidance; reads saved conventions and never starts extraction.',
       devdigest_get_blast_radius:
-        'Report DevDigest blast-radius availability for a pull request. Call only when the user asks about downstream impact; this lesson returns an explicit unavailable result and never estimates impact.',
+        'Get the precomputed downstream-impact map for one pull request. Call when asked what a change can affect; reads the repository index and never starts a review.',
     });
   });
 });

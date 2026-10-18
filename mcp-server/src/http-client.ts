@@ -26,6 +26,18 @@ const RunFindings = z.object({
 const Convention = z.object({
   status: z.string(), rule: z.string(), category: z.string(), evidence_path: z.string(), evidence_line: z.number().int(), confidence: z.number(),
 }).passthrough();
+const BlastRadius = z.object({
+  changed_symbols: z.array(z.object({ name: z.string(), file: z.string(), kind: z.string() })),
+  downstream: z.array(z.object({
+    symbol: z.string(),
+    callers: z.array(z.object({ name: z.string(), file: z.string(), line: z.number().int() })),
+    endpoints_affected: z.array(z.string()),
+    crons_affected: z.array(z.string()),
+  })),
+  summary: z.string(),
+  degraded: z.boolean(),
+  reason: z.enum(['flag_off', 'index_failed', 'index_partial', 'repo_too_large', 'no_data']).nullable(),
+});
 const ReviewStart = z.object({ runs: z.array(z.object({ run_id: z.string(), agent_id: z.string(), agent_name: z.string() })) });
 
 export type AgentSummary = z.infer<typeof AgentSummary>;
@@ -33,6 +45,7 @@ export type Repo = z.infer<typeof Repo>;
 export type Pull = z.infer<typeof Pull>;
 export type RunFindings = z.infer<typeof RunFindings>;
 export type Convention = z.infer<typeof Convention>;
+export type BlastRadius = z.infer<typeof BlastRadius>;
 
 export type ApiRequestOptions = {
   timeoutMs?: number;
@@ -45,6 +58,7 @@ export interface DevDigestApi {
   runReview(pullId: string, agentId: string): Promise<z.infer<typeof ReviewStart>>;
   getFindings(runId: string, options?: ApiRequestOptions): Promise<RunFindings>;
   getConventions(repoId: string): Promise<Convention[]>;
+  getBlastRadius(pullId: string): Promise<BlastRadius>;
 }
 
 export class DevDigestApiError extends Error {
@@ -106,6 +120,7 @@ export class HttpDevDigestApi implements DevDigestApi {
     return this.request(`/runs/${encodeURIComponent(runId)}/findings`, RunFindings, {}, options);
   }
   getConventions(repoId: string) { return this.request(`/repos/${encodeURIComponent(repoId)}/conventions`, Convention.array()); }
+  getBlastRadius(pullId: string) { return this.request(`/pulls/${encodeURIComponent(pullId)}/blast`, BlastRadius); }
   runReview(pullId: string, agentId: string) {
     return this.request(`/pulls/${encodeURIComponent(pullId)}/review`, ReviewStart, {
       method: 'POST', body: JSON.stringify({ agentId }),

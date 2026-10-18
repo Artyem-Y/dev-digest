@@ -2,13 +2,24 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { describe, expect, it, vi } from 'vitest';
 import messages from '../../../../../../../../messages/en/prReview.json';
+import blastMessages from '../../../../../../../../messages/en/blast.json';
 import { OverviewTab } from './OverviewTab';
 
 describe('OverviewTab intent', () => {
+  it('keeps Blast Radius visible while its read-only map is loading', () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages, blast: { loading: 'Loading Blast Radius…', unavailable: 'Blast Radius is unavailable.' } }}>
+        <OverviewTab prBody={null} blastLoading />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText('Loading Blast Radius…')).toBeInTheDocument();
+  });
+
   it('renders the derived intent, scope, confidence, and safe source count', () => {
     const onRerunIntent = vi.fn();
     render(
-      <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages, blast: blastMessages }}>
         <OverviewTab
           prBody={null}
           onRerunIntent={onRerunIntent}
@@ -40,7 +51,7 @@ describe('OverviewTab intent', () => {
     expect(onRerunIntent).toHaveBeenCalledOnce();
     const onRecalculate = vi.fn();
     render(
-      <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages, blast: blastMessages }}>
         <OverviewTab prBody={null} onRecalculate={onRecalculate} />
       </NextIntlClientProvider>,
     );

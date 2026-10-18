@@ -4,7 +4,9 @@ import React from "react";
 import { Button, Icon, SectionLabel } from "@devdigest/ui";
 import { useTranslations } from "next-intl";
 import type { DerivedIntent } from "@/vendor/shared/contracts/brief";
+import type { BlastRadius } from "@/vendor/shared/contracts/brief";
 import type { FindingRecord } from "@/vendor/shared/contracts/review-api";
+import { BlastRadiusCard } from "../BlastRadiusCard/BlastRadiusCard";
 import { s } from "./styles";
 
 interface OverviewTabProps {
@@ -15,10 +17,16 @@ interface OverviewTabProps {
   intentRerunning?: boolean;
   onRecalculate?: () => void;
   recalculating?: boolean;
+  blast?: BlastRadius | null;
+  repoFullName?: string | null;
+  headSha?: string | null;
+  blastLoading?: boolean;
+  blastError?: boolean;
 }
 
-export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, intentRerunning = false, onRecalculate, recalculating = false }: OverviewTabProps) {
+export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, intentRerunning = false, onRecalculate, recalculating = false, blast = null, repoFullName = null, headSha = null, blastLoading = false, blastError = false }: OverviewTabProps) {
   const t = useTranslations("prReview");
+  const blastT = useTranslations("blast");
   const usedSources = intent?.evidence.filter((source) => source.status === "used").length ?? 0;
   return (
     <>
@@ -61,6 +69,9 @@ export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, 
           )}
         </div>
       </section>
+      {blast && repoFullName && headSha && <BlastRadiusCard blast={blast} repoFullName={repoFullName} headSha={headSha} />}
+      {blastLoading && <p role="status" style={s.intentUnavailable}>{blastT("loading")}</p>}
+      {blastError && <p role="status" style={s.intentUnavailable}>{blastT("unavailable")}</p>}
     </>
   );
 }

@@ -29,6 +29,18 @@ describe('HttpDevDigestApi', () => {
     }));
   });
 
+  it('gets and validates the Blast Radius map for one pull request', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      changed_symbols: [], downstream: [], summary: '0 symbols · 0 callers · 0 endpoints · 0 cron/jobs', degraded: false, reason: null,
+    }), { status: 200 }));
+    vi.stubGlobal('fetch', fetch);
+
+    await expect(new HttpDevDigestApi('http://127.0.0.1:3999').getBlastRadius('pull-1')).resolves.toMatchObject({ degraded: false });
+    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:3999/pulls/pull-1/blast', expect.objectContaining({
+      headers: expect.objectContaining({ accept: 'application/json' }),
+    }));
+  });
+
   it('turns an unreachable local API into a startup action', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('connection refused')));
 

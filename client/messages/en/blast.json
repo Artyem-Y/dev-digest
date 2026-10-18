@@ -1,4 +1,7 @@
 {
+  "title": "Blast radius",
+  "loading": "Loading Blast Radius…",
+  "unavailable": "Blast Radius is unavailable.",
   "stat": {
     "symbols": "symbols",
     "callers": "callers",
@@ -11,6 +14,9 @@
   },
   "callerCount": "{count} callers",
   "noDownstream": "{count} changed symbol(s), no downstream callers found.",
+  "endpointsAffected": "Endpoints affected",
+  "cronsAffected": "Cron/jobs affected",
+  "indexDegraded": "Repository index is incomplete: {reason}",
   "graph": {
     "empty": "No downstream callers to graph.",
     "ariaLabel": "Blast radius graph"

@@ -55,7 +55,8 @@ their annotations:
 The run tool starts exactly one enabled agent and blocks for at most 120
 seconds. It returns persisted findings when terminal, or
 `{ "status": "running", "run_id": "..." }` when its wait deadline expires.
-`devdigest_get_blast_radius` is deliberately a no-I/O unavailable stub.
+`devdigest_get_blast_radius` reads the precomputed map from `GET /pulls/:id/blast`.
+It never starts a review, rebuilds the repository index, or invokes a model.
 
 ## Locked tool descriptions
 
@@ -67,7 +68,7 @@ These descriptions are public MCP interface text and must remain verbatim.
 | `devdigest_run_agent_on_pr` | Run one configured DevDigest agent on a pull request. Call after devdigest_list_agents when the user requests a review; waits up to 120 seconds and returns persisted findings or a run ID if still running. |
 | `devdigest_get_findings` | Get the persisted structured result for one DevDigest review run. Call when the user asks for results of a known run or a previous review is still running. |
 | `devdigest_get_conventions` | Get accepted, evidence-backed conventions for a DevDigest repository. Call when the user asks for repository rules or review guidance; reads saved conventions and never starts extraction. |
-| `devdigest_get_blast_radius` | Report DevDigest blast-radius availability for a pull request. Call only when the user asks about downstream impact; this lesson returns an explicit unavailable result and never estimates impact. |
+| `devdigest_get_blast_radius` | Get the precomputed downstream-impact map for one pull request. Call when asked what a change can affect; reads the repository index and never starts a review. |
 
 ## Claude Code acceptance
 

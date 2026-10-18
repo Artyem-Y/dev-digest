@@ -15,7 +15,7 @@ import { OverviewTab } from "../OverviewTab";
 import { FindingsTab } from "../FindingsTab";
 import { DiffTab } from "../DiffTab";
 import RunTraceDrawer from "../RunTraceDrawer";
-import { useDerivedIntent, usePullDetail, usePulls, useRerunIntent } from "@/lib/hooks";
+import { useBlastRadius, useDerivedIntent, usePullDetail, usePulls, useRerunIntent } from "@/lib/hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun, useRunReview } from "@/lib/hooks/reviews";
 import { useReviewRefresh } from "@/lib/hooks/use-review-refresh";
@@ -38,6 +38,7 @@ export function PRDetailView() {
   const prId = pulls?.find((p) => p.number === Number(number))?.id ?? null;
   const { data: pr, isLoading: detailLoading, isFetching: detailFetching, isError, error, refetch } = usePullDetail(prId);
   const { data: intent } = useDerivedIntent(prId);
+  const { data: blast, isLoading: blastLoading, isError: blastError } = useBlastRadius(prId);
   const rerunIntent = useRerunIntent(prId);
 
   const isLoading = pullsLoading || (prId != null && detailLoading);
@@ -172,6 +173,11 @@ export function PRDetailView() {
             intentRerunning={rerunIntent.isPending}
             onRecalculate={recalculateOverview}
             recalculating={recalculating}
+            blast={blast}
+            repoFullName={repoFullName}
+            headSha={pr.head_sha}
+            blastLoading={blastLoading}
+            blastError={blastError}
           />
         )}
 
