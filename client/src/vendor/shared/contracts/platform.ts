@@ -50,10 +50,10 @@ export const FEATURE_MODELS: FeatureModelDef[] = [
   },
   {
     id: 'review_intent',
-    label: 'PR Review · Intent',
-    description: 'Derives a PR’s intent and scope before review.',
+    label: 'Standard Model',
+    description: 'Used for: Intent.',
     defaultProvider: 'openai',
-    defaultModel: 'gpt-4.1',
+    defaultModel: 'gpt-6-luna',
   },
   {
     id: 'risk_brief',
@@ -265,6 +265,7 @@ export type IndexStatus = z.infer<typeof IndexStatus>;
 // ---- Run request (review trigger; owned by A2, contract lives here) ----
 export const RunRequest = z.object({
   agentId: z.string().optional(),
+  agentIds: z.array(z.string()).min(1).max(20).optional(),
   all: z.boolean().optional(),
 });
 export type RunRequest = z.infer<typeof RunRequest>;

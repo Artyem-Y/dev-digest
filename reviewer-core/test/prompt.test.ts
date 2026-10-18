@@ -65,6 +65,32 @@ describe('assemblePrompt — ## PR description', () => {
   });
 });
 
+describe('assemblePrompt — derived intent trace redaction', () => {
+  it('keeps derived intent in the model message but excludes it from persisted assembly user text', () => {
+    const sentinel = 'INTENT-SENTINEL-MUST-NOT-BE-PERSISTED';
+    const { messages, assembly } = assemblePrompt({
+      system: 'sys',
+      diff: 'DIFF',
+      intent: {
+        intent: sentinel,
+        in_scope: [sentinel],
+        out_of_scope: [sentinel],
+        confidence: 'high',
+        evidence: [],
+        source_fingerprint: 'a'.repeat(64),
+        model_provider: 'openai',
+        model: 'gpt-6-luna',
+        derived_at: '2026-10-17T00:00:00.000Z',
+      },
+    });
+
+    expect(messages[1]!.content).toContain(sentinel);
+    expect(assembly.derived_intent).toBe('[redacted]');
+    expect(assembly.user).not.toContain('## Derived PR intent');
+    expect(assembly.user).not.toContain(sentinel);
+  });
+});
+
 describe('assemblePrompt — skills trace block', () => {
   it('preserves skill order and counts only the final skills block', () => {
     const { assembly, messages } = assemblePrompt({
@@ -85,5 +111,32 @@ describe('assemblePrompt — skills trace block', () => {
 
     expect(assembly.skills).toBeNull();
     expect((assembly as { skill_tokens?: number | null }).skill_tokens).toBeNull();
+  });
+});
+
+describe('assemblePrompt — safe telemetry', () => {
+  it('reports only static section metadata, never prompt content', () => {
+    const secret = 'sk_live_not-for-logs';
+    const { telemetry } = assemblePrompt({
+      system: `sys ${secret}`,
+      task: 'Review private PR title',
+      prDescription: `private description ${secret}`,
+      specs: [`private specification ${secret}`],
+      diff: `+ const token = '${secret}';`,
+    });
+
+    expect(telemetry.sections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ section: 'system', source: 'agent_system_prompt' }),
+        expect.objectContaining({ section: 'task', source: 'review_task' }),
+        expect.objectContaining({ section: 'pr_description', source: 'pr_description' }),
+        expect.objectContaining({ section: 'project_context', source: 'project_specs' }),
+        expect.objectContaining({ section: 'diff', source: 'pr_diff' }),
+      ]),
+    );
+    expect(telemetry.sections.every((section) => section.chars > 0)).toBe(true);
+    expect(JSON.stringify(telemetry)).not.toContain(secret);
+    expect(JSON.stringify(telemetry)).not.toContain('private description');
+    expect(JSON.stringify(telemetry)).not.toContain('private specification');
   });
 });

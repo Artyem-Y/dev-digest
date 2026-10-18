@@ -8,8 +8,10 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button, Dropdown, ErrorState, Skeleton, Icon, Badge } from "@devdigest/ui";
 import { AppShell } from "@/components/app-shell";
 import { AgentCard } from "../../../_components/AgentCard";
+import { runnableSkillIds } from "../../../_components/AgentCard/helpers";
 import { AgentEditor } from "../AgentEditor";
 import { useAgents, useAgent, useUpdateAgent } from "@/lib/hooks/agents";
+import { useSkills } from "@/lib/hooks/skills";
 import { ApiError } from "@/lib/api";
 
 const VALID_TABS = ["config", "skills"];
@@ -21,6 +23,8 @@ export function AgentEditorPageView() {
   const { id } = params;
 
   const { data: agents } = useAgents();
+  const { data: skills } = useSkills();
+  const runnableSkills = React.useMemo(() => runnableSkillIds(skills), [skills]);
   const { data: agent, isLoading, isError, error, refetch } = useAgent(id);
   const update = useUpdateAgent();
 
@@ -85,6 +89,7 @@ export function AgentEditorPageView() {
                 key={a.id}
                 ag={a}
                 active={a.id === id}
+                runnableSkillIds={runnableSkills}
                 onClick={() => router.push(`/agents/${a.id}?tab=${tab}`)}
                 onToggle={(enabled) => update.mutate({ id: a.id, patch: { enabled } })}
               />

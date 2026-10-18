@@ -5,6 +5,7 @@ import type { Finding } from '@devdigest/shared';
 import type { FindingRow, PullRow } from '../../../db/rows.js';
 
 export type ReviewRow = typeof t.reviews.$inferSelect;
+type SmartDiffFindingRow = Pick<FindingRow, 'reviewId' | 'file' | 'startLine'>;
 
 // ---- reviews + findings ---------------------------------------------------
 
@@ -70,6 +71,33 @@ export async function reviewsForPull(
   return reviews.map((review) => ({
     review,
     findings: findings.filter((f) => f.reviewId === review.id),
+  }));
+}
+
+/** Latest completed review for each agent, with findings only for those rows. */
+export async function currentReviewsForPull(
+  db: Db,
+  prId: string,
+): Promise<{ review: ReviewRow; findings: SmartDiffFindingRow[] }[]> {
+  const reviews = await db
+    .selectDistinctOn([t.reviews.agentId])
+    .from(t.reviews)
+    .where(and(eq(t.reviews.prId, prId), eq(t.reviews.kind, 'review')))
+    .orderBy(t.reviews.agentId, desc(t.reviews.createdAt), desc(t.reviews.id));
+  if (reviews.length === 0) return [];
+  const findings = await db
+    .select({ reviewId: t.findings.reviewId, file: t.findings.file, startLine: t.findings.startLine })
+    .from(t.findings)
+    .where(inArray(t.findings.reviewId, reviews.map((review) => review.id)));
+  const findingsByReview = new Map<string, SmartDiffFindingRow[]>();
+  for (const finding of findings) {
+    const grouped = findingsByReview.get(finding.reviewId) ?? [];
+    grouped.push(finding);
+    findingsByReview.set(finding.reviewId, grouped);
+  }
+  return reviews.map((review) => ({
+    review,
+    findings: findingsByReview.get(review.id) ?? [],
   }));
 }
 

@@ -5,19 +5,21 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Icon } from "@devdigest/ui";
-import type { PrFile } from "@/lib/types";
+import type { FindingRecord, PrFile } from "@/lib/types";
 import { AUTO_EXPAND_MAX_LINES } from "../constants";
 import { parsePatch, type Line } from "../helpers";
 import {
   buildThreads,
   keysForLine,
   partitionThreads,
+  lineKey,
   type CommentThread,
   type DiffCommentApi,
 } from "../comments";
 import { s, chevronFor } from "../styles";
 import { CodeLine } from "../CodeLine";
 import { OutdatedComments } from "../OutdatedComments";
+import { partitionFindings } from '../findings';
 
 /** Threads anchored to a given parsed line (RIGHT=new, LEFT=old). */
 function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): CommentThread[] {
@@ -30,11 +32,28 @@ function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): Commen
   return out;
 }
 
-export function FileCard({ file, commenting }: { file: PrFile; commenting?: DiffCommentApi }) {
+export function FileCard({
+  file,
+  commenting,
+  findings = [],
+  showFindings = true,
+  allFilesOpen,
+  renderFinding,
+}: {
+  file: PrFile;
+  commenting?: DiffCommentApi;
+  findings?: FindingRecord[];
+  showFindings?: boolean;
+  allFilesOpen?: boolean;
+  renderFinding?: (finding: FindingRecord) => React.ReactNode;
+}) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
-    (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
+    () => (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES,
   );
+  React.useEffect(() => {
+    if (allFilesOpen !== undefined) setOpen(allFilesOpen);
+  }, [allFilesOpen]);
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
 
   // Group this file's comments into threads, then split into ones we can anchor
@@ -51,6 +70,15 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
   const commentCount = commenting
     ? commenting.comments.filter((c) => c.path === file.path).length
     : 0;
+  const fileFindings = findings;
+  const { matched: matchedFindings, unmatched: unmatchedFindings } = React.useMemo(() => {
+    const renderedKeys = new Set<string>();
+    for (const line of lines) {
+      const key = lineKey('RIGHT', line.newNo);
+      if (key) renderedKeys.add(key);
+    }
+    return partitionFindings(fileFindings, file.path, renderedKeys);
+  }, [fileFindings, file.path, lines]);
 
   return (
     <div style={s.fileCard}>
@@ -60,6 +88,7 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
         <span className="mono" style={s.filePath}>
           {file.path}
         </span>
+        {fileFindings.length > 0 && <span aria-label={t('diffViewer.reviewFindings', { count: fileFindings.length })} title={t('diffViewer.reviewFindings', { count: fileFindings.length })} style={{ width: 6, height: 6, borderRadius: 99, background: 'var(--crit)', flex: '0 0 auto' }} />}
         <span className="mono tnum" style={s.fileStat}>
           <span style={s.addText}>+{file.additions}</span>{" "}
           <span style={s.delText}>−{file.deletions}</span>
@@ -85,10 +114,19 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
                 path={file.path}
                 threads={threadsForLine(ln, matched)}
                 commenting={commenting}
+                findings={matchedFindings.get(lineKey('RIGHT', ln.newNo) ?? '') ?? []}
+                showFindings={showFindings}
+                renderFinding={renderFinding}
               />
             ))
           )}
           {commenting && commenting.showComments && <OutdatedComments threads={outdated} />}
+          {showFindings && unmatchedFindings.length > 0 && renderFinding && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 10, borderTop: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>{t('diffViewer.findingsOutsidePatch')}</span>
+              {unmatchedFindings.map((finding) => <React.Fragment key={finding.id}>{renderFinding(finding)}</React.Fragment>)}
+            </div>
+          )}
         </div>
       )}
     </div>

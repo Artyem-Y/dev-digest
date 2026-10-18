@@ -50,9 +50,21 @@ export const PromptAssembly = z.object({
   repo_map: z.string().nullish(),
   /** PR author's description/body (truncated); null when absent. */
   pr_description: z.string().nullish(),
+  /** Intent content is intentionally never persisted in prompt assembly. */
+  derived_intent: z.literal('[redacted]').nullish(),
   user: z.string(),
 });
 export type PromptAssembly = z.infer<typeof PromptAssembly>;
+
+export const IntentTraceMetadata = z.object({
+  status: z.enum(['derived', 'unavailable']),
+  confidence: z.enum(['high', 'medium', 'low', 'unknown']),
+  source_count: z.number().int().nonnegative(),
+  reason_code: z.string().max(80).nullable(),
+  provider: z.enum(['openai', 'anthropic', 'openrouter']).nullable(),
+  model: z.string().nullable(),
+});
+export type IntentTraceMetadata = z.infer<typeof IntentTraceMetadata>;
 
 export const MemoryPulled = z.object({
   pr: z.number().int().nullish(),
@@ -87,6 +99,7 @@ export const RunTrace = z.object({
   raw_output: z.string(),
   memory_pulled: z.array(MemoryPulled),
   specs_read: z.array(z.string()),
+  intent: IntentTraceMetadata.nullish(),
   log: z.array(RunLogLine),
 });
 export type RunTrace = z.infer<typeof RunTrace>;

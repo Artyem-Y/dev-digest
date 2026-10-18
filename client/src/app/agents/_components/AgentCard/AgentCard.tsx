@@ -14,13 +14,13 @@ import { s } from "./styles";
 export function AgentCard({
   ag,
   active,
-  skillCount,
+  runnableSkillIds,
   onClick,
   onToggle,
 }: {
   ag: Agent;
   active?: boolean;
-  skillCount?: number;
+  runnableSkillIds?: ReadonlySet<string>;
   onClick?: () => void;
   onToggle?: (enabled: boolean) => void;
 }) {
@@ -29,6 +29,10 @@ export function AgentCard({
   const { data: links } = useAgentSkills(ag.id);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const color = modelColor(ag.model);
+  const activeSkillCount = React.useMemo(() => {
+    if (!links || !runnableSkillIds) return undefined;
+    return links.filter((link) => link.enabled !== false && runnableSkillIds.has(link.skill_id)).length;
+  }, [links, runnableSkillIds]);
   return (
     <div onClick={onClick} style={s.card(!!active, ag.enabled)}>
       <div style={s.headerRow}>
@@ -66,9 +70,9 @@ export function AgentCard({
         <span className="mono" style={s.modelChip(color)}>
           {ag.model}
         </span>
-        {(skillCount ?? links?.length) != null && (
+        {activeSkillCount != null && (
           <Badge color="var(--text-secondary)" icon="Sparkles">
-            {t("card.skillCount", { count: skillCount ?? links?.length ?? 0 })}
+            {t("card.skillCount", { count: activeSkillCount })}
           </Badge>
         )}
       </div>

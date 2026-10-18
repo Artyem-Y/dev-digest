@@ -1,0 +1,95 @@
+import { describe, expect, it, vi } from 'vitest';
+import { ReviewRunExecutor } from '../src/modules/reviews/run-executor.js';
+import { RunBus } from '../src/platform/sse.js';
+
+describe('ReviewRunExecutor', () => {
+  it('starts intent derivation while the PR diff is loading', async () => {
+    const diff = Promise.withResolvers<{ raw: string; files: [] }>();
+    const deriveIntent = vi.fn().mockResolvedValue({
+      status: 'unavailable', reasonCode: 'model_unavailable', trace: { sourceCount: 0 },
+    });
+    const executor = new ReviewRunExecutor({
+      runBus: { begin: vi.fn(), publish: vi.fn(), complete: vi.fn() },
+      loadDiff: vi.fn().mockReturnValue(diff.promise),
+      deriveIntent,
+    } as never, {} as never);
+
+    const running = executor.executeRuns(
+      'workspace',
+      { id: 'pull', title: 'Title', body: null } as never,
+      { owner: 'acme', name: 'repo' },
+      [],
+    );
+
+    await vi.waitFor(() => expect(deriveIntent).toHaveBeenCalledOnce());
+    diff.resolve({ raw: '', files: [] });
+    await expect(running).resolves.toBeUndefined();
+  });
+
+  it('does not wait for a pending intent derivation after the diff is ready', async () => {
+    const intent = Promise.withResolvers<{ status: 'unavailable'; reasonCode: 'model_unavailable'; trace: { sourceCount: number } }>();
+    const executor = new ReviewRunExecutor({
+      runBus: { begin: vi.fn(), publish: vi.fn(), complete: vi.fn() },
+      loadDiff: vi.fn().mockResolvedValue({ raw: '', files: [] }),
+      deriveIntent: vi.fn().mockReturnValue(intent.promise),
+    } as never, {} as never);
+
+    const running = executor.executeRuns(
+      'workspace',
+      { id: 'pull', title: 'Title', body: null } as never,
+      { owner: 'acme', name: 'repo' },
+      [],
+    );
+
+    intent.resolve({ status: 'unavailable', reasonCode: 'model_unavailable', trace: { sourceCount: 0 } });
+    await expect(running).resolves.toBeUndefined();
+  });
+
+  it('closes an agent run stream as soon as that agent reaches a terminal state', async () => {
+    const intent = Promise.withResolvers<{ status: 'unavailable'; reasonCode: 'model_unavailable'; trace: { sourceCount: number } }>();
+    const runBus = { begin: vi.fn(), publish: vi.fn(), complete: vi.fn() };
+    const executor = new ReviewRunExecutor({
+      runBus,
+      loadDiff: vi.fn().mockResolvedValue({ raw: '', files: [] }),
+      deriveIntent: vi.fn().mockReturnValue(intent.promise),
+    } as never, {} as never);
+    vi.spyOn(executor as never, 'runOneAgent').mockResolvedValue({} as never);
+
+    const running = executor.executeRuns(
+      'workspace',
+      { id: 'pull', title: 'Title', body: null } as never,
+      { owner: 'acme', name: 'repo' },
+      [{ agent: { id: 'agent-1' } as never, runId: 'run-1' }],
+    );
+
+    await vi.waitFor(() => expect(runBus.complete).toHaveBeenCalledWith('run-1'));
+    await expect(running).resolves.toBeUndefined();
+    intent.resolve({ status: 'unavailable', reasonCode: 'model_unavailable', trace: { sourceCount: 0 } });
+  });
+
+  it('keeps one PR intent stream open until overlapping batches have both settled', async () => {
+    const first = Promise.withResolvers<{ status: 'unavailable'; reasonCode: 'model_unavailable'; trace: { sourceCount: number } }>();
+    const second = Promise.withResolvers<{ status: 'unavailable'; reasonCode: 'model_unavailable'; trace: { sourceCount: number } }>();
+    const runBus = new RunBus();
+    const executor = new ReviewRunExecutor({
+      runBus,
+      loadDiff: vi.fn().mockResolvedValue({ raw: '', files: [] }),
+      deriveIntent: vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise),
+    } as never, {} as never);
+    const events: unknown[] = [];
+
+    const firstBatch = executor.executeRuns('workspace', { id: 'pull', title: 'Title', body: null } as never, { owner: 'acme', name: 'repo' }, []);
+    const secondBatch = executor.executeRuns('workspace', { id: 'pull', title: 'Title', body: null } as never, { owner: 'acme', name: 'repo' }, []);
+    await vi.waitFor(() => expect(runBus.hasStream('pull-intent:pull')).toBe(true));
+    runBus.subscribe('pull-intent:pull', (event) => events.push(event));
+
+    first.resolve({ status: 'unavailable', reasonCode: 'model_unavailable', trace: { sourceCount: 0 } });
+    await first.promise;
+    await Promise.resolve();
+    expect(events).toHaveLength(0);
+
+    second.resolve({ status: 'unavailable', reasonCode: 'model_unavailable', trace: { sourceCount: 0 } });
+    await vi.waitFor(() => expect(events).toHaveLength(1));
+    await expect(Promise.all([firstBatch, secondBatch])).resolves.toEqual([undefined, undefined]);
+  });
+});

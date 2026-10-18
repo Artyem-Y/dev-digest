@@ -102,3 +102,4 @@ a CI artifact by `.github/workflows/e2e-web.yml`).
 | `07-settings` | `/settings/api-keys` + `/settings/models` → section titles render |
 | `08-agent-run-cost` | nullable/latest agent-run cost renders in list, timeline, and trace |
 | `09-agent-enabled-toggle` | seeded agent enablement can be toggled and restored |
+| `10-smart-diff` | five role groups, lockfile, inline finding and order switch |

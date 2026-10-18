@@ -52,6 +52,12 @@ export const prIntent = pgTable('pr_intent', {
   intent: text('intent').notNull(),
   inScope: jsonb('in_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   outOfScope: jsonb('out_of_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  confidence: text('confidence', { enum: ['high', 'medium', 'low'] }),
+  evidence: jsonb('evidence').$type<unknown[]>(),
+  sourceFingerprint: text('source_fingerprint'),
+  modelProvider: text('model_provider'),
+  model: text('model'),
+  derivedAt: timestamp('derived_at', { withTimezone: true }),
 });
 
 export const prBrief = pgTable('pr_brief', {

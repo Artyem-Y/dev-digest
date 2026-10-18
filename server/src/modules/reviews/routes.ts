@@ -1,11 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { RunRequest } from '@devdigest/shared';
+import { DerivedIntent, RunRequest, SmartDiffResponse } from '@devdigest/shared';
 import type { RunEvent } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
-import { createReviewService } from './composition.js';
+import { createReviewService, createSmartDiffService } from './composition.js';
 
 /**
  * reviews module.
@@ -20,6 +20,42 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const { container } = app;
   const service = createReviewService(container);
+  const smartDiff = createSmartDiffService(container);
+  const eventStream = (streamId: string, terminalEvent?: RunEvent) =>
+    (async function* () {
+      if (!container.runBus.hasStream(streamId)) {
+        if (terminalEvent) yield { id: String(terminalEvent.seq), event: terminalEvent.kind, data: JSON.stringify(terminalEvent) };
+        return;
+      }
+      const queue: RunEvent[] = [];
+      let resolve: (() => void) | null = null;
+      let done = false;
+
+      const unsubscribe = container.runBus.subscribe(streamId, (event) => {
+        queue.push(event);
+        resolve?.();
+      });
+      const offDone = container.runBus.onDone(streamId, () => {
+        done = true;
+        resolve?.();
+      });
+
+      try {
+        while (true) {
+          if (queue.length === 0) {
+            if (done) break;
+            await new Promise<void>((next) => (resolve = next));
+            resolve = null;
+            continue;
+          }
+          const event = queue.shift()!;
+          yield { id: String(event.seq), event: event.kind, data: JSON.stringify(event) };
+        }
+      } finally {
+        unsubscribe();
+        offDone();
+      }
+    })();
 
   // ---- Run a review (manual trigger) -------------------------------
   // Tight per-route limit: each call can fan out to expensive LLM runs.
@@ -32,6 +68,7 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     const body = RunRequest.parse(req.body ?? {});
     const targets = await service.resolveTargets(workspaceId, {
       ...(body.agentId !== undefined ? { agentId: body.agentId } : {}),
+      ...(body.agentIds !== undefined ? { agentIds: body.agentIds } : {}),
       ...(body.all !== undefined ? { all: body.all } : {}),
     });
     const { runs, reviews } = await service.runReview(
@@ -50,46 +87,29 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     { schema: { params: IdParams }, config: { rateLimit: false } },
     async (req, reply) => {
     await getContext(container, req);
-    const runId = req.params.id;
-
-    reply.sse(
-      (async function* () {
-        // Bridge the in-memory RunBus to an async iterator the SSE plugin drains.
-        const queue: RunEvent[] = [];
-        let resolve: (() => void) | null = null;
-        let done = false;
-
-        const unsubscribe = container.runBus.subscribe(runId, (e) => {
-          queue.push(e);
-          resolve?.();
-        });
-        const offDone = container.runBus.onDone(runId, () => {
-          done = true;
-          resolve?.();
-        });
-
-        try {
-          while (true) {
-            if (queue.length === 0) {
-              if (done) break;
-              await new Promise<void>((r) => (resolve = r));
-              resolve = null;
-              continue;
-            }
-            const e = queue.shift()!;
-            yield {
-              id: String(e.seq),
-              event: e.kind,
-              data: JSON.stringify(e),
-            };
-          }
-        } finally {
-          unsubscribe();
-          offDone();
-        }
-      })(),
-    );
+    reply.sse(eventStream(req.params.id));
   });
+
+  // Intent enrichment can outlive individual agent runs. It therefore gets a
+  // PR-scoped completion stream, avoiding one lingering SSE connection per
+  // agent while still allowing the overview to refresh when intent persists.
+  app.get(
+    '/pulls/:id/intent/events',
+    { schema: { params: IdParams }, config: { rateLimit: false } },
+    async (req, reply) => {
+      const { workspaceId } = await getContext(container, req);
+      await service.derivedIntent(workspaceId, req.params.id);
+      const streamId = `pull-intent:${req.params.id}`;
+      reply.sse(eventStream(streamId, {
+        runId: streamId,
+        seq: 0,
+        kind: 'result',
+        msg: 'PR intent derivation is not active',
+        t: new Date().toISOString(),
+        data: { intentSettled: true },
+      }));
+    },
+  );
 
   // ---- Active (in-flight) runs for a PR (server source of truth) ----------
   app.get('/pulls/:id/runs/active', { schema: { params: IdParams } }, async (req) => {
@@ -126,6 +146,25 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
   });
 
   // ---- Reads --------------------------------------------------------------
+  app.get('/pulls/:id/smart-diff', { schema: { params: IdParams, response: { 200: SmartDiffResponse } } }, async (req) => {
+    const { workspaceId } = await getContext(container, req);
+    return smartDiff.execute(workspaceId, req.params.id);
+  });
+
+  app.get('/pulls/:id/intent', { schema: { params: IdParams, response: { 200: DerivedIntent.nullable() } } }, async (req) => {
+    const { workspaceId } = await getContext(container, req);
+    return service.derivedIntent(workspaceId, req.params.id);
+  });
+
+  // Intent is a single model call and must not create a full review run.
+  app.post('/pulls/:id/intent', {
+    schema: { params: IdParams, response: { 200: DerivedIntent.nullable() } },
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+  }, async (req) => {
+    const { workspaceId } = await getContext(container, req);
+    return service.rerunIntent(workspaceId, req.params.id);
+  });
+
   app.get('/pulls/:id/reviews', { schema: { params: IdParams } }, async (req) => {
     const { workspaceId } = await getContext(container, req);
     return service.reviewsForPull(workspaceId, req.params.id);

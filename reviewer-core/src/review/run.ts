@@ -5,9 +5,10 @@ import type {
   Review,
   RunEventKind,
   UnifiedDiff,
+  DerivedIntent,
 } from '@devdigest/shared';
 import { Review as ReviewSchema } from '@devdigest/shared';
-import { assemblePrompt } from '../prompt.js';
+import { assemblePrompt, type AssembledPrompt } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 
@@ -71,6 +72,8 @@ export interface ReviewInput {
   /** PR author's description/body (untrusted; truncated + delimiter-wrapped in
       the prompt). Empty/undefined → section omitted. */
   prDescription?: string;
+  /** Optional advisory intent, prepared by the server once for the review batch. */
+  intent?: DerivedIntent;
   /** Task framing line, e.g. "Review PR #482 …". */
   task?: string;
   /** Override the structured-output retry budget. */
@@ -82,6 +85,10 @@ export interface ReviewInput {
    * review group into one session in the OpenRouter dashboard.
    */
   sessionId?: string;
+  /** Opaque run identifier for structured prompt-builder logs. */
+  correlationId?: string;
+  /** Enables per-section token estimates; the server permits this only locally. */
+  promptAssemblyDetail?: boolean;
   /** Progress sink. */
   onEvent?: (e: ReviewEvent) => void;
   /**
@@ -126,6 +133,27 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   const mode = selectMode(input.strategy ?? 'auto', input.diff, threshold);
   const emit = (kind: RunEventKind, msg: string, data?: unknown) =>
     input.onEvent?.({ kind, msg, data });
+  const emitPromptAssembly = (prompt: AssembledPrompt, promptIndex: number) => {
+    const base = {
+      correlation_id: input.correlationId ?? null,
+      model: input.model,
+      prompt_index: promptIndex,
+    };
+    emit('info', 'Prompt assembled (metadata only)', {
+      event: 'prompt_builder.assembled',
+      ...base,
+      sections: prompt.telemetry.sections,
+    });
+    if (!input.promptAssemblyDetail) return;
+    for (const section of prompt.telemetry.sections) {
+      emit('info', 'Prompt section assembled (metadata only)', {
+        event: 'prompt_builder.section',
+        ...base,
+        ...section,
+        estimated_tokens: Math.ceil(section.chars / 4),
+      });
+    }
+  };
 
   const promptParts = {
     system: input.systemPrompt,
@@ -135,6 +163,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     callers: input.callers,
     repoMap: input.repoMap,
     prDescription: input.prDescription,
+    intent: input.intent,
     task: input.task,
   };
 
@@ -171,6 +200,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     );
     const a = assemblePrompt({ ...promptParts, diff: chunk.diffText });
     if (mode === 'single-pass') assembly = a.assembly;
+    emitPromptAssembly(a, partials.length + 1);
     const res = await input.llm.completeStructured<Review>({
       model: input.model,
       schema: ReviewSchema,
