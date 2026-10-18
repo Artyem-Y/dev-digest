@@ -89,9 +89,15 @@ export async function currentReviewsForPull(
     .select({ reviewId: t.findings.reviewId, file: t.findings.file, startLine: t.findings.startLine })
     .from(t.findings)
     .where(inArray(t.findings.reviewId, reviews.map((review) => review.id)));
+  const findingsByReview = new Map<string, SmartDiffFindingRow[]>();
+  for (const finding of findings) {
+    const grouped = findingsByReview.get(finding.reviewId) ?? [];
+    grouped.push(finding);
+    findingsByReview.set(finding.reviewId, grouped);
+  }
   return reviews.map((review) => ({
     review,
-    findings: findings.filter((finding) => finding.reviewId === review.id),
+    findings: findingsByReview.get(review.id) ?? [],
   }));
 }
 

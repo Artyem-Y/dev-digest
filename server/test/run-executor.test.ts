@@ -40,7 +40,7 @@ describe('ReviewRunExecutor', () => {
       [],
     );
 
-    await expect(running).resolves.toBeUndefined();
     intent.resolve({ status: 'unavailable', reasonCode: 'model_unavailable', trace: { sourceCount: 0 } });
+    await expect(running).resolves.toBeUndefined();
   });
 });

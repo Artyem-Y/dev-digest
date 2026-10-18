@@ -180,6 +180,13 @@ export class ReviewRunExecutor {
         );
       }
     }
+
+    // Agent rows may already be terminal, but their SSE stream stays open until
+    // optional intent enrichment settles. This gives an open detail page a
+    // reliable completion signal without delaying agent startup or persistence.
+    await intentDerivation.catch(() => undefined);
+    runLog.result('PR intent derivation settled', { intentSettled: true });
+    for (const { runId } of jobs) this.dependencies.runBus.complete(runId);
   }
 
   /** Execute a single agent's review against a PR, streaming progress. */
@@ -343,8 +350,6 @@ export class ReviewRunExecutor {
       };
       runLog.info('Run complete; trace persisted');
       await this.repo.saveRunTrace(runId, trace);
-      this.dependencies.runBus.complete(runId);
-
       return { review, findings: findingRows, grounding, raw: outcome.review };
     } catch (err) {
       // Failure/cancel: persist status + the error text + the log-so-far so the
@@ -367,7 +372,6 @@ export class ReviewRunExecutor {
       await this.repo
         .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, intentTrace))
         .catch(() => undefined);
-      this.dependencies.runBus.complete(runId);
       throw err;
     }
   }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import type { RunSummary } from '@devdigest/shared';
 
@@ -8,7 +8,7 @@ vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries }),
 }));
 
-import { useReviewRefresh } from './use-review-refresh';
+import { REVIEW_REFRESH_DEBOUNCE_MS, useReviewRefresh } from './use-review-refresh';
 
 function Refresh({ runs }: { runs: RunSummary[] }) {
   useReviewRefresh('pr-1', runs);
@@ -35,12 +35,42 @@ const done = (run_id: string): RunSummary => ({
 });
 
 describe('useReviewRefresh', () => {
-  it('invalidates each read model once for multiple newly terminal runs', () => {
-    render(<Refresh runs={[done('run-1'), done('run-2')]} />);
+  beforeEach(() => invalidateQueries.mockClear());
+
+  it('coalesces terminal runs that arrive in separate updates into one refresh', async () => {
+    vi.useFakeTimers();
+    try {
+    const { rerender } = render(<Refresh runs={[done('run-1')]} />);
+    rerender(<Refresh runs={[done('run-1'), done('run-2')]} />);
+    await vi.advanceTimersByTimeAsync(REVIEW_REFRESH_DEBOUNCE_MS);
 
     expect(invalidateQueries).toHaveBeenCalledTimes(3);
     expect(invalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['reviews', 'pr-1'] });
     expect(invalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['smart-diff', 'pr-1'] });
     expect(invalidateQueries).toHaveBeenNthCalledWith(3, { queryKey: ['pull-intent', 'pr-1'] });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('refreshes intent when background derivation emits its completion event', () => {
+    class MockEventSource {
+      static instances: MockEventSource[] = [];
+      onmessage: ((event: MessageEvent<string>) => void) | null = null;
+      private listeners = new Map<string, EventListener>();
+      constructor(_url: string) { MockEventSource.instances.push(this); }
+      addEventListener(type: string, listener: EventListener) { this.listeners.set(type, listener); }
+      close() {}
+      emit(type: string, data: string) { this.listeners.get(type)?.(new MessageEvent(type, { data })); }
+    }
+    vi.stubGlobal('EventSource', MockEventSource);
+    try {
+      render(<Refresh runs={[done('run-1')]} />);
+      MockEventSource.instances[0]!.emit('result', JSON.stringify({ data: { intentSettled: true } }));
+
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['pull-intent', 'pr-1'] });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

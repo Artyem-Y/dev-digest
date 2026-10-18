@@ -5,6 +5,7 @@ import { wrapUntrusted } from './prompt.js';
 
 const MAX_SOURCE_CHARS = 12_000;
 const MAX_SOURCES = 8;
+const MAX_TOTAL_SOURCE_CHARS = 24_000;
 
 export const PullIntentClassification = Intent.extend({
   source_refs: z.array(z.number().int().min(0).max(MAX_SOURCES - 1)).max(MAX_SOURCES),
@@ -28,10 +29,20 @@ export interface DerivePullIntentInput {
 export async function derivePullIntent(
   input: DerivePullIntentInput,
 ): Promise<{ classification: PullIntentClassification; provider: Provider; model: string }> {
-  const sources = input.sources
+  let remainingChars = MAX_TOTAL_SOURCE_CHARS;
+  const inputSources = input.sources
     .filter((source) => source.text.trim().length > 0)
-    .slice(0, MAX_SOURCES)
-    .map((source, index) => wrapUntrusted(`intent-source-${index}-${source.kind}`, source.text.slice(0, MAX_SOURCE_CHARS)));
+    .slice(0, MAX_SOURCES);
+  const sources = inputSources.map((source, index) => {
+    // Preserve every source index for provenance while reserving at least one
+    // character for each later source. Earlier inputs are title/description,
+    // then linked evidence, so this prioritizes the most relevant context.
+    const remainingSources = inputSources.length - index - 1;
+    const limit = Math.min(MAX_SOURCE_CHARS, Math.max(1, remainingChars - remainingSources));
+    const text = source.text.slice(0, limit);
+    remainingChars -= text.length;
+    return wrapUntrusted(`intent-source-${index}-${source.kind}`, text);
+  });
 
   const result = await input.provider.completeStructured<PullIntentClassification>({
     model: input.model,
