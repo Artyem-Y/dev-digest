@@ -3,12 +3,13 @@ import type {
   AgentSkillLink,
   AgentVersion,
   CiFailOn,
+  McpAgentSummary,
   ModelInfo,
   Provider,
   ReviewStrategy,
 } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
-import { toAgentDto, toAgentVersionDto } from './helpers.js';
+import { toAgentDto, toAgentVersionDto, toMcpAgentSummary } from './helpers.js';
 import { ValidationError } from '../../platform/errors.js';
 
 /**
@@ -59,6 +60,12 @@ export class AgentsService {
   async list(workspaceId: string): Promise<Agent[]> {
     const rows = await this.dependencies.repository.list(workspaceId);
     return rows.map(toAgentDto);
+  }
+
+  /** Prompt-safe read model for the local MCP boundary. */
+  async listMcpSummaries(workspaceId: string): Promise<McpAgentSummary[]> {
+    const rows = await this.dependencies.repository.listMcpSummaries(workspaceId);
+    return rows.map(toMcpAgentSummary);
   }
 
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {

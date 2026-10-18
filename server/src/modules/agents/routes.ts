@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import { CiFailOn, McpAgentSummary, Provider, ReviewStrategy } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
@@ -75,6 +75,11 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
   app.get('/agents', async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     return service.list(workspaceId);
+  });
+
+  app.get('/agents/summary', { schema: { response: { 200: z.array(McpAgentSummary) } } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return service.listMcpSummaries(workspaceId);
   });
 
   app.get('/agents/:id', { schema: { params: IdParams } }, async (req) => {

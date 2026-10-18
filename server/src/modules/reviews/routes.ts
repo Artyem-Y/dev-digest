@@ -1,11 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { DerivedIntent, RunRequest, SmartDiffResponse } from '@devdigest/shared';
+import { DerivedIntent, McpRunFindings, RunRequest, SmartDiffResponse } from '@devdigest/shared';
 import type { RunEvent } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { createReviewService, createSmartDiffService } from './composition.js';
+import type { McpRunResult } from './application/mcp-run-findings.js';
 
 /**
  * reviews module.
@@ -111,6 +112,11 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     },
   );
 
+  app.get('/runs/:id/findings', { schema: { params: IdParams, response: { 200: McpRunFindings } } }, async (req) => {
+    const { workspaceId } = await getContext(container, req);
+    return toMcpRunFindingsResponse(await service.mcpRunFindings(workspaceId, req.params.id));
+  });
+
   // ---- Active (in-flight) runs for a PR (server source of truth) ----------
   app.get('/pulls/:id/runs/active', { schema: { params: IdParams } }, async (req) => {
     const { workspaceId } = await getContext(container, req);
@@ -186,4 +192,31 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
       return result;
     });
   }
+}
+
+/** HTTP adapter for the application result; Zod validation stays at this boundary. */
+function toMcpRunFindingsResponse(result: McpRunResult) {
+  return McpRunFindings.parse({
+    run_id: result.runId,
+    status: result.status,
+    error: result.error,
+    verdict: result.verdict,
+    summary: result.summary,
+    score: result.score,
+    severity_counts: result.severityCounts,
+    findings_truncated: result.findingsTruncated,
+    findings: result.findings.map((finding) => ({
+      id: finding.id,
+      severity: finding.severity,
+      category: finding.category,
+      title: finding.title,
+      file: finding.file,
+      start_line: finding.startLine,
+      end_line: finding.endLine,
+      rationale: finding.rationale,
+      suggestion: finding.suggestion,
+      confidence: finding.confidence,
+      kind: finding.kind,
+    })),
+  });
 }

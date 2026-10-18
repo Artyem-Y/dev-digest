@@ -1,0 +1,138 @@
+import { z } from 'zod';
+
+const AgentSummary = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  description: z.string(),
+  enabled: z.boolean(),
+  provider: z.string(),
+  model: z.string(),
+  version: z.number().int(),
+});
+const Repo = z.object({ id: z.string(), owner: z.string(), name: z.string(), full_name: z.string() }).passthrough();
+const Pull = z.object({ id: z.string(), number: z.number().int(), title: z.string() }).passthrough();
+const Finding = z.object({
+  id: z.string(), severity: z.string(), category: z.string(), title: z.string(), file: z.string(),
+  start_line: z.number().int(), end_line: z.number().int(), rationale: z.string(), suggestion: z.string().nullable(),
+  confidence: z.number(), kind: z.string(),
+});
+const RunFindings = z.object({
+  run_id: z.string(), status: z.enum(['running', 'done', 'failed', 'cancelled']), error: z.string().nullable(),
+  verdict: z.enum(['request_changes', 'approve', 'comment']).nullable(), summary: z.string().nullable(),
+  score: z.number().int().nullable(),
+  severity_counts: z.object({ critical: z.number().int().nonnegative(), warning: z.number().int().nonnegative(), suggestion: z.number().int().nonnegative() }),
+  findings_truncated: z.boolean(), findings: z.array(Finding),
+});
+const Convention = z.object({
+  status: z.string(), rule: z.string(), category: z.string(), evidence_path: z.string(), evidence_line: z.number().int(), confidence: z.number(),
+}).passthrough();
+const ReviewStart = z.object({ runs: z.array(z.object({ run_id: z.string(), agent_id: z.string(), agent_name: z.string() })) });
+
+export type AgentSummary = z.infer<typeof AgentSummary>;
+export type Repo = z.infer<typeof Repo>;
+export type Pull = z.infer<typeof Pull>;
+export type RunFindings = z.infer<typeof RunFindings>;
+export type Convention = z.infer<typeof Convention>;
+
+export type ApiRequestOptions = {
+  timeoutMs?: number;
+};
+
+export interface DevDigestApi {
+  listAgents(): Promise<AgentSummary[]>;
+  listRepos(): Promise<Repo[]>;
+  listPulls(repoId: string): Promise<Pull[]>;
+  runReview(pullId: string, agentId: string): Promise<z.infer<typeof ReviewStart>>;
+  getFindings(runId: string, options?: ApiRequestOptions): Promise<RunFindings>;
+  getConventions(repoId: string): Promise<Convention[]>;
+}
+
+export class DevDigestApiError extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message);
+    this.name = 'DevDigestApiError';
+  }
+}
+
+export class DevDigestApiConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DevDigestApiConfigurationError';
+  }
+}
+
+const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+
+function localBaseUrl(value: string): { baseUrl: string; diagnosticOrigin: string } {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new DevDigestApiConfigurationError(
+      'DEVDIGEST_API_URL must use an http:// loopback or localhost URL, for example http://127.0.0.1:3001.',
+    );
+  }
+  if (url.username || url.password) {
+    throw new DevDigestApiConfigurationError(
+      'DEVDIGEST_API_URL must not include username or password. Use a local DevDigest URL such as http://127.0.0.1:3001.',
+    );
+  }
+  const isLoopback = url.hostname === 'localhost'
+    || url.hostname === '::1'
+    || url.hostname === '[::1]'
+    || /^127(?:\.\d{1,3}){3}$/.test(url.hostname);
+  if (url.protocol !== 'http:' || !isLoopback) {
+    throw new DevDigestApiConfigurationError(
+      'DEVDIGEST_API_URL must use an http:// loopback or localhost URL, for example http://127.0.0.1:3001. Remove the remote override and retry.',
+    );
+  }
+  return { baseUrl: url.href.replace(/\/$/, ''), diagnosticOrigin: url.origin };
+}
+
+export class HttpDevDigestApi implements DevDigestApi {
+  private readonly baseUrl: string;
+  private readonly diagnosticOrigin: string;
+
+  constructor(baseUrl = process.env.DEVDIGEST_API_URL ?? 'http://127.0.0.1:3001') {
+    const localUrl = localBaseUrl(baseUrl);
+    this.baseUrl = localUrl.baseUrl;
+    this.diagnosticOrigin = localUrl.diagnosticOrigin;
+  }
+
+  listAgents() { return this.request('/agents/summary', AgentSummary.array()); }
+  listRepos() { return this.request('/repos', Repo.array()); }
+  listPulls(repoId: string) { return this.request(`/repos/${encodeURIComponent(repoId)}/pulls`, Pull.array()); }
+  getFindings(runId: string, options: ApiRequestOptions = {}) {
+    return this.request(`/runs/${encodeURIComponent(runId)}/findings`, RunFindings, {}, options);
+  }
+  getConventions(repoId: string) { return this.request(`/repos/${encodeURIComponent(repoId)}/conventions`, Convention.array()); }
+  runReview(pullId: string, agentId: string) {
+    return this.request(`/pulls/${encodeURIComponent(pullId)}/review`, ReviewStart, {
+      method: 'POST', body: JSON.stringify({ agentId }),
+    });
+  }
+
+  private async request<T>(path: string, schema: z.ZodType<T>, init: RequestInit = {}, options: ApiRequestOptions = {}): Promise<T> {
+    const timeoutMs = Math.min(options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS, DEFAULT_REQUEST_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, {
+        ...init,
+        headers: { accept: 'application/json', ...(init.body ? { 'content-type': 'application/json' } : {}), ...init.headers },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch {
+      throw new DevDigestApiError(`Cannot reach DevDigest at ${this.diagnosticOrigin}. Start it with ./scripts/dev.sh, then retry.`);
+    }
+    const body: unknown = await response.json().catch(() => undefined);
+    if (!response.ok) {
+      const message = body && typeof body === 'object' && 'error' in body
+        ? String((body as { error?: { message?: string } }).error?.message ?? `HTTP ${response.status}`)
+        : `HTTP ${response.status}`;
+      throw new DevDigestApiError(message, response.status);
+    }
+    const parsed = schema.safeParse(body);
+    if (!parsed.success) throw new DevDigestApiError(`DevDigest returned an unexpected response for ${path}.`);
+    return parsed.data;
+  }
+}

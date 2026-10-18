@@ -15,6 +15,7 @@ aliases, not published modules):
 | `client/`        | `@devdigest/web`            | Next.js 15 web app (the studio)                       | 3000 |
 | `reviewer-core/` | `@devdigest/reviewer-core`  | Pure review engine: diff → prompt → LLM → findings    | —    |
 | `e2e/`           | `@devdigest/e2e`            | Deterministic browser e2e (agent-browser)             | —    |
+| `mcp-server/`    | `@devdigest/mcp-server`     | Local stdio MCP facade for persisted DevDigest reviews | —    |
 | `server/src/vendor/shared` | `@devdigest/shared` | Zod contracts shared across every package             | —    |
 
 `repo-intel` (the codebase indexer that powers the **Indexed** badge and feeds
@@ -131,6 +132,11 @@ cd ../client && pnpm install && pnpm dev               # web on :3000
 `server/`: `dev` · `build` · `db:migrate` · `db:seed` · `db:generate` · `test` · `typecheck`
 (unit/integration split: `pnpm exec vitest run --exclude '**/*.it.test.ts'` / `pnpm exec vitest run .it.test`)
 `client/`: `dev` · `build` · `start` · `test` · `typecheck`
+
+`mcp-server/`: `start` · `test` · `typecheck`. It is an independent local
+stdio process; see [`mcp-server/README.md`](mcp-server/README.md) for Claude
+Code configuration, MCP Inspector checks, the 120-second review wait, and the
+reproducible Tool Search/token audit.
 
 ## Testing & CI
 

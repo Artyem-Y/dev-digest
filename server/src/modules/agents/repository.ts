@@ -42,6 +42,17 @@ export interface UpdateAgent {
   enabled?: boolean;
 }
 
+/** Prompt-safe fields selected for the local MCP read boundary. */
+export interface McpAgentSummaryRow {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  provider: string;
+  model: string;
+  version: number;
+}
+
 /** A skill linked to an agent (with its order), joined from agent_skills. */
 export interface LinkedSkillRow {
   skill: typeof t.skills.$inferSelect;
@@ -54,6 +65,22 @@ export class AgentsRepository {
 
   async list(workspaceId: string): Promise<AgentRow[]> {
     return this.db.select().from(t.agents).where(eq(t.agents.workspaceId, workspaceId));
+  }
+
+  /** Select only fields permitted to cross the local MCP boundary. */
+  async listMcpSummaries(workspaceId: string): Promise<McpAgentSummaryRow[]> {
+    return this.db
+      .select({
+        id: t.agents.id,
+        name: t.agents.name,
+        description: t.agents.description,
+        enabled: t.agents.enabled,
+        provider: t.agents.provider,
+        model: t.agents.model,
+        version: t.agents.version,
+      })
+      .from(t.agents)
+      .where(eq(t.agents.workspaceId, workspaceId));
   }
 
   async listEnabled(workspaceId: string): Promise<AgentRow[]> {
