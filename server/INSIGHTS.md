@@ -127,3 +127,13 @@ The structured Review schema validates category before grounding and persistence
 - Implication: Map convention persistence rows at the service boundary for list, scan, and status updates; do not pass Drizzle rows directly to Fastify handlers.
 
 Drizzle column property names are persistence implementation details. The conventions UI consumes the shared snake_case contract, so leaking a raw row omits evidence_path and breaks source links even when the database contains a valid path.
+
+<!-- insight-id: eng-server-798325e082ef -->
+## eng-server-798325e082ef — Keep agent-run SSE completion independent from batch enrichment
+
+- Date: 2026-10-18
+- Category: invariant
+- Evidence: server/src/modules/reviews/run-executor.ts completes each run in the per-agent loop, while server/test/run-executor.test.ts proves a pending intent derivation does not delay runBus.complete.
+- Implication: Do not retain one SSE stream per terminal agent merely to announce a later batch-level enrichment; expose that enrichment through a separate PR-scoped completion signal.
+
+An agent run is terminal once its review row and trace are persisted. Intent derivation may continue independently, so its completion must not extend every agent stream in a multi-agent batch.

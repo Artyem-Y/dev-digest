@@ -21,6 +21,38 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
   const { container } = app;
   const service = createReviewService(container);
   const smartDiff = createSmartDiffService(container);
+  const eventStream = (streamId: string) =>
+    (async function* () {
+      if (!container.runBus.hasStream(streamId)) return;
+      const queue: RunEvent[] = [];
+      let resolve: (() => void) | null = null;
+      let done = false;
+
+      const unsubscribe = container.runBus.subscribe(streamId, (event) => {
+        queue.push(event);
+        resolve?.();
+      });
+      const offDone = container.runBus.onDone(streamId, () => {
+        done = true;
+        resolve?.();
+      });
+
+      try {
+        while (true) {
+          if (queue.length === 0) {
+            if (done) break;
+            await new Promise<void>((next) => (resolve = next));
+            resolve = null;
+            continue;
+          }
+          const event = queue.shift()!;
+          yield { id: String(event.seq), event: event.kind, data: JSON.stringify(event) };
+        }
+      } finally {
+        unsubscribe();
+        offDone();
+      }
+    })();
 
   // ---- Run a review (manual trigger) -------------------------------
   // Tight per-route limit: each call can fan out to expensive LLM runs.
@@ -52,46 +84,21 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     { schema: { params: IdParams }, config: { rateLimit: false } },
     async (req, reply) => {
     await getContext(container, req);
-    const runId = req.params.id;
-
-    reply.sse(
-      (async function* () {
-        // Bridge the in-memory RunBus to an async iterator the SSE plugin drains.
-        const queue: RunEvent[] = [];
-        let resolve: (() => void) | null = null;
-        let done = false;
-
-        const unsubscribe = container.runBus.subscribe(runId, (e) => {
-          queue.push(e);
-          resolve?.();
-        });
-        const offDone = container.runBus.onDone(runId, () => {
-          done = true;
-          resolve?.();
-        });
-
-        try {
-          while (true) {
-            if (queue.length === 0) {
-              if (done) break;
-              await new Promise<void>((r) => (resolve = r));
-              resolve = null;
-              continue;
-            }
-            const e = queue.shift()!;
-            yield {
-              id: String(e.seq),
-              event: e.kind,
-              data: JSON.stringify(e),
-            };
-          }
-        } finally {
-          unsubscribe();
-          offDone();
-        }
-      })(),
-    );
+    reply.sse(eventStream(req.params.id));
   });
+
+  // Intent enrichment can outlive individual agent runs. It therefore gets a
+  // PR-scoped completion stream, avoiding one lingering SSE connection per
+  // agent while still allowing the overview to refresh when intent persists.
+  app.get(
+    '/pulls/:id/intent/events',
+    { schema: { params: IdParams }, config: { rateLimit: false } },
+    async (req, reply) => {
+      const { workspaceId } = await getContext(container, req);
+      await service.derivedIntent(workspaceId, req.params.id);
+      reply.sse(eventStream(`pull-intent:${req.params.id}`));
+    },
+  );
 
   // ---- Active (in-flight) runs for a PR (server source of truth) ----------
   app.get('/pulls/:id/runs/active', { schema: { params: IdParams } }, async (req) => {

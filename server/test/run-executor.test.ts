@@ -8,7 +8,7 @@ describe('ReviewRunExecutor', () => {
       status: 'unavailable', reasonCode: 'model_unavailable', trace: { sourceCount: 0 },
     });
     const executor = new ReviewRunExecutor({
-      runBus: {},
+      runBus: { begin: vi.fn(), publish: vi.fn(), complete: vi.fn() },
       loadDiff: vi.fn().mockReturnValue(diff.promise),
       deriveIntent,
     } as never, {} as never);
@@ -28,7 +28,7 @@ describe('ReviewRunExecutor', () => {
   it('does not wait for a pending intent derivation after the diff is ready', async () => {
     const intent = Promise.withResolvers<{ status: 'unavailable'; reasonCode: 'model_unavailable'; trace: { sourceCount: number } }>();
     const executor = new ReviewRunExecutor({
-      runBus: {},
+      runBus: { begin: vi.fn(), publish: vi.fn(), complete: vi.fn() },
       loadDiff: vi.fn().mockResolvedValue({ raw: '', files: [] }),
       deriveIntent: vi.fn().mockReturnValue(intent.promise),
     } as never, {} as never);
@@ -42,5 +42,27 @@ describe('ReviewRunExecutor', () => {
 
     intent.resolve({ status: 'unavailable', reasonCode: 'model_unavailable', trace: { sourceCount: 0 } });
     await expect(running).resolves.toBeUndefined();
+  });
+
+  it('closes an agent run stream as soon as that agent reaches a terminal state', async () => {
+    const intent = Promise.withResolvers<{ status: 'unavailable'; reasonCode: 'model_unavailable'; trace: { sourceCount: number } }>();
+    const runBus = { begin: vi.fn(), publish: vi.fn(), complete: vi.fn() };
+    const executor = new ReviewRunExecutor({
+      runBus,
+      loadDiff: vi.fn().mockResolvedValue({ raw: '', files: [] }),
+      deriveIntent: vi.fn().mockReturnValue(intent.promise),
+    } as never, {} as never);
+    vi.spyOn(executor as never, 'runOneAgent').mockResolvedValue({} as never);
+
+    const running = executor.executeRuns(
+      'workspace',
+      { id: 'pull', title: 'Title', body: null } as never,
+      { owner: 'acme', name: 'repo' },
+      [{ agent: { id: 'agent-1' } as never, runId: 'run-1' }],
+    );
+
+    await vi.waitFor(() => expect(runBus.complete).toHaveBeenCalledWith('run-1'));
+    await expect(running).resolves.toBeUndefined();
+    intent.resolve({ status: 'unavailable', reasonCode: 'model_unavailable', trace: { sourceCount: 0 } });
   });
 });

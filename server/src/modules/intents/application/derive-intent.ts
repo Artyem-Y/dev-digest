@@ -64,6 +64,7 @@ export class DeriveIntentService {
     expiresAt: number;
     value: Promise<{ issue: Awaited<ReturnType<LinkedIssueReader['findLinkedIssue']>>; planSpecs: PublicDocumentResult[] }>;
   }>();
+  private readonly derivations = new Map<string, Promise<IntentDerivation>>();
 
   constructor(private readonly deps: {
     documents: PublicDocumentFetcher;
@@ -100,7 +101,22 @@ export class DeriveIntentService {
     return value;
   }
 
-  async derive(input: IntentInput): Promise<IntentDerivation> {
+  derive(input: IntentInput): Promise<IntentDerivation> {
+    const previous = this.derivations.get(input.prId) ?? Promise.resolve();
+    const derivation = previous.catch(() => undefined).then(() => this.deriveOne(input));
+    this.derivations.set(input.prId, derivation);
+    void derivation.then(
+      () => {
+        if (this.derivations.get(input.prId) === derivation) this.derivations.delete(input.prId);
+      },
+      () => {
+        if (this.derivations.get(input.prId) === derivation) this.derivations.delete(input.prId);
+      },
+    );
+    return derivation;
+  }
+
+  private async deriveOne(input: IntentInput): Promise<IntentDerivation> {
     let resolved: { provider: Provider; model: string };
     let cached: DerivedIntent | undefined;
     try {

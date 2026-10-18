@@ -117,6 +117,21 @@ export class ReviewRunExecutor {
     const intentDerivation = runLog.step('Deriving PR intent', () => this.dependencies.deriveIntent({
       workspaceId, prId: pull.id, title: pull.title, body: pull.body, repo,
     }), { kind: 'tool' });
+    const intentEventStreamId = `pull-intent:${pull.id}`;
+    this.dependencies.runBus.begin(intentEventStreamId);
+    // Intent enrichment is independent from each agent run. Notify PR-detail
+    // subscribers on its own short-lived stream so terminal agent streams can
+    // close as soon as their individual reviews are persisted.
+    void intentDerivation.then(
+      () => {
+        this.dependencies.runBus.publish(intentEventStreamId, 'result', 'PR intent derivation settled', { intentSettled: true });
+        this.dependencies.runBus.complete(intentEventStreamId);
+      },
+      () => {
+        this.dependencies.runBus.publish(intentEventStreamId, 'result', 'PR intent derivation settled', { intentSettled: true });
+        this.dependencies.runBus.complete(intentEventStreamId);
+      },
+    );
     let completedIntent: IntentDerivation | undefined;
     void intentDerivation.then(
       (result) => { completedIntent = result; },
@@ -178,15 +193,11 @@ export class ReviewRunExecutor {
           { runId, agent: agent.name, err: (err as Error).message, durationMs: Date.now() - agentStart },
           `review: agent "${agent.name}" ${cancelled ? 'cancelled' : 'failed'}`,
         );
+      } finally {
+        this.dependencies.runBus.complete(runId);
       }
     }
 
-    // Agent rows may already be terminal, but their SSE stream stays open until
-    // optional intent enrichment settles. This gives an open detail page a
-    // reliable completion signal without delaying agent startup or persistence.
-    await intentDerivation.catch(() => undefined);
-    runLog.result('PR intent derivation settled', { intentSettled: true });
-    for (const { runId } of jobs) this.dependencies.runBus.complete(runId);
   }
 
   /** Execute a single agent's review against a PR, streaming progress. */

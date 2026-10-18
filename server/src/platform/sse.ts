@@ -23,6 +23,20 @@ export class RunBus {
   private completed = new Set<string>();
   private cancelled = new Set<string>();
 
+  /** Start a fresh logical stream, discarding a completed stream with this id. */
+  begin(runId: string): void {
+    this.completed.delete(runId);
+    this.cancelled.delete(runId);
+    this.buffers.set(runId, []);
+    this.seq.set(runId, 0);
+    this.emitterFor(runId);
+  }
+
+  /** Whether a stream has been started in this process. */
+  hasStream(runId: string): boolean {
+    return this.emitters.has(runId) || this.buffers.has(runId) || this.completed.has(runId);
+  }
+
   /** Request cancellation of an in-flight run. The runner checks `isCancelled`
    *  at its next checkpoint (between map-reduce files) and stops. */
   cancel(runId: string): void {

@@ -7,28 +7,37 @@ import { useTranslations } from "next-intl";
 import { Button, Icon, Badge, Modal, Toggle } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
 import { useDeleteAgent } from "../../../../lib/hooks/agents";
-import { useAgentSkills } from "../../../../lib/hooks/skills";
+import { useAgentSkills, useSkills } from "../../../../lib/hooks/skills";
+import { isUnsafeSkillContent } from "../../../../vendor/shared/skill-safety";
 import { modelColor } from "./helpers";
 import { s } from "./styles";
 
 export function AgentCard({
   ag,
   active,
-  skillCount,
   onClick,
   onToggle,
 }: {
   ag: Agent;
   active?: boolean;
-  skillCount?: number;
   onClick?: () => void;
   onToggle?: (enabled: boolean) => void;
 }) {
   const t = useTranslations("agents");
   const del = useDeleteAgent();
   const { data: links } = useAgentSkills(ag.id);
+  const { data: skills } = useSkills();
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const color = modelColor(ag.model);
+  const activeSkillCount = React.useMemo(() => {
+    if (!links || !skills) return undefined;
+    const runnableSkillIds = new Set(
+      skills
+        .filter((skill) => skill.enabled && !isUnsafeSkillContent(skill.body))
+        .map((skill) => skill.id),
+    );
+    return links.filter((link) => link.enabled !== false && runnableSkillIds.has(link.skill_id)).length;
+  }, [links, skills]);
   return (
     <div onClick={onClick} style={s.card(!!active, ag.enabled)}>
       <div style={s.headerRow}>
@@ -66,9 +75,9 @@ export function AgentCard({
         <span className="mono" style={s.modelChip(color)}>
           {ag.model}
         </span>
-        {(skillCount ?? links?.length) != null && (
+        {activeSkillCount != null && (
           <Badge color="var(--text-secondary)" icon="Sparkles">
-            {t("card.skillCount", { count: skillCount ?? links?.length ?? 0 })}
+            {t("card.skillCount", { count: activeSkillCount })}
           </Badge>
         )}
       </div>

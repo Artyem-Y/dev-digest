@@ -16,7 +16,7 @@
     { "cmd": ["wait", "--text", "pnpm-lock.yaml"], "label": "lockfile is in boilerplate" },
     { "cmd": ["wait", "--text", "Seeded inline finding"], "label": "inline finding is visible" },
     { "cmd": ["find", "role", "button", "click", "--name", "Original order"], "label": "switch to original order" },
-    { "cmd": ["wait", "--text", "src/config.ts"], "label": "original file order renders" },
+    { "cmd": ["wait", "--text", "src/smart-diff.ts"], "label": "original file order renders" },
     { "cmd": ["find", "role", "button", "click", "--name", "Smart order"], "label": "switch back to smart order" }
   ]
 }

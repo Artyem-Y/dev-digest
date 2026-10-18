@@ -13,10 +13,13 @@ export function useReviewRefresh(prId: string | null | undefined, runs: RunSumma
   const refreshed = React.useRef(new Set<string>());
   const refreshTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const intentCompletionHandled = React.useRef(false);
-  const knownRunning = React.useRef(new Set<string>());
+  const initializedPr = React.useRef<string | null>(null);
+  const [intentWatch, setIntentWatch] = React.useState(0);
 
   React.useEffect(() => {
     refreshed.current.clear();
+    initializedPr.current = null;
+    intentCompletionHandled.current = false;
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
   }, [prId]);
   React.useEffect(() => () => {
@@ -25,11 +28,20 @@ export function useReviewRefresh(prId: string | null | undefined, runs: RunSumma
 
   React.useEffect(() => {
     if (!prId || !runs) return;
+    if (initializedPr.current !== prId) {
+      for (const run of runs) {
+        if (run.status !== 'running') refreshed.current.add(run.run_id);
+      }
+      initializedPr.current = prId;
+      return;
+    }
     const hasUnseenTerminalRun = runs.some((run) => run.status !== 'running' && !refreshed.current.has(run.run_id));
     for (const run of runs) {
       if (run.status !== 'running') refreshed.current.add(run.run_id);
     }
     if (hasUnseenTerminalRun) {
+      intentCompletionHandled.current = false;
+      setIntentWatch((current) => current + 1);
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
       refreshTimer.current = setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['reviews', prId] });
@@ -41,16 +53,8 @@ export function useReviewRefresh(prId: string | null | undefined, runs: RunSumma
   }, [prId, queryClient, runs]);
 
   React.useEffect(() => {
-    if (!prId || !runs) return;
-    const newRunning = runs.some((run) => run.status === 'running' && !knownRunning.current.has(run.run_id));
-    for (const run of runs) if (run.status === 'running') knownRunning.current.add(run.run_id);
-    if (newRunning) intentCompletionHandled.current = false;
-  }, [prId, runs]);
-
-  const terminalRunId = runs?.find((run) => run.status !== 'running')?.run_id;
-  React.useEffect(() => {
-    if (!prId || !terminalRunId || intentCompletionHandled.current || typeof EventSource === 'undefined') return;
-    const source = new EventSource(`${API_BASE}/runs/${terminalRunId}/events`);
+    if (!prId || intentWatch === 0 || intentCompletionHandled.current || typeof EventSource === 'undefined') return;
+    const source = new EventSource(`${API_BASE}/pulls/${prId}/intent/events`);
     const onEvent = (event: MessageEvent<string>) => {
       try {
         const parsed = JSON.parse(event.data) as { data?: { intentSettled?: boolean } };
@@ -65,5 +69,5 @@ export function useReviewRefresh(prId: string | null | undefined, runs: RunSumma
     source.onmessage = onEvent;
     source.addEventListener('result', onEvent as EventListener);
     return () => source.close();
-  }, [prId, queryClient, terminalRunId]);
+  }, [intentWatch, prId, queryClient]);
 }

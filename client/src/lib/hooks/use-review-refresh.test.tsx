@@ -34,13 +34,16 @@ const done = (run_id: string): RunSummary => ({
   cost_usd: null,
 });
 
+const running = (run_id: string): RunSummary => ({ ...done(run_id), status: 'running' });
+
 describe('useReviewRefresh', () => {
   beforeEach(() => invalidateQueries.mockClear());
 
   it('coalesces terminal runs that arrive in separate updates into one refresh', async () => {
     vi.useFakeTimers();
     try {
-    const { rerender } = render(<Refresh runs={[done('run-1')]} />);
+    const { rerender } = render(<Refresh runs={[running('run-1'), running('run-2')]} />);
+    rerender(<Refresh runs={[done('run-1')]} />);
     rerender(<Refresh runs={[done('run-1'), done('run-2')]} />);
     await vi.advanceTimersByTimeAsync(REVIEW_REFRESH_DEBOUNCE_MS);
 
@@ -58,17 +61,36 @@ describe('useReviewRefresh', () => {
       static instances: MockEventSource[] = [];
       onmessage: ((event: MessageEvent<string>) => void) | null = null;
       private listeners = new Map<string, EventListener>();
-      constructor(_url: string) { MockEventSource.instances.push(this); }
+      constructor(readonly url: string) { MockEventSource.instances.push(this); }
       addEventListener(type: string, listener: EventListener) { this.listeners.set(type, listener); }
       close() {}
       emit(type: string, data: string) { this.listeners.get(type)?.(new MessageEvent(type, { data })); }
     }
     vi.stubGlobal('EventSource', MockEventSource);
     try {
-      render(<Refresh runs={[done('run-1')]} />);
+      const { rerender } = render(<Refresh runs={[running('run-1')]} />);
+      rerender(<Refresh runs={[done('run-1')]} />);
+      expect(MockEventSource.instances[0]).toBeDefined();
+      expect(MockEventSource.instances[0]!.url).toContain('/pulls/pr-1/intent/events');
       MockEventSource.instances[0]!.emit('result', JSON.stringify({ data: { intentSettled: true } }));
 
       expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['pull-intent', 'pr-1'] });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('does not open an intent stream for terminal runs loaded as history', () => {
+    class MockEventSource {
+      static instances: MockEventSource[] = [];
+      constructor() { MockEventSource.instances.push(this); }
+      addEventListener() {}
+      close() {}
+    }
+    vi.stubGlobal('EventSource', MockEventSource);
+    try {
+      render(<Refresh runs={[done('historical-run')]} />);
+      expect(MockEventSource.instances).toHaveLength(0);
     } finally {
       vi.unstubAllGlobals();
     }

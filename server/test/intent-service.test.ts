@@ -210,6 +210,36 @@ describe('DeriveIntentService', () => {
     expect(completeStructured).toHaveBeenCalledTimes(2);
   });
 
+  it('persists a forced refresh after an older automatic derivation for the same pull', async () => {
+    const automatic = Promise.withResolvers<{ data: { intent: string; in_scope: string[]; out_of_scope: string[]; source_refs: number[]; insufficient_evidence: boolean } }>();
+    const manual = Promise.withResolvers<{ data: { intent: string; in_scope: string[]; out_of_scope: string[]; source_refs: number[]; insufficient_evidence: boolean } }>();
+    const completeStructured = vi.fn()
+      .mockImplementationOnce(() => automatic.promise)
+      .mockImplementationOnce(() => manual.promise);
+    const persisted: string[] = [];
+    const service = new DeriveIntentService({
+      documents: { fetchPlanOrSpec: vi.fn() },
+      linkedIssues: { findLinkedIssue: vi.fn().mockResolvedValue(undefined) },
+      featureModels: { resolve: vi.fn().mockResolvedValue({ provider: 'openai', model: 'gpt-6-luna' }) },
+      llm: { resolve: vi.fn().mockResolvedValue({ completeStructured }) },
+      intents: {
+        getDerivedIntent: vi.fn().mockResolvedValue(undefined),
+        upsertDerivedIntent: vi.fn().mockImplementation((_prId, intent) => persisted.push(intent.intent)),
+      },
+    } as never);
+    const input = { workspaceId: 'workspace-1', prId: 'pr-1', title: 'Implement intent', body: 'Use the new evidence.', repo: { owner: 'acme', name: 'payments' } } as never;
+
+    const automaticDerivation = service.derive(input);
+    await vi.waitFor(() => expect(completeStructured).toHaveBeenCalledTimes(1));
+    const manualDerivation = service.derive({ ...input, force: true });
+    manual.resolve({ data: { intent: 'Manual refresh', in_scope: [], out_of_scope: [], source_refs: [0], insufficient_evidence: false } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    automatic.resolve({ data: { intent: 'Automatic review', in_scope: [], out_of_scope: [], source_refs: [0], insufficient_evidence: false } });
+
+    await Promise.all([automaticDerivation, manualDerivation]);
+    expect(persisted).toEqual(['Automatic review', 'Manual refresh']);
+  });
+
   it('loads linked evidence and plan documents concurrently on a cache miss', async () => {
     const linkedIssue = Promise.withResolvers<{ title: string; body: string | null } | undefined>();
     const findLinkedIssue = vi.fn().mockReturnValue(linkedIssue.promise);
