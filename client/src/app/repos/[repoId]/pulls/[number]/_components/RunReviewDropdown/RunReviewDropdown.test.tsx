@@ -60,7 +60,7 @@ describe("RunReviewDropdown (smoke)", () => {
     await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledWith({ prId: "pr1", all: true }));
   });
 
-  it("reduces a manual selection from more than 20 agents to an API-valid request", async () => {
+  it("preserves an oversized selection until the user makes it API-valid", async () => {
     mocks.agents = Array.from({ length: 22 }, (_, index) => ({
       id: `a${index + 1}`, name: `Agent ${index + 1}`, model: "gpt-4.1", enabled: true,
     }));
@@ -70,6 +70,12 @@ describe("RunReviewDropdown (smoke)", () => {
     fireEvent.click(screen.getByText("Run Review"));
     await waitFor(() => expect(screen.getByText("22 agent(s) selected")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("checkbox", { name: "Agent 22" }));
+    expect(screen.getByText("21 agent(s) selected")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Agent 21" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("button", { name: "Run selected agents" })).toBeDisabled();
+    expect(mocks.mutateAsync).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Agent 21" }));
     expect(screen.getByText("20 agent(s) selected")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Run selected agents" }));
 

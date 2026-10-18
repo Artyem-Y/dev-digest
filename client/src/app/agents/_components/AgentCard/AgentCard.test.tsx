@@ -18,11 +18,13 @@ const skillsState = vi.hoisted(() => ({
     { id: "skill-disabled", name: "Skill off", description: "", type: "custom", source: "manual", body: "Review docs.", enabled: false, version: 1, agent_count: 1, evidence_files: null },
   ],
 }));
+const safety = vi.hoisted(() => ({ isUnsafeSkillContent: vi.fn(() => false) }));
 
 vi.mock("../../../../lib/hooks/skills", () => ({
   useAgentSkills: () => ({ data: skillsState.links }),
   useSkills: () => ({ data: skillsState.skills }),
 }));
+vi.mock("../../../../vendor/shared/skill-safety", () => safety);
 
 afterEach(cleanup);
 
@@ -54,10 +56,11 @@ function renderWithIntl(ui: React.ReactElement) {
 
 describe("AgentCard (smoke)", () => {
   it("renders the agent name, model chip and active skill count", () => {
-    renderWithIntl(<AgentCard ag={AGENT} />);
+    renderWithIntl(<AgentCard ag={AGENT} runnableSkillIds={new Set(["active", "link-disabled"])} />);
     expect(screen.getByText("Security Reviewer")).toBeInTheDocument();
     expect(screen.getByText("gpt-4.1")).toBeInTheDocument();
     expect(screen.getByText("1 active skill")).toBeInTheDocument();
+    expect(safety.isUnsafeSkillContent).not.toHaveBeenCalled();
   });
 
   it("falls back to a translated placeholder when description is empty", () => {

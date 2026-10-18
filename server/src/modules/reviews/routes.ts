@@ -21,9 +21,12 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
   const { container } = app;
   const service = createReviewService(container);
   const smartDiff = createSmartDiffService(container);
-  const eventStream = (streamId: string) =>
+  const eventStream = (streamId: string, terminalEvent?: RunEvent) =>
     (async function* () {
-      if (!container.runBus.hasStream(streamId)) return;
+      if (!container.runBus.hasStream(streamId)) {
+        if (terminalEvent) yield { id: String(terminalEvent.seq), event: terminalEvent.kind, data: JSON.stringify(terminalEvent) };
+        return;
+      }
       const queue: RunEvent[] = [];
       let resolve: (() => void) | null = null;
       let done = false;
@@ -96,7 +99,15 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     async (req, reply) => {
       const { workspaceId } = await getContext(container, req);
       await service.derivedIntent(workspaceId, req.params.id);
-      reply.sse(eventStream(`pull-intent:${req.params.id}`));
+      const streamId = `pull-intent:${req.params.id}`;
+      reply.sse(eventStream(streamId, {
+        runId: streamId,
+        seq: 0,
+        kind: 'result',
+        msg: 'PR intent derivation is not active',
+        t: new Date().toISOString(),
+        data: { intentSettled: true },
+      }));
     },
   );
 

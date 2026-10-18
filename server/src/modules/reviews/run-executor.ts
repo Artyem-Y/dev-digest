@@ -64,6 +64,9 @@ export interface ReviewRunExecutorDependencies {
  * review. Per-agent failures are isolated.
  */
 export class ReviewRunExecutor {
+  /** Concurrent batches for one PR share one completion stream. */
+  private readonly pendingIntentStreams = new Map<string, number>();
+
   constructor(
     private readonly dependencies: ReviewRunExecutorDependencies,
     private readonly repo: ReviewRepository,
@@ -118,18 +121,16 @@ export class ReviewRunExecutor {
       workspaceId, prId: pull.id, title: pull.title, body: pull.body, repo,
     }), { kind: 'tool' });
     const intentEventStreamId = `pull-intent:${pull.id}`;
-    this.dependencies.runBus.begin(intentEventStreamId);
+    this.beginIntentStream(intentEventStreamId);
     // Intent enrichment is independent from each agent run. Notify PR-detail
     // subscribers on its own short-lived stream so terminal agent streams can
     // close as soon as their individual reviews are persisted.
     void intentDerivation.then(
       () => {
-        this.dependencies.runBus.publish(intentEventStreamId, 'result', 'PR intent derivation settled', { intentSettled: true });
-        this.dependencies.runBus.complete(intentEventStreamId);
+        this.settleIntentStream(intentEventStreamId);
       },
       () => {
-        this.dependencies.runBus.publish(intentEventStreamId, 'result', 'PR intent derivation settled', { intentSettled: true });
-        this.dependencies.runBus.complete(intentEventStreamId);
+        this.settleIntentStream(intentEventStreamId);
       },
     );
     let completedIntent: IntentDerivation | undefined;
@@ -198,6 +199,23 @@ export class ReviewRunExecutor {
       }
     }
 
+  }
+
+  private beginIntentStream(streamId: string): void {
+    const pending = this.pendingIntentStreams.get(streamId) ?? 0;
+    if (pending === 0) this.dependencies.runBus.begin(streamId);
+    this.pendingIntentStreams.set(streamId, pending + 1);
+  }
+
+  private settleIntentStream(streamId: string): void {
+    const pending = this.pendingIntentStreams.get(streamId) ?? 0;
+    if (pending > 1) {
+      this.pendingIntentStreams.set(streamId, pending - 1);
+      return;
+    }
+    this.pendingIntentStreams.delete(streamId);
+    this.dependencies.runBus.publish(streamId, 'result', 'PR intent derivation settled', { intentSettled: true });
+    this.dependencies.runBus.complete(streamId);
   }
 
   /** Execute a single agent's review against a PR, streaming progress. */

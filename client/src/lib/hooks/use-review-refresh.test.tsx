@@ -94,7 +94,29 @@ describe('useReviewRefresh', () => {
       render(<Refresh runs={[done('historical-run')]} />);
       expect(MockEventSource.instances).toHaveLength(1);
       expect(MockEventSource.instances[0]!.url).toContain('/pulls/pr-1/intent/events');
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['pull-intent', 'pr-1'] });
       MockEventSource.instances[0]!.emit('result', JSON.stringify({ data: { intentSettled: true } }));
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['pull-intent', 'pr-1'] });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('closes an intent stream that errors before completion to avoid reconnecting forever', () => {
+    class MockEventSource {
+      static instances: MockEventSource[] = [];
+      onerror: ((event: Event) => void) | null = null;
+      private listeners = new Map<string, EventListener>();
+      close = vi.fn();
+      constructor() { MockEventSource.instances.push(this); }
+      addEventListener(type: string, listener: EventListener) { this.listeners.set(type, listener); }
+      emitError() { this.onerror?.(new Event('error')); }
+    }
+    vi.stubGlobal('EventSource', MockEventSource);
+    try {
+      render(<Refresh runs={[done('historical-run')]} />);
+      MockEventSource.instances[0]!.emitError();
+      expect(MockEventSource.instances[0]!.close).toHaveBeenCalledOnce();
       expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['pull-intent', 'pr-1'] });
     } finally {
       vi.unstubAllGlobals();

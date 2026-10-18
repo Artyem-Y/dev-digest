@@ -137,3 +137,13 @@ Drizzle column property names are persistence implementation details. The conven
 - Implication: Do not retain one SSE stream per terminal agent merely to announce a later batch-level enrichment; expose that enrichment through a separate PR-scoped completion signal.
 
 An agent run is terminal once its review row and trace are persisted. Intent derivation may continue independently, so its completion must not extend every agent stream in a multi-agent batch.
+
+<!-- insight-id: eng-server-5707be266652 -->
+## eng-server-5707be266652 — PR-scoped intent streams must settle after every concurrent batch
+
+- Date: 2026-10-18
+- Category: invariant
+- Evidence: server/src/modules/reviews/run-executor.ts tracks pending derivations per pull-intent stream; test/run-executor.test.ts starts two batches for one pull and verifies no settlement event is emitted after only the first derives.
+- Implication: When a PR-scoped SSE stream represents shared asynchronous enrichment, reference-count concurrent producers and emit its terminal event only when the last producer settles.
+
+A PR-level stream is shared by overlapping review batches. Resetting it for a later batch disconnects existing subscribers, while completing it for the first batch makes the client observe stale enrichment. One shared stream with a pending-producer count preserves the subscription and reports the final persisted intent.

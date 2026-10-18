@@ -43,6 +43,10 @@ export function useReviewRefresh(prId: string | null | undefined, runs: RunSumma
       // intent until a later page refresh.
       if (hasTerminalRun) {
         intentCompletionHandled.current = false;
+        // The latest derivation may already have settled before this component
+        // subscribes. Refresh once now, then keep watching for an in-flight
+        // derivation to settle after the initial history arrives.
+        queryClient.invalidateQueries({ queryKey: ['pull-intent', prId] });
         setIntentWatch((current) => current + 1);
       }
       return;
@@ -80,6 +84,16 @@ export function useReviewRefresh(prId: string | null | undefined, runs: RunSumma
     };
     source.onmessage = onEvent;
     source.addEventListener('result', onEvent as EventListener);
+    source.onerror = () => {
+      if (intentCompletionHandled.current) return;
+      // An absent stream (for example after an API restart) and a transport
+      // error both make EventSource retry indefinitely. The intent endpoint
+      // sends a terminal result for the absent-stream case; this fallback
+      // bounds failures that occur before such an event reaches the browser.
+      intentCompletionHandled.current = true;
+      queryClient.invalidateQueries({ queryKey: ['pull-intent', prId] });
+      source.close();
+    };
     return () => source.close();
   }, [intentWatch, prId, queryClient]);
 }

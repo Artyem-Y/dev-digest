@@ -62,18 +62,16 @@ export function RunReviewDropdown({
 
   const selected = new Set(selectedIds);
   const allSelected = enabledIds.length > 0 && selectedIds.length === enabledIds.length && enabledIds.every((id) => selected.has(id));
+  const hasValidSelection = allSelected || selectedIds.length <= MAX_INDIVIDUAL_AGENTS;
   const toggleAgent = (agentId: string) => {
     setSelectedIds((previous) => {
-      if (previous.includes(agentId)) {
-        const remaining = previous.filter((id) => id !== agentId);
-        return remaining.length > MAX_INDIVIDUAL_AGENTS ? remaining.slice(0, MAX_INDIVIDUAL_AGENTS) : remaining;
-      }
+      if (previous.includes(agentId)) return previous.filter((id) => id !== agentId);
       return previous.length < MAX_INDIVIDUAL_AGENTS ? [...previous, agentId] : previous;
     });
   };
   const toggleAll = () => setSelectedIds(allSelected ? [] : enabledIds);
   const kick = async () => {
-    if (selectedIds.length === 0) return;
+    if (selectedIds.length === 0 || !hasValidSelection) return;
     onRunStart?.();
     try {
       const result = await run.mutateAsync(allSelected ? { prId, all: true } : { prId, agentIds: selectedIds });
@@ -121,7 +119,7 @@ export function RunReviewDropdown({
               <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10 }}>
                 <div style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 8 }}>{t("runReview.selectedAgents", { count: selectedIds.length })}</div>
                 {!allSelected && <div style={{ color: "var(--text-muted)", fontSize: 11.5, marginBottom: 8 }}>{t("runReview.individualLimit", { count: MAX_INDIVIDUAL_AGENTS })}</div>}
-                <Button kind="primary" size="sm" icon="Play" full onClick={kick} disabled={selectedIds.length === 0}>
+                <Button kind="primary" size="sm" icon="Play" full onClick={kick} disabled={selectedIds.length === 0 || !hasValidSelection}>
                   {t("runReview.runSelected")}
                 </Button>
               </div>
