@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { describe, expect, it } from 'vitest';
 import type { BlastRadius } from '@/vendor/shared/contracts/brief';
@@ -24,6 +24,15 @@ function renderCard(blast: BlastRadius) {
 }
 
 describe('BlastRadiusCard', () => {
+  it('groups the title and view controls in the compact card header', () => {
+    renderCard({ changed_symbols: [], downstream: [], summary: '0 symbols · 0 callers · 0 endpoints · 0 cron/jobs', degraded: false, reason: null });
+
+    const header = screen.getByTestId('blast-radius-header');
+    expect(within(header).getByRole('heading', { name: 'Blast radius' })).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: 'tree' })).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: 'graph' })).toBeInTheDocument();
+  });
+
   it('defaults to an expandable Tree view without losing the summary', () => {
     renderCard({
       changed_symbols: [{ name: 'rateLimit', file: 'src/limit.ts', kind: 'function' }],

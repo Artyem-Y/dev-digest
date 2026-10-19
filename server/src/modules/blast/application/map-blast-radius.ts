@@ -31,6 +31,8 @@ export function mapBlastResult(result: BlastResult): BlastRadius {
 
   return {
     changed_symbols: result.changedSymbols.map(({ name, file, kind }) => ({ name, file, kind })),
+    changedSymbols: result.changedSymbols.map(({ name, file, kind }) => ({ name, file, kind })),
+    callers: result.callers.map(({ file, symbol, viaSymbol, line, rank }) => ({ file, symbol, viaSymbol, line, rank })),
     downstream,
     summary: [
       plural(result.changedSymbols.length, 'symbol'),

@@ -15,6 +15,12 @@ describe('DevDigest locator errors', () => {
     ]) } as never, 'api')).rejects.toThrow('GitHub MCP or gh');
   });
 
+  it('resolves a repository by its DevDigest ID', async () => {
+    await expect(resolveRepository({ listRepos: vi.fn().mockResolvedValue([
+      { id: 'repo-1', owner: 'acme', name: 'api', full_name: 'acme/api' },
+    ]) } as never, 'repo-1')).resolves.toMatchObject({ full_name: 'acme/api' });
+  });
+
   it('directs a missing PR lookup to GitHub MCP or gh', async () => {
     await expect(resolvePull({ listPulls: vi.fn().mockResolvedValue([]) } as never, {
       id: 'repo-1', owner: 'acme', name: 'api', full_name: 'acme/api',

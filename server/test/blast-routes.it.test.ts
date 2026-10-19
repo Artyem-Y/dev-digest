@@ -53,6 +53,8 @@ d('Blast Radius route', () => {
     expect(getBlastRadius).toHaveBeenCalledWith(expect.any(String), ['src/limit.ts']);
     expect(response.json()).toMatchObject({
       changed_symbols: [{ name: 'rateLimit', file: 'src/limit.ts' }],
+      changedSymbols: [{ name: 'rateLimit', file: 'src/limit.ts' }],
+      callers: [{ viaSymbol: 'rateLimit', symbol: 'publicRouter', line: 9, rank: 1 }],
       downstream: [{ symbol: 'rateLimit', callers: [{ name: 'publicRouter', line: 9 }] }],
       degraded: false,
       reason: null,

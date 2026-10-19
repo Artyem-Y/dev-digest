@@ -22,7 +22,7 @@ export async function runReviewAndWait(
     if (remainingMs <= 0) return { status: 'running', run_id: run.run_id };
     let result: RunFindings;
     try {
-      result = await api.getFindings(run.run_id, { timeoutMs: remainingMs });
+      result = await api.getRunFindings(run.run_id, { timeoutMs: remainingMs });
     } catch (error) {
       if (now() >= deadline) return { status: 'running', run_id: run.run_id };
       throw error;

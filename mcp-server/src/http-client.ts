@@ -23,11 +23,19 @@ const RunFindings = z.object({
   severity_counts: z.object({ critical: z.number().int().nonnegative(), warning: z.number().int().nonnegative(), suggestion: z.number().int().nonnegative() }),
   findings_truncated: z.boolean(), findings: z.array(Finding),
 });
+const Review = z.object({
+  id: z.string(), pr_id: z.string(), agent_id: z.string().nullable(), run_id: z.string().nullable(),
+  agent_name: z.string().nullable().optional(), kind: z.enum(['summary', 'review']),
+  verdict: z.string().nullable(), summary: z.string().nullable(), score: z.number().nullable(),
+  model: z.string().nullable(), created_at: z.string(), findings: z.array(Finding),
+}).passthrough();
 const Convention = z.object({
   status: z.string(), rule: z.string(), category: z.string(), evidence_path: z.string(), evidence_line: z.number().int(), confidence: z.number(),
 }).passthrough();
 const BlastRadius = z.object({
   changed_symbols: z.array(z.object({ name: z.string(), file: z.string(), kind: z.string() })),
+  changedSymbols: z.array(z.object({ name: z.string(), file: z.string(), kind: z.string() })),
+  callers: z.array(z.object({ file: z.string(), symbol: z.string(), viaSymbol: z.string(), line: z.number().int(), rank: z.number() })),
   downstream: z.array(z.object({
     symbol: z.string(),
     callers: z.array(z.object({ name: z.string(), file: z.string(), line: z.number().int() })),
@@ -44,6 +52,7 @@ export type AgentSummary = z.infer<typeof AgentSummary>;
 export type Repo = z.infer<typeof Repo>;
 export type Pull = z.infer<typeof Pull>;
 export type RunFindings = z.infer<typeof RunFindings>;
+export type Review = z.infer<typeof Review>;
 export type Convention = z.infer<typeof Convention>;
 export type BlastRadius = z.infer<typeof BlastRadius>;
 
@@ -56,7 +65,8 @@ export interface DevDigestApi {
   listRepos(): Promise<Repo[]>;
   listPulls(repoId: string): Promise<Pull[]>;
   runReview(pullId: string, agentId: string): Promise<z.infer<typeof ReviewStart>>;
-  getFindings(runId: string, options?: ApiRequestOptions): Promise<RunFindings>;
+  getRunFindings(runId: string, options?: ApiRequestOptions): Promise<RunFindings>;
+  getPullReviews(pullId: string): Promise<Review[]>;
   getConventions(repoId: string): Promise<Convention[]>;
   getBlastRadius(pullId: string): Promise<BlastRadius>;
 }
@@ -116,8 +126,11 @@ export class HttpDevDigestApi implements DevDigestApi {
   listAgents() { return this.request('/agents/summary', AgentSummary.array()); }
   listRepos() { return this.request('/repos', Repo.array()); }
   listPulls(repoId: string) { return this.request(`/repos/${encodeURIComponent(repoId)}/pulls`, Pull.array()); }
-  getFindings(runId: string, options: ApiRequestOptions = {}) {
+  getRunFindings(runId: string, options: ApiRequestOptions = {}) {
     return this.request(`/runs/${encodeURIComponent(runId)}/findings`, RunFindings, {}, options);
+  }
+  getPullReviews(pullId: string) {
+    return this.request(`/pulls/${encodeURIComponent(pullId)}/reviews`, Review.array());
   }
   getConventions(repoId: string) { return this.request(`/repos/${encodeURIComponent(repoId)}/conventions`, Convention.array()); }
   getBlastRadius(pullId: string) { return this.request(`/pulls/${encodeURIComponent(pullId)}/blast`, BlastRadius); }

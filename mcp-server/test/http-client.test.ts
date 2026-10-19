@@ -31,7 +31,7 @@ describe('HttpDevDigestApi', () => {
 
   it('gets and validates the Blast Radius map for one pull request', async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      changed_symbols: [], downstream: [], summary: '0 symbols · 0 callers · 0 endpoints · 0 cron/jobs', degraded: false, reason: null,
+      changed_symbols: [], changedSymbols: [], callers: [], downstream: [], summary: '0 symbols · 0 callers · 0 endpoints · 0 cron/jobs', degraded: false, reason: null,
     }), { status: 200 }));
     vi.stubGlobal('fetch', fetch);
 
@@ -75,7 +75,7 @@ describe('HttpDevDigestApi', () => {
       severity_counts: { critical: 0, warning: 0, suggestion: 0 }, findings_truncated: false, findings: [],
     }), { status: 200 })));
 
-    await new HttpDevDigestApi('http://localhost:3999').getFindings('run-1', { timeoutMs: 321 });
+    await new HttpDevDigestApi('http://localhost:3999').getRunFindings('run-1', { timeoutMs: 321 });
 
     expect(timeout).toHaveBeenCalledWith(321);
   });
@@ -86,9 +86,23 @@ describe('HttpDevDigestApi', () => {
       severity_counts: { critical: 3, warning: 2, suggestion: 17 }, findings_truncated: true, findings: [],
     }), { status: 200 })));
 
-    await expect(new HttpDevDigestApi('http://127.0.0.1:3999').getFindings('run-1')).resolves.toMatchObject({
+    await expect(new HttpDevDigestApi('http://127.0.0.1:3999').getRunFindings('run-1')).resolves.toMatchObject({
       severity_counts: { critical: 3, warning: 2, suggestion: 17 },
       findings_truncated: true,
     });
+  });
+
+  it('gets persisted reviews for a pull request without starting a review', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify([{
+      id: 'review-1', pr_id: 'pull-1', agent_id: 'agent-1', run_id: 'run-1', agent_name: 'Security',
+      kind: 'review', verdict: 'approve', summary: 'Looks good.', score: 95, model: 'gpt',
+      created_at: '2026-10-19T12:00:00.000Z', findings: [],
+    }]), { status: 200 }));
+    vi.stubGlobal('fetch', fetch);
+
+    await expect(new HttpDevDigestApi('http://127.0.0.1:3999').getPullReviews('pull-1')).resolves.toHaveLength(1);
+    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:3999/pulls/pull-1/reviews', expect.objectContaining({
+      headers: expect.objectContaining({ accept: 'application/json' }),
+    }));
   });
 });

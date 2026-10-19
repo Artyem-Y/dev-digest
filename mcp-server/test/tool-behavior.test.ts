@@ -19,15 +19,22 @@ function client(overrides: Record<string, unknown> = {}) {
     listRepos: vi.fn().mockResolvedValue([repo]),
     listPulls: vi.fn().mockResolvedValue([pull]),
     runReview: vi.fn().mockResolvedValue({ runs: [{ run_id: 'run-1', agent_id: agent.id, agent_name: agent.name }] }),
-    getFindings: vi.fn().mockResolvedValue({
+    getRunFindings: vi.fn().mockResolvedValue({
       run_id: 'run-1', status: 'done', error: null, verdict: 'approve', summary: 'Looks good.', score: 95,
       severity_counts: { critical: 0, warning: 0, suggestion: 0 }, findings_truncated: false, findings: [],
     }),
+    getPullReviews: vi.fn().mockResolvedValue([
+      {
+        id: 'review-1', pr_id: 'pull-1', agent_id: agent.id, run_id: 'run-1', agent_name: agent.name,
+        kind: 'review', verdict: 'approve', summary: 'Looks good.', score: 95, model: 'gpt-4.1-mini',
+        created_at: '2026-10-19T12:00:00.000Z', findings: [],
+      },
+    ]),
     getConventions: vi.fn().mockResolvedValue([
       { id: 'c-1', status: 'accepted', rule: 'Use strict types.', category: 'style', evidence_path: 'src/a.ts', evidence_line: 1, confidence: 0.9 },
     ]),
     getBlastRadius: vi.fn().mockResolvedValue({
-      changed_symbols: [], downstream: [], summary: '0 symbols · 0 callers · 0 endpoints · 0 cron/jobs', degraded: false, reason: null,
+      changed_symbols: [], changedSymbols: [], callers: [], downstream: [], summary: '0 symbols · 0 callers · 0 endpoints · 0 cron/jobs', degraded: false, reason: null,
     }),
     ...overrides,
   };
@@ -35,6 +42,10 @@ function client(overrides: Record<string, unknown> = {}) {
 
 function tool(definitions: ReturnType<typeof createToolDefinitions>, name: string) {
   return definitions.find((definition) => definition.name === name)!;
+}
+
+function json(result: Awaited<ReturnType<ReturnType<typeof createToolDefinitions>[number]['handler']>>) {
+  return JSON.parse(result.content[0]!.text) as Record<string, unknown>;
 }
 
 describe('DevDigest MCP tool behavior', () => {
@@ -53,7 +64,7 @@ describe('DevDigest MCP tool behavior', () => {
     const api = client({ listAgents: vi.fn().mockResolvedValue(Array.from({ length: 51 }, () => agent)) });
     const result = await tool(createToolDefinitions(api as never), 'devdigest_list_agents').handler({});
 
-    expect(result.structuredContent?.agents).toHaveLength(50);
+    expect(json(result).agents).toHaveLength(50);
   });
 
   it('runs exactly one enabled agent and returns persisted terminal findings', async () => {
@@ -63,8 +74,8 @@ describe('DevDigest MCP tool behavior', () => {
     });
 
     expect(api.runReview).toHaveBeenCalledWith('pull-1', agent.id);
-    expect(api.getFindings).toHaveBeenCalledWith('run-1', { timeoutMs: 120_000 });
-    expect(result.structuredContent).toMatchObject({
+    expect(api.getRunFindings).toHaveBeenCalledWith('run-1', { timeoutMs: 120_000 });
+    expect(json(result)).toMatchObject({
       run_id: 'run-1', status: 'done', verdict: 'approve',
       severity_counts: { critical: 0, warning: 0, suggestion: 0 }, findings_truncated: false,
     });
@@ -83,7 +94,7 @@ describe('DevDigest MCP tool behavior', () => {
 
   it('returns the same run id when the 120-second wait expires', async () => {
     const api = client({
-      getFindings: vi.fn().mockResolvedValue({
+      getRunFindings: vi.fn().mockResolvedValue({
         run_id: 'run-1', status: 'running', error: null, verdict: null, summary: null, score: null,
         severity_counts: { critical: 0, warning: 0, suggestion: 0 }, findings_truncated: false, findings: [],
       }),
@@ -93,12 +104,12 @@ describe('DevDigest MCP tool behavior', () => {
     });
 
     expect(api.runReview).toHaveBeenCalledTimes(1);
-    expect(result.structuredContent).toEqual({ status: 'running', run_id: 'run-1' });
+    expect(json(result)).toEqual({ status: 'running', run_id: 'run-1' });
   });
 
   it('returns an actionable error for a failed persisted run', async () => {
     const api = client({
-      getFindings: vi.fn().mockResolvedValue({
+      getRunFindings: vi.fn().mockResolvedValue({
         run_id: 'run-1', status: 'failed', error: 'Provider unavailable', verdict: null, summary: null, score: null,
         severity_counts: { critical: 0, warning: 0, suggestion: 0 }, findings_truncated: false, findings: [],
       }),
@@ -112,19 +123,44 @@ describe('DevDigest MCP tool behavior', () => {
     expect(result.content[0]?.text).toContain('devdigest_get_findings');
   });
 
-  it('gets a persisted result by run id without starting a review', async () => {
+  it('finds the latest persisted review for each agent by PR locator without starting a review', async () => {
     const api = client({
-      getFindings: vi.fn().mockResolvedValue({
-        run_id: 'run-1', status: 'done', error: null, verdict: 'request_changes', summary: 'Persisted result', score: 10,
-        severity_counts: { critical: 3, warning: 2, suggestion: 17 }, findings_truncated: true, findings: [],
-      }),
+      getPullReviews: vi.fn().mockResolvedValue([
+        { id: 'old-review', pr_id: 'pull-1', agent_id: agent.id, run_id: 'old-run', agent_name: agent.name, kind: 'review', verdict: 'comment', summary: 'Old', score: 50, model: 'gpt', created_at: '2026-10-18T12:00:00.000Z', findings: [] },
+        { id: 'new-review', pr_id: 'pull-1', agent_id: agent.id, run_id: 'new-run', agent_name: agent.name, kind: 'review', verdict: 'request_changes', summary: 'Persisted result', score: 10, model: 'gpt', created_at: '2026-10-19T12:00:00.000Z', findings: [] },
+      ]),
     });
-    const result = await tool(createToolDefinitions(api as never), 'devdigest_get_findings').handler({ run_id: '00000000-0000-0000-0000-000000000001' });
+    const result = await tool(createToolDefinitions(api as never), 'devdigest_get_findings').handler({ pr_id: '#3', repo: 'acme/payments' });
 
-    expect(api.getFindings).toHaveBeenCalledWith('00000000-0000-0000-0000-000000000001');
+    expect(api.getPullReviews).toHaveBeenCalledWith('pull-1');
     expect(api.runReview).not.toHaveBeenCalled();
-    expect(result.structuredContent).toMatchObject({
-      status: 'done', severity_counts: { critical: 3, warning: 2, suggestion: 17 }, findings_truncated: true,
+    expect(json(result)).toMatchObject({
+      pr_id: 'pull-1', repository: 'acme/payments', agents: [{ agent_id: agent.id, reviews: [{ run_id: 'new-run' }] }],
+    });
+  });
+
+  it('searches configured repositories when repository is omitted for a review run', async () => {
+    const api = client();
+    const result = await tool(createToolDefinitions(api as never), 'devdigest_run_agent_on_pr').handler({
+      pr_number: 3, agent_id: agent.id,
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(api.listRepos).toHaveBeenCalledOnce();
+    expect(api.runReview).toHaveBeenCalledWith('pull-1', agent.id);
+  });
+
+  it('returns all saved reviews when all_runs is requested', async () => {
+    const api = client({
+      getPullReviews: vi.fn().mockResolvedValue([
+        { id: 'old-review', pr_id: 'pull-1', agent_id: agent.id, run_id: 'old-run', agent_name: agent.name, kind: 'review', verdict: 'comment', summary: 'Old', score: 50, model: 'gpt', created_at: '2026-10-18T12:00:00.000Z', findings: [] },
+        { id: 'new-review', pr_id: 'pull-1', agent_id: agent.id, run_id: 'new-run', agent_name: agent.name, kind: 'review', verdict: 'approve', summary: 'New', score: 90, model: 'gpt', created_at: '2026-10-19T12:00:00.000Z', findings: [] },
+      ]),
+    });
+    const result = await tool(createToolDefinitions(api as never), 'devdigest_get_findings').handler({ pr_id: 'Secure login', all_runs: true });
+
+    expect(json(result)).toMatchObject({
+      agents: [{ agent_id: agent.id, reviews: [{ run_id: 'new-run' }, { run_id: 'old-run' }] }],
     });
   });
 
@@ -137,7 +173,7 @@ describe('DevDigest MCP tool behavior', () => {
     });
     const result = await tool(createToolDefinitions(api as never), 'devdigest_get_conventions').handler({ repository: 'acme/payments' });
 
-    expect(result.structuredContent).toEqual({
+    expect(json(result)).toEqual({
       repository: 'acme/payments',
       conventions: [{ rule: 'Keep boundaries thin.', category: 'style', evidence_path: 'src/a.ts', evidence_line: 1, confidence: 0.9 }],
     });
@@ -151,8 +187,35 @@ describe('DevDigest MCP tool behavior', () => {
 
     expect(api.getBlastRadius).toHaveBeenCalledWith('pull-1');
     expect(api.runReview).not.toHaveBeenCalled();
-    expect(result.structuredContent).toEqual({
-      changed_symbols: [], downstream: [], summary: '0 symbols · 0 callers · 0 endpoints · 0 cron/jobs', degraded: false, reason: null,
+    expect(json(result)).toEqual({
+      changed_symbols: [], changedSymbols: [], callers: [], downstream: [], summary: '0 symbols · 0 callers · 0 endpoints · 0 cron/jobs', degraded: false, reason: null,
+    });
+  });
+
+  it('searches configured repositories when repository is omitted for Blast Radius', async () => {
+    const api = client();
+    const result = await tool(createToolDefinitions(api as never), 'devdigest_get_blast_radius').handler({ pr_number: 3 });
+
+    expect(result.isError).not.toBe(true);
+    expect(api.listRepos).toHaveBeenCalledOnce();
+    expect(api.getBlastRadius).toHaveBeenCalledWith('pull-1');
+  });
+
+  it('passes through the raw caller edges shown by repo-intel', async () => {
+    const api = client({
+      getBlastRadius: vi.fn().mockResolvedValue({
+        changed_symbols: [{ name: 'calculateDiscount', file: 'lib/pricing.ts', kind: 'function' }],
+        changedSymbols: [{ name: 'calculateDiscount', file: 'lib/pricing.ts', kind: 'function' }],
+        callers: [{ file: 'lib/cart.routes.ts', symbol: 'checkout', viaSymbol: 'calculateDiscount', line: 17, rank: 0.0029 }],
+        downstream: [{ symbol: 'calculateDiscount', callers: [{ name: 'checkout', file: 'lib/cart.routes.ts', line: 17 }], endpoints_affected: [], crons_affected: [] }],
+        summary: '1 symbol · 1 caller · 0 endpoints · 0 cron/jobs', degraded: false, reason: null,
+      }),
+    });
+    const result = await tool(createToolDefinitions(api as never), 'devdigest_get_blast_radius').handler({ pr_number: 3 });
+
+    expect(json(result)).toMatchObject({
+      changedSymbols: [{ name: 'calculateDiscount' }],
+      callers: [{ symbol: 'checkout', viaSymbol: 'calculateDiscount', rank: 0.0029 }],
     });
   });
 });

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { describe, expect, it, vi } from 'vitest';
 import messages from '../../../../../../../../messages/en/prReview.json';
@@ -6,6 +6,28 @@ import blastMessages from '../../../../../../../../messages/en/blast.json';
 import { OverviewTab } from './OverviewTab';
 
 describe('OverviewTab intent', () => {
+  it('places Blast Radius beside Intent inside the overview analysis grid', () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages, blast: blastMessages }}>
+        <OverviewTab
+          prBody={null}
+          repoFullName="acme/payments-api"
+          headSha="a1b2c3"
+          blast={{
+            changed_symbols: [{ name: 'rateLimit', file: 'src/limit.ts', kind: 'function' }],
+            downstream: [{ symbol: 'rateLimit', callers: [], endpoints_affected: [], crons_affected: [] }],
+            summary: '1 symbol · 0 callers · 0 endpoints · 0 cron/jobs', degraded: false, reason: null,
+          }}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    const grid = screen.getByTestId('overview-analysis-grid');
+    expect(grid).toHaveStyle({ display: 'grid' });
+    expect(within(grid).getByText('Intent')).toBeInTheDocument();
+    expect(within(grid).getByLabelText('Blast radius')).toBeInTheDocument();
+  });
+
   it('keeps Blast Radius visible while its read-only map is loading', () => {
     render(
       <NextIntlClientProvider locale="en" messages={{ prReview: messages, blast: { loading: 'Loading Blast Radius…', unavailable: 'Blast Radius is unavailable.' } }}>

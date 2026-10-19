@@ -25,6 +25,14 @@ describe('mapBlastResult', () => {
         { name: 'rateLimit', file: 'src/limit.ts', kind: 'function' },
         { name: 'bucketKey', file: 'src/limit.ts', kind: 'function' },
       ],
+      changedSymbols: [
+        { name: 'rateLimit', file: 'src/limit.ts', kind: 'function' },
+        { name: 'bucketKey', file: 'src/limit.ts', kind: 'function' },
+      ],
+      callers: [
+        { viaSymbol: 'rateLimit', symbol: 'publicRouter', file: 'src/api/public.ts', line: 21, rank: 9 },
+        { viaSymbol: 'rateLimit', symbol: 'webhookHandler', file: 'src/api/webhooks.ts', line: 44, rank: 4 },
+      ],
       downstream: [
         {
           symbol: 'rateLimit',
@@ -47,7 +55,7 @@ describe('mapBlastResult', () => {
     expect(mapBlastResult({
       changedSymbols: [], callers: [], impactedEndpoints: [], degraded: true, reason: 'index_partial',
     })).toMatchObject({
-      changed_symbols: [], downstream: [], degraded: true, reason: 'index_partial',
+      changed_symbols: [], changedSymbols: [], callers: [], downstream: [], degraded: true, reason: 'index_partial',
       summary: '0 symbols · 0 callers · 0 endpoints · 0 cron/jobs',
     });
   });

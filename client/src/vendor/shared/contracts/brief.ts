@@ -47,6 +47,16 @@ export const BlastCaller = z.object({
 });
 export type BlastCaller = z.infer<typeof BlastCaller>;
 
+/** Raw repo-intel caller edge retained for MCP consumers. */
+export const BlastCallerEdge = z.object({
+  file: z.string(),
+  symbol: z.string(),
+  viaSymbol: z.string(),
+  line: z.number().int(),
+  rank: z.number(),
+});
+export type BlastCallerEdge = z.infer<typeof BlastCallerEdge>;
+
 export const DownstreamImpact = z.object({
   symbol: z.string(),
   callers: z.array(BlastCaller),
@@ -66,6 +76,9 @@ export type BlastDegradedReason = z.infer<typeof BlastDegradedReason>;
 
 export const BlastRadius = z.object({
   changed_symbols: z.array(ChangedSymbol),
+  /** Raw repo-intel names retained for the MCP response. */
+  changedSymbols: z.array(ChangedSymbol).optional(),
+  callers: z.array(BlastCallerEdge).optional(),
   downstream: z.array(DownstreamImpact),
   summary: z.string(),
   degraded: z.boolean().default(false),

@@ -66,7 +66,7 @@ These descriptions are public MCP interface text and must remain verbatim.
 | --- | --- |
 | `devdigest_list_agents` | List configured DevDigest review agents. Call before devdigest_run_agent_on_pr to get a valid agent ID; returns safe agent summaries only. |
 | `devdigest_run_agent_on_pr` | Run one configured DevDigest agent on a pull request. Call after devdigest_list_agents when the user requests a review; waits up to 120 seconds and returns persisted findings or a run ID if still running. |
-| `devdigest_get_findings` | Get the persisted structured result for one DevDigest review run. Call when the user asks for results of a known run or a previous review is still running. |
+| `devdigest_get_findings` | Get the latest review verdict and findings for a pull request, grouped by agent. Each review includes its findings nested inside. By default returns only the latest run per agent. |
 | `devdigest_get_conventions` | Get accepted, evidence-backed conventions for a DevDigest repository. Call when the user asks for repository rules or review guidance; reads saved conventions and never starts extraction. |
 | `devdigest_get_blast_radius` | Get the precomputed downstream-impact map for one pull request. Call when asked what a change can affect; reads the repository index and never starts a review. |
 
@@ -75,15 +75,15 @@ These descriptions are public MCP interface text and must remain verbatim.
 Against a seeded or otherwise known local PR, use this sequence:
 
 1. Call `devdigest_list_agents` and select an enabled returned ID.
-2. Call `devdigest_run_agent_on_pr` with a repository locator, PR number, and
-   that one agent ID.
-3. If the result is still running, call `devdigest_get_findings` with its
-   `run_id`; otherwise inspect the returned persisted verdict and findings.
+2. Call `devdigest_run_agent_on_pr` with a PR number and that one agent ID.
+   `repository` is optional unless the PR number exists in more than one
+   configured repository.
+3. Call `devdigest_get_findings` with `pr_id`; optionally provide `repo` to
+   disambiguate a PR number or title, and use `all_runs: true` for history.
 
 The findings must be factual rows persisted by DevDigest, never an MCP-host
-model guess. The bounded response includes `severity_counts` across all
-persisted findings and `findings_truncated`, so a critical result cannot be
-hidden by the 20-finding display limit.
+model guess. Each review includes at most 20 findings and reports
+`findings_truncated` when more persisted findings exist.
 
 ## Reproducible token audit
 
