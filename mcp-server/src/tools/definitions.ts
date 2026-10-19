@@ -13,7 +13,14 @@ export const TOOL_DESCRIPTIONS = {
 } as const;
 
 type ToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
-type ToolHandler = (arguments_: Record<string, unknown>) => Promise<ToolResult>;
+type ToolRequestContext = {
+  _meta?: { progressToken?: string | number };
+  sendNotification?: (notification: {
+    method: 'notifications/progress';
+    params: { progressToken: string | number; progress: number; message: string };
+  }) => Promise<void>;
+};
+type ToolHandler = (arguments_: Record<string, unknown>, context?: ToolRequestContext) => Promise<ToolResult>;
 export interface ToolDefinition { name: keyof typeof TOOL_DESCRIPTIONS; title: string; description: string; inputSchema?: z.ZodRawShape; annotations: { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }; handler: ToolHandler; }
 
 const repositorySchema = { repository: z.string().trim().min(1).max(300) };
@@ -46,12 +53,15 @@ export function createToolDefinitions(
     {
       name: 'devdigest_run_agent_on_pr', title: 'Run agent review', description: TOOL_DESCRIPTIONS.devdigest_run_agent_on_pr, inputSchema: reviewSchema,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-      handler: async (input) => guard(async () => {
+      handler: async (input, context) => guard(async () => {
         const args = z.object(reviewSchema).parse(input);
         const selected = (await api.listAgents()).find((agent) => agent.id === args.agent_id && agent.enabled);
         if (!selected) throw new Error(`Agent "${args.agent_id}" is unknown or disabled. Call devdigest_list_agents to choose an enabled agent ID.`);
         const pull = await resolvePullLocator(api, String(args.pr_number), args.repository);
-        const result = await runReviewAndWait(api, pull.id, selected.id, options);
+        const result = await runReviewAndWait(api, pull.id, selected.id, {
+          ...options,
+          onProgress: progressReporter(context),
+        });
         if (result.status === 'failed' || result.status === 'cancelled') {
           throw new Error(`DevDigest review ${result.status}: ${result.error ?? 'no error detail'}. Correct the issue, then call devdigest_get_findings with pr_id ${args.pr_number}.`);
         }
@@ -85,6 +95,17 @@ export function createToolDefinitions(
       }),
     },
   ];
+}
+
+function progressReporter(context: ToolRequestContext | undefined) {
+  const progressToken = context?._meta?.progressToken;
+  if (progressToken === undefined || context?.sendNotification === undefined) return undefined;
+  return async (progress: { progress: number; message: string }) => {
+    await context.sendNotification!({
+      method: 'notifications/progress',
+      params: { progressToken, ...progress },
+    });
+  };
 }
 
 function formatPullFindings(

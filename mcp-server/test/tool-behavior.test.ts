@@ -78,6 +78,24 @@ describe('DevDigest MCP tool behavior', () => {
     expect(json(result)).toMatchObject({ run_id: 'run-1', status: 'done', verdict: 'approve' });
   });
 
+  it('sends MCP progress while a review remains running', async () => {
+    const api = client({
+      getRunFindings: vi.fn()
+        .mockResolvedValueOnce({ run_id: 'run-1', status: 'running', error: null, verdict: null, summary: null, score: null, severity_counts: { critical: 0, warning: 0, suggestion: 0 }, findings_truncated: false, findings: [] })
+        .mockResolvedValueOnce({ run_id: 'run-1', status: 'done', error: null, verdict: 'approve', summary: 'Looks good.', score: 95, severity_counts: { critical: 0, warning: 0, suggestion: 0 }, findings_truncated: false, findings: [] }),
+    });
+    const sendNotification = vi.fn().mockResolvedValue(undefined);
+    const result = await tool(createToolDefinitions(api as never, { sleep: vi.fn().mockResolvedValue(undefined) }), 'devdigest_run_agent_on_pr').handler({
+      repository: 'acme/payments', pr_number: 3, agent_id: agent.id,
+    }, { _meta: { progressToken: 'review-token' }, sendNotification });
+
+    expect(result.isError).not.toBe(true);
+    expect(sendNotification).toHaveBeenCalledWith({
+      method: 'notifications/progress',
+      params: { progressToken: 'review-token', progress: 1, message: 'DevDigest review is still running.' },
+    });
+  });
+
   it('does not start a review for an unknown agent and tells the caller what to do', async () => {
     const api = client({ listAgents: vi.fn().mockResolvedValue([]) });
     const result = await tool(createToolDefinitions(api as never), 'devdigest_run_agent_on_pr').handler({

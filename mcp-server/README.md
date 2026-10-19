@@ -55,7 +55,9 @@ their annotations:
 The run tool starts exactly one enabled agent and waits until the saved review
 has a terminal result, then returns its findings. The bundled Inspector config
 sets its request timeout to 15 minutes so the Inspector does not apply its
-default 60-second tool-call deadline.
+default 60-second tool-call deadline. It also supplies a progress token; while
+the review runs, the server sends MCP progress notifications that re-arm the
+Inspector deadline.
 Call `devdigest_get_findings` later with the PR locator to retrieve persisted
 findings.
 `devdigest_get_blast_radius` reads the precomputed map from `GET /pulls/:id/blast`.

@@ -3,7 +3,10 @@
     "devdigest-mcp": {
       "command": "pnpm",
       "args": ["--dir", "mcp-server", "start"],
-      "requestTimeout": 900000
+      "requestTimeout": 900000,
+      "metadata": {
+        "progressToken": "devdigest-review"
+      }
     }
   }
 }

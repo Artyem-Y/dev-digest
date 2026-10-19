@@ -10,13 +10,15 @@ describe('runReviewAndWait', () => {
         .mockResolvedValueOnce({ run_id: 'run-1', status: 'done', error: null, verdict: 'approve', summary: 'Looks good.', score: 100, findings: [] }),
     };
     const sleep = vi.fn().mockResolvedValue(undefined);
+    const onProgress = vi.fn().mockResolvedValue(undefined);
 
-    await expect(runReviewAndWait(api as never, 'pull-1', 'agent-1', { sleep }))
+    await expect(runReviewAndWait(api as never, 'pull-1', 'agent-1', { sleep, onProgress }))
       .resolves.toMatchObject({ status: 'done', run_id: 'run-1', verdict: 'approve' });
 
     expect(api.runReview).toHaveBeenCalledTimes(1);
     expect(api.getRunFindings).toHaveBeenCalledTimes(2);
     expect(sleep).toHaveBeenCalledWith(1_000);
+    expect(onProgress).toHaveBeenCalledWith({ progress: 1, message: 'DevDigest review is still running.' });
   });
 
   it('rejects a start response that does not include the requested agent run', async () => {
