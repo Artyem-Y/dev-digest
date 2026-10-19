@@ -3,6 +3,7 @@ import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
+import { MockGitHubClient } from '../src/adapters/mocks.js';
 import { dockerAvailable, startPg, type PgFixture } from './helpers/pg.js';
 
 const hasDocker = await dockerAvailable();
@@ -43,7 +44,12 @@ d('Blast Radius route', () => {
     const app = await buildApp({
       config: loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv),
       db: pg.handle.db,
-      overrides: { repoIntel: { getBlastRadius } as never },
+      overrides: {
+        repoIntel: { getBlastRadius } as never,
+        github: new MockGitHubClient({
+          mergedPulls: [{ number: 17, title: 'Earlier limiter work', author: 'marisa', mergedAt: '2026-10-19T10:00:00Z', files: ['src/limit.ts'] }],
+        }),
+      },
     });
 
     const response = await app.inject({ method: 'GET', url: `/pulls/${pullId}/blast` });
@@ -58,6 +64,9 @@ d('Blast Radius route', () => {
       downstream: [{ symbol: 'rateLimit', callers: [{ name: 'publicRouter', line: 9 }] }],
       degraded: false,
       reason: null,
+      prior_prs: {
+        history: [{ pr_number: 17, title: 'Earlier limiter work', author: 'marisa', files_overlap: ['src/limit.ts'] }],
+      },
     });
     await app.close();
   });

@@ -4,6 +4,9 @@ import * as t from '../../db/schema.js';
 
 export interface BlastPullSnapshot {
   repoId: string;
+  owner: string;
+  name: string;
+  pullNumber: number;
   changedFiles: string[];
 }
 
@@ -13,8 +16,9 @@ export class BlastRepository {
 
   async findPullSnapshot(workspaceId: string, pullId: string): Promise<BlastPullSnapshot | undefined> {
     const [pull] = await this.db
-      .select({ id: t.pullRequests.id, repoId: t.pullRequests.repoId })
+      .select({ id: t.pullRequests.id, repoId: t.pullRequests.repoId, pullNumber: t.pullRequests.number, owner: t.repos.owner, name: t.repos.name })
       .from(t.pullRequests)
+      .innerJoin(t.repos, eq(t.repos.id, t.pullRequests.repoId))
       .where(and(eq(t.pullRequests.workspaceId, workspaceId), eq(t.pullRequests.id, pullId)));
     if (!pull) return undefined;
 
@@ -22,6 +26,12 @@ export class BlastRepository {
       .select({ path: t.prFiles.path })
       .from(t.prFiles)
       .where(eq(t.prFiles.prId, pull.id));
-    return { repoId: pull.repoId, changedFiles: files.map((file) => file.path) };
+    return {
+      repoId: pull.repoId,
+      owner: pull.owner,
+      name: pull.name,
+      pullNumber: pull.pullNumber,
+      changedFiles: files.map((file) => file.path),
+    };
   }
 }

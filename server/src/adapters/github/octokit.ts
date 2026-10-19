@@ -10,11 +10,43 @@ import type {
   PrReviewComment,
   OpenPrPayload,
   CommitFilesPayload,
+  MergedPullRequest,
   IssueMeta,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 
 const TIMEOUT = 30_000;
+const HISTORY_CANDIDATE_LIMIT = 50;
+
+const RECENT_MERGED_PULLS_QUERY = `
+  query RecentMergedPulls($owner: String!, $name: String!, $first: Int!) {
+    repository(owner: $owner, name: $name) {
+      pullRequests(first: $first, states: MERGED, orderBy: { field: UPDATED_AT, direction: DESC }) {
+        nodes {
+          number
+          title
+          mergedAt
+          author { login }
+          files(first: 100) { nodes { path } }
+        }
+      }
+    }
+  }
+`;
+
+interface RecentMergedPullsResponse {
+  repository: {
+    pullRequests: {
+      nodes: Array<{
+        number: number;
+        title: string;
+        mergedAt: string | null;
+        author: { login: string } | null;
+        files: { nodes: Array<{ path: string }> };
+      }>;
+    };
+  } | null;
+}
 
 function mapStatus(state: string, merged: boolean | undefined): PrStatus {
   if (merged) return 'merged';
@@ -61,6 +93,30 @@ export class OctokitGitHubClient implements GitHubClient {
             opened_at: pr.created_at,
             updated_at: pr.updated_at,
           }));
+        })(),
+        TIMEOUT,
+      ),
+    );
+  }
+
+  async listRecentMergedPullRequests(repo: RepoRef): Promise<MergedPullRequest[]> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          const data = await this.octokit.graphql<RecentMergedPullsResponse>(RECENT_MERGED_PULLS_QUERY, {
+            owner: repo.owner,
+            name: repo.name,
+            first: HISTORY_CANDIDATE_LIMIT,
+          });
+          return (data.repository?.pullRequests.nodes ?? [])
+            .filter((pull): pull is typeof pull & { mergedAt: string } => pull.mergedAt !== null)
+            .map((pull) => ({
+              number: pull.number,
+              title: pull.title,
+              author: pull.author?.login ?? 'unknown',
+              mergedAt: pull.mergedAt,
+              files: pull.files.nodes.map((file) => file.path),
+            }));
         })(),
         TIMEOUT,
       ),

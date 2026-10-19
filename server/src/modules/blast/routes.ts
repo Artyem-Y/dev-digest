@@ -12,7 +12,11 @@ export default async function blastRoutes(appBase: FastifyInstance) {
 
   app.get(
     '/pulls/:id/blast',
-    { schema: { params: IdParams, response: { 200: BlastRadius } } },
+    {
+      schema: { params: IdParams, response: { 200: BlastRadius } },
+      // Prior-PR history performs one bounded GitHub read in addition to local index reads.
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    },
     async (req) => {
       const { workspaceId } = await getContext(app.container, req);
       return service.get(workspaceId, req.params.id);

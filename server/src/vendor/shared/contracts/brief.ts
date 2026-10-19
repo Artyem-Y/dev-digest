@@ -74,6 +74,22 @@ export const BlastDegradedReason = z.enum([
 ]);
 export type BlastDegradedReason = z.infer<typeof BlastDegradedReason>;
 
+// ---- PR History ----
+export const PrHistoryItem = z.object({
+  pr_number: z.number().int(),
+  title: z.string(),
+  merged_at: z.string(),
+  author: z.string(),
+  files_overlap: z.array(z.string()),
+  notes: z.string(),
+});
+export type PrHistoryItem = z.infer<typeof PrHistoryItem>;
+
+export const PrHistory = z.object({
+  history: z.array(PrHistoryItem),
+});
+export type PrHistory = z.infer<typeof PrHistory>;
+
 export const BlastRadius = z.object({
   changed_symbols: z.array(ChangedSymbol),
   /** Raw repo-intel names retained for the MCP response. */
@@ -83,6 +99,8 @@ export const BlastRadius = z.object({
   summary: z.string(),
   degraded: z.boolean().default(false),
   reason: BlastDegradedReason.nullable().default(null),
+  /** Null means the optional GitHub history lookup was unavailable. */
+  prior_prs: PrHistory.nullish(),
 });
 export type BlastRadius = z.infer<typeof BlastRadius>;
 
@@ -103,22 +121,6 @@ export const Risks = z.object({
   risks: z.array(Risk),
 });
 export type Risks = z.infer<typeof Risks>;
-
-// ---- PR History ----
-export const PrHistoryItem = z.object({
-  pr_number: z.number().int(),
-  title: z.string(),
-  merged_at: z.string(),
-  author: z.string(),
-  files_overlap: z.array(z.string()),
-  notes: z.string(),
-});
-export type PrHistoryItem = z.infer<typeof PrHistoryItem>;
-
-export const PrHistory = z.object({
-  history: z.array(PrHistoryItem),
-});
-export type PrHistory = z.infer<typeof PrHistory>;
 
 // ---- Smart Diff ----
 export const SmartDiffRole = z.enum(['core', 'tests', 'wiring', 'docs', 'boilerplate']);

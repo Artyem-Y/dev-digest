@@ -140,8 +140,19 @@ export interface CommitFilesPayload {
   files: CommitFile[];
 }
 
+/** A bounded, merged PR snapshot used for read-only file-overlap history. */
+export interface MergedPullRequest {
+  number: number;
+  title: string;
+  author: string;
+  mergedAt: string;
+  files: string[];
+}
+
 export interface GitHubClient {
   listPullRequests(repo: RepoRef): Promise<PrMeta[]>;
+  /** Recent merged PRs with their changed paths; implementations must bound the read. */
+  listRecentMergedPullRequests(repo: RepoRef): Promise<MergedPullRequest[]>;
   getPullRequest(repo: RepoRef, n: number): Promise<PrDetail>;
   postReview(repo: RepoRef, n: number, review: GitHubReviewPayload): Promise<{ id: string }>;
   /** List inline review comments on a PR (for the "Files changed" tab). */
