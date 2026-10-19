@@ -135,7 +135,7 @@ cd ../client && pnpm install && pnpm dev               # web on :3000
 
 `mcp-server/`: `start` · `test` · `typecheck`. It is an independent local
 stdio process; see [`mcp-server/README.md`](mcp-server/README.md) for Claude
-Code configuration, MCP Inspector checks, the 120-second review wait, and the
+Code configuration, MCP Inspector checks, review-result waiting, and the
 reproducible Tool Search/token audit.
 
 ## Testing & CI

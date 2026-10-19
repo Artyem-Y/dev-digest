@@ -17,7 +17,7 @@ describe('DevDigest MCP tool contracts', () => {
       devdigest_list_agents:
         'List configured DevDigest review agents. Call before devdigest_run_agent_on_pr to get a valid agent ID; returns safe agent summaries only.',
       devdigest_run_agent_on_pr:
-        'Run one configured DevDigest agent on a pull request. Call after devdigest_list_agents when the user requests a review; waits up to 120 seconds and returns persisted findings or a run ID if still running.',
+        'Run one configured DevDigest agent on a pull request. Call after devdigest_list_agents when the user requests a review; waits for and returns the persisted terminal findings.',
       devdigest_get_findings:
         'Get the latest review verdict and findings for a pull request, grouped by agent. Each review includes its findings nested inside. By default returns only the latest run per agent.',
       devdigest_get_conventions:

@@ -2,7 +2,8 @@
   "mcpServers": {
     "devdigest-mcp": {
       "command": "pnpm",
-      "args": ["--dir", "mcp-server", "start"]
+      "args": ["--dir", "mcp-server", "start"],
+      "requestTimeout": 900000
     }
   }
 }

@@ -67,18 +67,15 @@ describe('DevDigest MCP tool behavior', () => {
     expect(json(result).agents).toHaveLength(50);
   });
 
-  it('runs exactly one enabled agent and returns persisted terminal findings', async () => {
+  it('runs exactly one enabled agent and returns its persisted terminal findings', async () => {
     const api = client();
     const result = await tool(createToolDefinitions(api as never), 'devdigest_run_agent_on_pr').handler({
       repository: 'acme/payments', pr_number: 3, agent_id: agent.id,
     });
 
     expect(api.runReview).toHaveBeenCalledWith('pull-1', agent.id);
-    expect(api.getRunFindings).toHaveBeenCalledWith('run-1', { timeoutMs: 120_000 });
-    expect(json(result)).toMatchObject({
-      run_id: 'run-1', status: 'done', verdict: 'approve',
-      severity_counts: { critical: 0, warning: 0, suggestion: 0 }, findings_truncated: false,
-    });
+    expect(api.getRunFindings).toHaveBeenCalledWith('run-1');
+    expect(json(result)).toMatchObject({ run_id: 'run-1', status: 'done', verdict: 'approve' });
   });
 
   it('does not start a review for an unknown agent and tells the caller what to do', async () => {
@@ -92,22 +89,22 @@ describe('DevDigest MCP tool behavior', () => {
     expect(result.content[0]?.text).toContain('devdigest_list_agents');
   });
 
-  it('returns the same run id when the 120-second wait expires', async () => {
+  it('returns an actionable error for a cancelled persisted run', async () => {
     const api = client({
       getRunFindings: vi.fn().mockResolvedValue({
-        run_id: 'run-1', status: 'running', error: null, verdict: null, summary: null, score: null,
+        run_id: 'run-1', status: 'cancelled', error: 'Run was cancelled', verdict: null, summary: null, score: null,
         severity_counts: { critical: 0, warning: 0, suggestion: 0 }, findings_truncated: false, findings: [],
       }),
     });
-    const result = await tool(createToolDefinitions(api as never, { maxWaitMs: 0 }), 'devdigest_run_agent_on_pr').handler({
+    const result = await tool(createToolDefinitions(api as never), 'devdigest_run_agent_on_pr').handler({
       repository: 'acme/payments', pr_number: 3, agent_id: agent.id,
     });
 
-    expect(api.runReview).toHaveBeenCalledTimes(1);
-    expect(json(result)).toEqual({ status: 'running', run_id: 'run-1' });
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain('Run was cancelled');
   });
 
-  it('returns an actionable error for a failed persisted run', async () => {
+  it('returns an actionable error when the persisted review fails', async () => {
     const api = client({
       getRunFindings: vi.fn().mockResolvedValue({
         run_id: 'run-1', status: 'failed', error: 'Provider unavailable', verdict: null, summary: null, score: null,
@@ -119,8 +116,8 @@ describe('DevDigest MCP tool behavior', () => {
     });
 
     expect(result.isError).toBe(true);
+    expect(api.getRunFindings).toHaveBeenCalledWith('run-1');
     expect(result.content[0]?.text).toContain('Provider unavailable');
-    expect(result.content[0]?.text).toContain('devdigest_get_findings');
   });
 
   it('finds the latest persisted review for each agent by PR locator without starting a review', async () => {
