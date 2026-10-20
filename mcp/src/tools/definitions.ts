@@ -5,9 +5,9 @@ import { resolvePullLocator } from '../core/resolve-pull-locator.js';
 import { runReviewAndWait } from '../core/run-review.js';
 
 export const TOOL_DESCRIPTIONS = {
-  devdigest_list_agents: 'List configured DevDigest review agents. Call before devdigest_run_agent_on_pr to get a valid agent ID; returns safe agent summaries only.',
+  devdigest_list_agents: 'List configured DevDigest review agents. Call before devdigest_run_agent_on_pr to get a valid agent ID; returns only id, name, description, model, and enabled.',
   devdigest_run_agent_on_pr: 'Run one configured DevDigest agent on a pull request. Call after devdigest_list_agents when the user requests a review; waits for and returns the persisted terminal findings.',
-  devdigest_get_findings: 'Get the latest review verdict and findings for a pull request, grouped by agent. Each review includes its findings nested inside. By default returns only the latest run per agent.',
+  devdigest_get_findings: 'Get persisted review results for a pull request. Returns reviews with nested findings and total_findings; by default includes only the latest run per agent.',
   devdigest_get_conventions: 'Get accepted, evidence-backed conventions for a DevDigest repository. Call when the user asks for repository rules or review guidance; reads saved conventions and never starts extraction.',
   devdigest_get_blast_radius: 'Get the precomputed downstream-impact map for one pull request. Call when asked what a change can affect; reads the repository index and never starts a review.',
 } as const;
@@ -49,7 +49,10 @@ export function createToolDefinitions(
   options: { sleep?: (milliseconds: number) => Promise<void> } = {},
 ): ToolDefinition[] {
   return [
-    { name: 'devdigest_list_agents', title: 'List DevDigest agents', description: TOOL_DESCRIPTIONS.devdigest_list_agents, annotations: readAnnotations, handler: async () => respond({ agents: (await api.listAgents()).slice(0, 50) }) },
+    {
+      name: 'devdigest_list_agents', title: 'List DevDigest agents', description: TOOL_DESCRIPTIONS.devdigest_list_agents, annotations: readAnnotations,
+      handler: async () => respond({ agents: (await api.listAgents()).slice(0, 50).map(({ id, name, description, model, enabled }) => ({ id, name, description, model, enabled })) }),
+    },
     {
       name: 'devdigest_run_agent_on_pr', title: 'Run agent review', description: TOOL_DESCRIPTIONS.devdigest_run_agent_on_pr, inputSchema: reviewSchema,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
@@ -119,20 +122,21 @@ function formatPullFindings(
     const agentId = review.agent_id!;
     byAgent.set(agentId, [...(byAgent.get(agentId) ?? []), review]);
   }
-  const agents = [...byAgent.entries()].map(([agentId, agentReviews]) => {
+  const selectedReviews = [...byAgent.values()].flatMap((agentReviews) => {
     const ordered = agentReviews.sort((a, b) => b.created_at.localeCompare(a.created_at));
-    const selected = allRuns ? ordered : ordered.slice(0, 1);
-    return {
-      agent_id: agentId,
-      agent_name: ordered[0]?.agent_name ?? null,
-      reviews: selected.map((review) => ({
-        id: review.id, run_id: review.run_id, verdict: review.verdict, summary: review.summary,
-        score: review.score, created_at: review.created_at,
-        findings: review.findings.slice(0, 20).map(compactFinding), findings_truncated: review.findings.length > 20,
-      })),
-    };
+    return allRuns ? ordered : ordered.slice(0, 1);
   });
-  return { pr_id: pullId, repository, all_runs: allRuns, agents };
+  return {
+    pr_id: pullId,
+    repository,
+    all_runs: allRuns,
+    total_findings: selectedReviews.reduce((total, review) => total + review.findings.length, 0),
+    reviews: selectedReviews.map((review) => ({
+      id: review.id, agent_id: review.agent_id!, agent_name: review.agent_name ?? null, run_id: review.run_id,
+      verdict: review.verdict, summary: review.summary, score: review.score, created_at: review.created_at,
+      findings: review.findings.slice(0, 20).map(compactFinding), findings_truncated: review.findings.length > 20,
+    })),
+  };
 }
 
 function compactFinding(finding: Awaited<ReturnType<DevDigestApi['getPullReviews']>>[number]['findings'][number]) {

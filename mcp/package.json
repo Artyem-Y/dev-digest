@@ -1,5 +1,5 @@
 {
-  "name": "@devdigest/mcp-server",
+  "name": "@devdigest/mcp",
   "version": "0.0.0",
   "private": true,
   "type": "module",

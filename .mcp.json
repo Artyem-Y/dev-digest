@@ -1,8 +1,9 @@
 {
   "mcpServers": {
     "devdigest-mcp": {
+      "type": "stdio",
       "command": "pnpm",
-      "args": ["--dir", "mcp-server", "start"],
+      "args": ["--dir", "mcp", "start"],
       "requestTimeout": 900000,
       "metadata": {
         "progressToken": "devdigest-review"

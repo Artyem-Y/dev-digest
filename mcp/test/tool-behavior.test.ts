@@ -60,11 +60,16 @@ describe('DevDigest MCP tool behavior', () => {
     });
   });
 
-  it('lists bounded safe agent summaries', async () => {
+  it('lists bounded agent summaries without provider or version internals', async () => {
     const api = client({ listAgents: vi.fn().mockResolvedValue(Array.from({ length: 51 }, () => agent)) });
     const result = await tool(createToolDefinitions(api as never), 'devdigest_list_agents').handler({});
 
     expect(json(result).agents).toHaveLength(50);
+    expect(json(result).agents).toEqual([{
+      id: agent.id, name: agent.name, description: agent.description, model: agent.model, enabled: agent.enabled,
+    }, ...Array.from({ length: 49 }, () => ({
+      id: agent.id, name: agent.name, description: agent.description, model: agent.model, enabled: agent.enabled,
+    }))]);
   });
 
   it('runs exactly one enabled agent and returns its persisted terminal findings', async () => {
@@ -142,7 +147,11 @@ describe('DevDigest MCP tool behavior', () => {
     const api = client({
       getPullReviews: vi.fn().mockResolvedValue([
         { id: 'old-review', pr_id: 'pull-1', agent_id: agent.id, run_id: 'old-run', agent_name: agent.name, kind: 'review', verdict: 'comment', summary: 'Old', score: 50, model: 'gpt', created_at: '2026-10-18T12:00:00.000Z', findings: [] },
-        { id: 'new-review', pr_id: 'pull-1', agent_id: agent.id, run_id: 'new-run', agent_name: agent.name, kind: 'review', verdict: 'request_changes', summary: 'Persisted result', score: 10, model: 'gpt', created_at: '2026-10-19T12:00:00.000Z', findings: [] },
+        {
+          id: 'new-review', pr_id: 'pull-1', agent_id: agent.id, run_id: 'new-run', agent_name: agent.name,
+          kind: 'review', verdict: 'request_changes', summary: 'Persisted result', score: 10, model: 'gpt', created_at: '2026-10-19T12:00:00.000Z',
+          findings: [{ id: 'finding-1', severity: 'warning', category: 'security', title: 'Validate input', file: 'src/a.ts', start_line: 3, end_line: 3, rationale: 'Untrusted value.', suggestion: null, confidence: 0.9, kind: 'issue' }],
+        },
       ]),
     });
     const result = await tool(createToolDefinitions(api as never), 'devdigest_get_findings').handler({ pr_id: '#3', repo: 'acme/payments' });
@@ -150,7 +159,8 @@ describe('DevDigest MCP tool behavior', () => {
     expect(api.getPullReviews).toHaveBeenCalledWith('pull-1');
     expect(api.runReview).not.toHaveBeenCalled();
     expect(json(result)).toMatchObject({
-      pr_id: 'pull-1', repository: 'acme/payments', agents: [{ agent_id: agent.id, reviews: [{ run_id: 'new-run' }] }],
+      pr_id: 'pull-1', repository: 'acme/payments', total_findings: 1,
+      reviews: [{ agent_id: agent.id, run_id: 'new-run', findings: [{ id: 'finding-1' }] }],
     });
   });
 
@@ -175,7 +185,7 @@ describe('DevDigest MCP tool behavior', () => {
     const result = await tool(createToolDefinitions(api as never), 'devdigest_get_findings').handler({ pr_id: 'Secure login', all_runs: true });
 
     expect(json(result)).toMatchObject({
-      agents: [{ agent_id: agent.id, reviews: [{ run_id: 'new-run' }, { run_id: 'old-run' }] }],
+      total_findings: 0, reviews: [{ run_id: 'new-run' }, { run_id: 'old-run' }],
     });
   });
 

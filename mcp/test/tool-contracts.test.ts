@@ -15,11 +15,11 @@ describe('DevDigest MCP tool contracts', () => {
     ]);
     expect(TOOL_DESCRIPTIONS).toEqual({
       devdigest_list_agents:
-        'List configured DevDigest review agents. Call before devdigest_run_agent_on_pr to get a valid agent ID; returns safe agent summaries only.',
+        'List configured DevDigest review agents. Call before devdigest_run_agent_on_pr to get a valid agent ID; returns only id, name, description, model, and enabled.',
       devdigest_run_agent_on_pr:
         'Run one configured DevDigest agent on a pull request. Call after devdigest_list_agents when the user requests a review; waits for and returns the persisted terminal findings.',
       devdigest_get_findings:
-        'Get the latest review verdict and findings for a pull request, grouped by agent. Each review includes its findings nested inside. By default returns only the latest run per agent.',
+        'Get persisted review results for a pull request. Returns reviews with nested findings and total_findings; by default includes only the latest run per agent.',
       devdigest_get_conventions:
         'Get accepted, evidence-backed conventions for a DevDigest repository. Call when the user asks for repository rules or review guidance; reads saved conventions and never starts extraction.',
       devdigest_get_blast_radius:
