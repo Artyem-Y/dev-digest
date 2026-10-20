@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 import { DerivedIntent, McpRunFindings, RunRequest, SmartDiffResponse } from '@devdigest/shared';
 import type { RunEvent } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
@@ -17,6 +18,7 @@ import type { McpRunResult } from './application/mcp-run-findings.js';
  *   POST   /findings/:id/(accept|dismiss)              → finding actions
  */
 const FINDING_ACTIONS = ['accept', 'dismiss'] as const;
+const ReviewsQuery = z.object({ latest_per_agent: z.enum(['true', 'false']).optional() });
 export default async function reviewsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const { container } = app;
@@ -171,9 +173,9 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     return service.rerunIntent(workspaceId, req.params.id);
   });
 
-  app.get('/pulls/:id/reviews', { schema: { params: IdParams } }, async (req) => {
+  app.get('/pulls/:id/reviews', { schema: { params: IdParams, querystring: ReviewsQuery } }, async (req) => {
     const { workspaceId } = await getContext(container, req);
-    return service.reviewsForPull(workspaceId, req.params.id);
+    return service.reviewsForPull(workspaceId, req.params.id, { latestPerAgent: req.query.latest_per_agent === 'true' });
   });
 
   // ---- Delete a whole review run (one agent's pass) + its findings --------

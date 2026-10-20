@@ -49,4 +49,24 @@ describe('runReviewAndWait', () => {
     expect(api.getRunFindings).toHaveBeenCalledWith('run-1', { timeoutMs: 1_000 });
     expect(sleep).toHaveBeenCalledWith(1_000);
   });
+
+  it('backs off status polling after the first five checks', async () => {
+    const api = {
+      runReview: vi.fn().mockResolvedValue({ runs: [{ run_id: 'run-1', agent_id: 'agent-1', agent_name: 'Security' }] }),
+      getRunFindings: vi.fn()
+        .mockResolvedValueOnce({ run_id: 'run-1', status: 'running', error: null, verdict: null, summary: null, score: null, findings: [] })
+        .mockResolvedValueOnce({ run_id: 'run-1', status: 'running', error: null, verdict: null, summary: null, score: null, findings: [] })
+        .mockResolvedValueOnce({ run_id: 'run-1', status: 'running', error: null, verdict: null, summary: null, score: null, findings: [] })
+        .mockResolvedValueOnce({ run_id: 'run-1', status: 'running', error: null, verdict: null, summary: null, score: null, findings: [] })
+        .mockResolvedValueOnce({ run_id: 'run-1', status: 'running', error: null, verdict: null, summary: null, score: null, findings: [] })
+        .mockResolvedValueOnce({ run_id: 'run-1', status: 'running', error: null, verdict: null, summary: null, score: null, findings: [] })
+        .mockResolvedValueOnce({ run_id: 'run-1', status: 'done', error: null, verdict: 'approve', summary: 'Done.', score: 100, findings: [] }),
+    };
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    await runReviewAndWait(api as never, 'pull-1', 'agent-1', { sleep });
+
+    expect(sleep).toHaveBeenNthCalledWith(5, 1_000);
+    expect(sleep).toHaveBeenNthCalledWith(6, 5_000);
+  });
 });

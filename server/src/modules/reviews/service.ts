@@ -30,6 +30,7 @@ export type ReviewRepositoryPort = Pick<
   | 'getRepo'
   | 'createAgentRun'
   | 'reviewsForPull'
+  | 'latestReviewsForPull'
   | 'getRunTrace'
   | 'getFinding'
   | 'findingContext'
@@ -193,10 +194,12 @@ export class ReviewService {
   // Reads
   // ===========================================================================
 
-  async reviewsForPull(workspaceId: string, prId: string): Promise<ReviewDto[]> {
+  async reviewsForPull(workspaceId: string, prId: string, options: { latestPerAgent?: boolean } = {}): Promise<ReviewDto[]> {
     const pull = await this.dependencies.repository.getPull(workspaceId, prId);
     if (!pull) throw new NotFoundError('Pull request not found');
-    const rows = await this.dependencies.repository.reviewsForPull(prId);
+    const rows = options.latestPerAgent
+      ? await this.dependencies.repository.latestReviewsForPull(prId)
+      : await this.dependencies.repository.reviewsForPull(prId);
     const names = new Map<string, string>();
     for (const { review } of rows) {
       if (review.agentId && !names.has(review.agentId)) {

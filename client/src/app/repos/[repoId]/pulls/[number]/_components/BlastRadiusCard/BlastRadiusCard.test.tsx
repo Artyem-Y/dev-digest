@@ -2,26 +2,12 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { describe, expect, it } from 'vitest';
 import type { BlastRadius } from '@/vendor/shared/contracts/brief';
+import messages from '../../../../../../../../messages/en/blast.json';
 import { BlastRadiusCard } from './BlastRadiusCard';
-
-const messages = {
-  blast: {
-    title: 'Blast radius',
-    stat: { symbols: 'symbols', callers: 'callers', endpoints: 'endpoints', crons: 'cron/jobs' },
-    view: { tree: 'tree', graph: 'graph' },
-    graph: {
-      ariaLabel: 'Blast radius graph', empty: 'No downstream callers to graph.',
-      legend: { symbol: 'Changed symbol', caller: 'Caller', endpoint: 'Endpoint', cron: 'Cron / job' },
-    },
-    callerCount: '{count} callers', noDownstream: '{count} changed symbol(s), no downstream callers found.', noCallerSymbols: 'No downstream callers ({count})',
-    priorPrs: 'Prior PRs touching these files', overlapFiles: '{count} overlapping file(s)',
-    indexDegraded: 'Repository index is incomplete: {reason}', endpointsAffected: 'Endpoints affected', cronsAffected: 'Cron/jobs affected',
-  },
-};
 
 function renderCard(blast: BlastRadius) {
   return render(
-    <NextIntlClientProvider locale="en" messages={messages}>
+    <NextIntlClientProvider locale="en" messages={{ blast: messages }}>
       <BlastRadiusCard blast={blast} repoFullName="acme/payments-api" headSha="a1b2c3" />
     </NextIntlClientProvider>,
   );

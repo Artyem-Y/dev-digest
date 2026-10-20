@@ -1,7 +1,6 @@
 import type { DevDigestApi, RunFindings } from '../http-client.js';
 
 export const REVIEW_WAIT_MS = 600_000;
-const POLL_INTERVAL_MS = 1_000;
 
 export async function runReviewAndWait(
   api: DevDigestApi,
@@ -30,6 +29,12 @@ export async function runReviewAndWait(
     if (now() >= deadline) return { status: 'running', run_id: run.run_id };
     progress += 1;
     await options.onProgress?.({ progress, message: 'DevDigest review is still running.' });
-    await sleep(Math.min(POLL_INTERVAL_MS, deadline - now()));
+    await sleep(Math.min(pollDelay(progress), deadline - now()));
   }
+}
+
+function pollDelay(pollCount: number): number {
+  if (pollCount <= 5) return 1_000;
+  if (pollCount <= 10) return 5_000;
+  return 15_000;
 }

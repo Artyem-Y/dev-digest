@@ -4,10 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import type { BlastRadius } from "@/vendor/shared/contracts/brief";
 import { api } from "../api";
 
-export function useBlastRadius(prId: string | null | undefined) {
+export function useBlastRadius(prId: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ["blast-radius", prId],
     queryFn: () => api.get<BlastRadius>(`/pulls/${prId}/blast`),
-    enabled: !!prId,
+    enabled: !!prId && enabled,
+    staleTime: 5 * 60 * 1_000,
   });
 }

@@ -66,7 +66,7 @@ export interface DevDigestApi {
   listPulls(repoId: string): Promise<Pull[]>;
   runReview(pullId: string, agentId: string): Promise<z.infer<typeof ReviewStart>>;
   getRunFindings(runId: string, options?: ApiRequestOptions): Promise<RunFindings>;
-  getPullReviews(pullId: string): Promise<Review[]>;
+  getPullReviews(pullId: string, options?: { latestPerAgent?: boolean }): Promise<Review[]>;
   getConventions(repoId: string): Promise<Convention[]>;
   getBlastRadius(pullId: string): Promise<BlastRadius>;
 }
@@ -129,8 +129,9 @@ export class HttpDevDigestApi implements DevDigestApi {
   getRunFindings(runId: string, options: ApiRequestOptions = {}) {
     return this.request(`/runs/${encodeURIComponent(runId)}/findings`, RunFindings, {}, options);
   }
-  getPullReviews(pullId: string) {
-    return this.request(`/pulls/${encodeURIComponent(pullId)}/reviews`, Review.array());
+  getPullReviews(pullId: string, options: { latestPerAgent?: boolean } = {}) {
+    const query = options.latestPerAgent ? '?latest_per_agent=true' : '';
+    return this.request(`/pulls/${encodeURIComponent(pullId)}/reviews${query}`, Review.array());
   }
   getConventions(repoId: string) { return this.request(`/repos/${encodeURIComponent(repoId)}/conventions`, Convention.array()); }
   getBlastRadius(pullId: string) { return this.request(`/pulls/${encodeURIComponent(pullId)}/blast`, BlastRadius); }

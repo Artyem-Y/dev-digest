@@ -45,4 +45,17 @@ describe('ReviewService', () => {
 
     await expect(service.resolveTargets('workspace-1', { agentIds: ['agent-1', 'agent-2'] })).rejects.toBeInstanceOf(NotFoundError);
   });
+
+  it('uses the latest-per-agent repository projection when requested', async () => {
+    const repository = {
+      getPull: vi.fn().mockResolvedValue({ id: 'pull-1' }),
+      latestReviewsForPull: vi.fn().mockResolvedValue([]),
+      reviewsForPull: vi.fn(),
+    };
+    const service = new ReviewService({ repository, agents: {} } as never);
+
+    await expect(service.reviewsForPull('workspace-1', 'pull-1', { latestPerAgent: true })).resolves.toEqual([]);
+    expect(repository.latestReviewsForPull).toHaveBeenCalledWith('pull-1');
+    expect(repository.reviewsForPull).not.toHaveBeenCalled();
+  });
 });

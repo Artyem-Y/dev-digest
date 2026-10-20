@@ -80,7 +80,8 @@ export function createToolDefinitions(
       handler: async (input) => guard(async () => {
         const args = z.object(findingsSchema).parse(input);
         const pull = await resolvePullLocator(api, args.pr_id, args.repo);
-        const reviews = (await api.getPullReviews(pull.id)).filter((review) => review.kind === 'review' && review.agent_id);
+        const reviews = (await api.getPullReviews(pull.id, { latestPerAgent: args.all_runs !== true }))
+          .filter((review) => review.kind === 'review' && review.agent_id);
         return formatPullFindings(pull.id, pull.repository?.full_name ?? null, reviews, args.all_runs === true);
       }),
     },
@@ -138,12 +139,28 @@ function formatPullFindings(
     reviews: selectedReviews.map((review) => ({
       id: review.id, agent_id: review.agent_id!, agent_name: review.agent_name ?? null, run_id: review.run_id,
       verdict: review.verdict, summary: review.summary, score: review.score, created_at: review.created_at,
-      findings: review.findings.slice(0, 20).map(compactFinding), findings_truncated: review.findings.length > 20,
+      findings: sortFindingsBySeverity(review.findings).slice(0, 20).map(compactFinding),
+      findings_truncated: review.findings.length > 20,
+      severity_counts: severityCounts(review.findings),
     })),
   };
 }
 
-function compactFinding(finding: Awaited<ReturnType<DevDigestApi['getPullReviews']>>[number]['findings'][number]) {
+type ReviewFinding = Awaited<ReturnType<DevDigestApi['getPullReviews']>>[number]['findings'][number];
+
+function sortFindingsBySeverity(findings: ReviewFinding[]): ReviewFinding[] {
+  const rank: Record<string, number> = { critical: 0, warning: 1, suggestion: 2 };
+  return [...findings].sort((left, right) => (rank[left.severity] ?? 3) - (rank[right.severity] ?? 3));
+}
+
+function severityCounts(findings: ReviewFinding[]) {
+  return findings.reduce((counts, finding) => {
+    if (finding.severity === 'critical' || finding.severity === 'warning' || finding.severity === 'suggestion') counts[finding.severity] += 1;
+    return counts;
+  }, { critical: 0, warning: 0, suggestion: 0 });
+}
+
+function compactFinding(finding: ReviewFinding) {
   return {
     id: finding.id,
     severity: finding.severity,

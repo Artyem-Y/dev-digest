@@ -156,7 +156,7 @@ describe('DevDigest MCP tool behavior', () => {
     });
     const result = await tool(createToolDefinitions(api as never), 'devdigest_get_findings').handler({ pr_id: '#3', repo: 'acme/payments' });
 
-    expect(api.getPullReviews).toHaveBeenCalledWith('pull-1');
+    expect(api.getPullReviews).toHaveBeenCalledWith('pull-1', { latestPerAgent: true });
     expect(api.runReview).not.toHaveBeenCalled();
     expect(json(result)).toMatchObject({
       pr_id: 'pull-1', repository: 'acme/payments', total_findings: 1,
@@ -187,6 +187,27 @@ describe('DevDigest MCP tool behavior', () => {
     expect(json(result)).toMatchObject({
       total_findings: 0, reviews: [{ run_id: 'new-run' }, { run_id: 'old-run' }],
     });
+  });
+
+  it('prioritizes critical findings and returns severity counts before truncating', async () => {
+    const findings = Array.from({ length: 21 }, (_, index) => ({
+      id: `finding-${index}`, severity: index === 20 ? 'critical' : 'suggestion', category: 'security', title: `Finding ${index}`,
+      file: 'src/a.ts', start_line: index + 1, end_line: index + 1, rationale: 'Reason.', suggestion: null, confidence: 0.9, kind: 'issue',
+    }));
+    const api = client({
+      getPullReviews: vi.fn().mockResolvedValue([{
+        id: 'review-1', pr_id: 'pull-1', agent_id: agent.id, run_id: 'run-1', agent_name: agent.name,
+        kind: 'review', verdict: 'comment', summary: 'Review.', score: 50, model: 'gpt', created_at: '2026-10-19T12:00:00.000Z', findings,
+      }]),
+    });
+
+    const result = await tool(createToolDefinitions(api as never), 'devdigest_get_findings').handler({ pr_id: '#3', repo: 'acme/payments' });
+    const review = (json(result).reviews as Array<Record<string, unknown>>)[0]!;
+
+    expect(review.severity_counts).toEqual({ critical: 1, warning: 0, suggestion: 20 });
+    expect(review.findings_truncated).toBe(true);
+    expect((review.findings as Array<Record<string, unknown>>)[0]?.id).toBe('finding-20');
+    expect(review.findings).toHaveLength(20);
   });
 
   it('returns only accepted conventions and never invokes extraction', async () => {

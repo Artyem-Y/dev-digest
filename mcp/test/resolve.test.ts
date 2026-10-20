@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { resolvePull } from '../src/core/resolve-pull.js';
+import { resolvePullLocator } from '../src/core/resolve-pull-locator.js';
 import { resolveRepository } from '../src/core/resolve-repository.js';
 
 describe('DevDigest locator errors', () => {
@@ -25,5 +26,20 @@ describe('DevDigest locator errors', () => {
     await expect(resolvePull({ listPulls: vi.fn().mockResolvedValue([]) } as never, {
       id: 'repo-1', owner: 'acme', name: 'api', full_name: 'acme/api',
     }, 3)).rejects.toThrow('GitHub MCP or gh');
+  });
+
+  it('searches repositories beyond the first 50 when repository is omitted', async () => {
+    const repositories = Array.from({ length: 51 }, (_, index) => ({
+      id: `repo-${index + 1}`, owner: 'acme', name: `repo-${index + 1}`, full_name: `acme/repo-${index + 1}`,
+    }));
+    const api = {
+      listRepos: vi.fn().mockResolvedValue(repositories),
+      listPulls: vi.fn(async (repoId: string) => repoId === 'repo-51' ? [{ id: 'pull-51', number: 42, title: 'Late repository' }] : []),
+    };
+
+    await expect(resolvePullLocator(api as never, '42')).resolves.toMatchObject({
+      id: 'pull-51', repository: { id: 'repo-51' },
+    });
+    expect(api.listPulls).toHaveBeenCalledTimes(51);
   });
 });
