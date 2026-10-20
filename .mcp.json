@@ -2,8 +2,8 @@
   "mcpServers": {
     "devdigest-mcp": {
       "type": "stdio",
-      "command": "pnpm",
-      "args": ["--dir", "mcp", "start"],
+      "command": "node",
+      "args": ["mcp/node_modules/tsx/dist/cli.mjs", "mcp/src/index.ts"],
       "requestTimeout": 900000,
       "metadata": {
         "progressToken": "devdigest-review"

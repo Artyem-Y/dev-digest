@@ -6,7 +6,7 @@ import { runReviewAndWait } from '../core/run-review.js';
 
 export const TOOL_DESCRIPTIONS = {
   devdigest_list_agents: 'List configured DevDigest review agents. Call before devdigest_run_agent_on_pr to get a valid agent ID; returns only id, name, description, model, and enabled.',
-  devdigest_run_agent_on_pr: 'Run one configured DevDigest agent on a pull request. Call after devdigest_list_agents when the user requests a review; waits for and returns the persisted terminal findings.',
+  devdigest_run_agent_on_pr: 'Run one configured DevDigest agent on a pull request. Call after devdigest_list_agents when the user requests a review; waits up to 10 minutes for persisted findings, then returns the run ID if still running.',
   devdigest_get_findings: 'Get persisted review results for a pull request. Returns reviews with nested findings and total_findings; by default includes only the latest run per agent.',
   devdigest_get_conventions: 'Get accepted, evidence-backed conventions for a DevDigest repository. Call when the user asks for repository rules or review guidance; reads saved conventions and never starts extraction.',
   devdigest_get_blast_radius: 'Get the precomputed downstream-impact map for one pull request. Call when asked what a change can affect; reads the repository index and never starts a review.',
@@ -46,7 +46,11 @@ const readAnnotations = { readOnlyHint: true, destructiveHint: false, idempotent
 
 export function createToolDefinitions(
   api: DevDigestApi,
-  options: { sleep?: (milliseconds: number) => Promise<void> } = {},
+  options: {
+    maxWaitMs?: number;
+    now?: () => number;
+    sleep?: (milliseconds: number) => Promise<void>;
+  } = {},
 ): ToolDefinition[] {
   return [
     {

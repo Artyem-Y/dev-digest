@@ -79,7 +79,7 @@ describe('DevDigest MCP tool behavior', () => {
     });
 
     expect(api.runReview).toHaveBeenCalledWith('pull-1', agent.id);
-    expect(api.getRunFindings).toHaveBeenCalledWith('run-1');
+    expect(api.getRunFindings).toHaveBeenCalledWith('run-1', { timeoutMs: 600_000 });
     expect(json(result)).toMatchObject({ run_id: 'run-1', status: 'done', verdict: 'approve' });
   });
 
@@ -139,7 +139,7 @@ describe('DevDigest MCP tool behavior', () => {
     });
 
     expect(result.isError).toBe(true);
-    expect(api.getRunFindings).toHaveBeenCalledWith('run-1');
+    expect(api.getRunFindings).toHaveBeenCalledWith('run-1', { timeoutMs: 600_000 });
     expect(result.content[0]?.text).toContain('Provider unavailable');
   });
 
