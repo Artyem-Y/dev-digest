@@ -15,7 +15,7 @@ import { OverviewTab } from "../OverviewTab";
 import { FindingsTab } from "../FindingsTab";
 import { DiffTab } from "../DiffTab";
 import RunTraceDrawer from "../RunTraceDrawer";
-import { useDerivedIntent, usePullDetail, usePulls, useRerunIntent } from "@/lib/hooks";
+import { useBlastRadius, useDerivedIntent, usePullDetail, usePulls, useRerunIntent } from "@/lib/hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun, useRunReview } from "@/lib/hooks/reviews";
 import { useReviewRefresh } from "@/lib/hooks/use-review-refresh";
@@ -32,12 +32,14 @@ export function PRDetailView() {
   const { repoId, number } = params;
   const { activeRepo } = useActiveRepo();
   const repoNotFound = useRepoNotFound(repoId);
+  const tab = search.get("tab") ?? "overview";
   // The route is keyed by PR number, but every PR API is keyed by the row's
   // uuid — resolve number → uuid via the (cached) pulls list before fetching.
   const { data: pulls, isLoading: pullsLoading } = usePulls(repoId);
   const prId = pulls?.find((p) => p.number === Number(number))?.id ?? null;
   const { data: pr, isLoading: detailLoading, isFetching: detailFetching, isError, error, refetch } = usePullDetail(prId);
   const { data: intent } = useDerivedIntent(prId);
+  const { data: blast, isLoading: blastLoading, isError: blastError } = useBlastRadius(prId, tab === "overview");
   const rerunIntent = useRerunIntent(prId);
 
   const isLoading = pullsLoading || (prId != null && detailLoading);
@@ -82,7 +84,6 @@ export function PRDetailView() {
     if (!recalculating && recalculateRunIds.length > 0) setRecalculateRunIds([]);
   }, [recalculateRunIds.length, recalculating]);
 
-  const tab = search.get("tab") ?? "overview";
   const traceRunId = search.get("trace");
   const setParam = (key: string, val: string | null) => {
     const sp = new URLSearchParams(search.toString());
@@ -172,6 +173,11 @@ export function PRDetailView() {
             intentRerunning={rerunIntent.isPending}
             onRecalculate={recalculateOverview}
             recalculating={recalculating}
+            blast={blast}
+            repoFullName={repoFullName}
+            headSha={pr.head_sha}
+            blastLoading={blastLoading}
+            blastError={blastError}
           />
         )}
 

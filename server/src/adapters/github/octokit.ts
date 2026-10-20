@@ -10,11 +10,52 @@ import type {
   PrReviewComment,
   OpenPrPayload,
   CommitFilesPayload,
+  MergedPullRequest,
   IssueMeta,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 
 const TIMEOUT = 30_000;
+// Metadata-only query: keep one GraphQL request comfortably below GitHub's node limit.
+const HISTORY_CANDIDATE_LIMIT = 20;
+const HISTORY_FILE_REQUEST_CONCURRENCY = 4;
+const HISTORY_CACHE_TTL_MS = 5 * 60_000;
+
+const RECENT_MERGED_PULLS_QUERY = `
+  query RecentMergedPulls($owner: String!, $name: String!, $first: Int!) {
+    repository(owner: $owner, name: $name) {
+      pullRequests(first: $first, states: MERGED, orderBy: { field: UPDATED_AT, direction: DESC }) {
+        nodes {
+          number
+          title
+          mergedAt
+          author { login }
+        }
+      }
+    }
+  }
+`;
+
+interface RecentMergedPullsResponse {
+  repository: {
+    pullRequests: {
+      nodes: Array<{
+        number: number;
+        title: string;
+        mergedAt: string | null;
+        author: { login: string } | null;
+      }>;
+    };
+  } | null;
+}
+
+async function mapInBatches<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
+  for (let index = 0; index < items.length; index += concurrency) {
+    results.push(...await Promise.all(items.slice(index, index + concurrency).map(mapper)));
+  }
+  return results;
+}
 
 function mapStatus(state: string, merged: boolean | undefined): PrStatus {
   if (merged) return 'merged';
@@ -28,6 +69,8 @@ function mapStatus(state: string, merged: boolean | undefined): PrStatus {
  */
 export class OctokitGitHubClient implements GitHubClient {
   private octokit: Octokit;
+  private readonly recentMergedHistory = new Map<string, { expiresAt: number; pulls: MergedPullRequest[] }>();
+  private readonly recentMergedHistoryInFlight = new Map<string, Promise<MergedPullRequest[]>>();
 
   constructor(token: string) {
     this.octokit = new Octokit({ auth: token });
@@ -65,6 +108,67 @@ export class OctokitGitHubClient implements GitHubClient {
         TIMEOUT,
       ),
     );
+  }
+
+  async listRecentMergedPullRequests(repo: RepoRef): Promise<MergedPullRequest[]> {
+    const cacheKey = `${repo.owner}/${repo.name}`.toLowerCase();
+    const cached = this.recentMergedHistory.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.pulls;
+
+    const inFlight = this.recentMergedHistoryInFlight.get(cacheKey);
+    if (inFlight) return inFlight;
+
+    const request = this.fetchRecentMergedPullRequests(repo);
+    this.recentMergedHistoryInFlight.set(cacheKey, request);
+    try {
+      const pulls = await request;
+      this.recentMergedHistory.set(cacheKey, { pulls, expiresAt: Date.now() + HISTORY_CACHE_TTL_MS });
+      return pulls;
+    } finally {
+      this.recentMergedHistoryInFlight.delete(cacheKey);
+    }
+  }
+
+  private async fetchRecentMergedPullRequests(repo: RepoRef): Promise<MergedPullRequest[]> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          const data = await this.octokit.graphql<RecentMergedPullsResponse>(RECENT_MERGED_PULLS_QUERY, {
+            owner: repo.owner,
+            name: repo.name,
+            first: HISTORY_CANDIDATE_LIMIT,
+          });
+          const candidates = (data.repository?.pullRequests.nodes ?? [])
+            .filter((pull): pull is typeof pull & { mergedAt: string } => pull.mergedAt !== null)
+            .map((pull) => ({
+              number: pull.number,
+              title: pull.title,
+              author: pull.author?.login ?? 'unknown',
+              mergedAt: pull.mergedAt,
+            }));
+          return mapInBatches(candidates, HISTORY_FILE_REQUEST_CONCURRENCY, async (pull) => ({
+            ...pull,
+            files: await this.listAllPullFiles(repo, pull.number),
+          }));
+        })(),
+        TIMEOUT,
+      ),
+    );
+  }
+
+  private async listAllPullFiles(repo: RepoRef, pullNumber: number): Promise<string[]> {
+    const files: string[] = [];
+    for (let page = 1; ; page += 1) {
+      const response = await this.octokit.rest.pulls.listFiles({
+        owner: repo.owner,
+        repo: repo.name,
+        pull_number: pullNumber,
+        per_page: 100,
+        page,
+      });
+      files.push(...response.data.map((file) => file.filename));
+      if (response.data.length < 100) return files;
+    }
   }
 
   async getPullRequest(repo: RepoRef, n: number): Promise<PrDetail> {

@@ -1,7 +1,8 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq, sql } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import { RunTraceResponse, type RunSummary, type RunTrace, type RunTraceResponse as RunTraceResponseType } from '@devdigest/shared';
+import { MCP_RUN_FINDINGS_MAX, type McpRunRecord } from '../application/mcp-run-findings.js';
 
 // ---- in-flight / history --------------------------------------------------
 
@@ -66,6 +67,60 @@ export async function listRunsForPull(
     blockers: run.blockers,
     cost_usd: run.costUsd,
   }));
+}
+
+/**
+ * Return only one workspace-scoped run and the persisted review it produced.
+ * Run traces and review history intentionally remain outside this MCP read model.
+ */
+export async function getMcpRunRecord(
+  db: Db,
+  workspaceId: string,
+  runId: string,
+): Promise<McpRunRecord | undefined> {
+  const [row] = await db
+    .select({ run: t.agentRuns, review: t.reviews })
+    .from(t.agentRuns)
+    .leftJoin(
+      t.reviews,
+      and(eq(t.reviews.runId, t.agentRuns.id), eq(t.reviews.workspaceId, t.agentRuns.workspaceId)),
+    )
+    .where(and(eq(t.agentRuns.id, runId), eq(t.agentRuns.workspaceId, workspaceId)))
+    .orderBy(desc(t.reviews.createdAt), desc(t.reviews.id))
+    .limit(1);
+  if (!row) return undefined;
+
+  const findings = row.review
+    ? await db
+        .select()
+        .from(t.findings)
+        .where(eq(t.findings.reviewId, row.review.id))
+        .orderBy(
+          sql`case ${t.findings.severity}
+            when 'CRITICAL' then 0
+            when 'WARNING' then 1
+            when 'SUGGESTION' then 2
+            else 3
+          end`,
+          asc(t.findings.id),
+        )
+        .limit(MCP_RUN_FINDINGS_MAX)
+    : [];
+  const severityRows = row.review
+    ? await db
+        .select({ severity: t.findings.severity, total: count(t.findings.id) })
+        .from(t.findings)
+        .where(eq(t.findings.reviewId, row.review.id))
+        .groupBy(t.findings.severity)
+    : [];
+  const severityCounts = { critical: 0, warning: 0, suggestion: 0 };
+  for (const severity of severityRows) {
+    if (severity.severity === 'CRITICAL') severityCounts.critical = severity.total;
+    if (severity.severity === 'WARNING') severityCounts.warning = severity.total;
+    if (severity.severity === 'SUGGESTION') severityCounts.suggestion = severity.total;
+  }
+  const totalFindings = severityCounts.critical + severityCounts.warning + severityCounts.suggestion;
+  return { ...row, findings, severityCounts, findingsTruncated: totalFindings > MCP_RUN_FINDINGS_MAX };
 }
 
 /**

@@ -4,7 +4,9 @@ import React from "react";
 import { Button, Icon, SectionLabel } from "@devdigest/ui";
 import { useTranslations } from "next-intl";
 import type { DerivedIntent } from "@/vendor/shared/contracts/brief";
+import type { BlastRadius } from "@/vendor/shared/contracts/brief";
 import type { FindingRecord } from "@/vendor/shared/contracts/review-api";
+import { BlastRadiusCard } from "../BlastRadiusCard/BlastRadiusCard";
 import { s } from "./styles";
 
 interface OverviewTabProps {
@@ -15,11 +17,18 @@ interface OverviewTabProps {
   intentRerunning?: boolean;
   onRecalculate?: () => void;
   recalculating?: boolean;
+  blast?: BlastRadius | null;
+  repoFullName?: string | null;
+  headSha?: string | null;
+  blastLoading?: boolean;
+  blastError?: boolean;
 }
 
-export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, intentRerunning = false, onRecalculate, recalculating = false }: OverviewTabProps) {
+export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, intentRerunning = false, onRecalculate, recalculating = false, blast = null, repoFullName = null, headSha = null, blastLoading = false, blastError = false }: OverviewTabProps) {
   const t = useTranslations("prReview");
+  const blastT = useTranslations("blast");
   const usedSources = intent?.evidence.filter((source) => source.status === "used").length ?? 0;
+  const hasBlastPanel = Boolean((blast && repoFullName && headSha) || blastLoading || blastError);
   return (
     <>
       {prBody && (
@@ -28,39 +37,48 @@ export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, 
           <div style={s.descriptionBox}>{prBody}</div>
         </section>
       )}
-      <section>
-        <SectionLabel
-          icon="Target"
-          right={onRerunIntent ? (
-            <Button kind="ghost" size="sm" icon="RefreshCw" loading={intentRerunning} onClick={onRerunIntent}>
-              {intentRerunning ? t("intent.running") : t("intent.run")}
-            </Button>
-          ) : undefined}
-        >
-          {t("intent.title")}
-        </SectionLabel>
-        <div style={s.intentBox}>
-          {intent ? (
-            <>
-              <p style={s.intentSummary}>“{intent.intent}”</p>
-              <div style={s.intentScopes}>
-                <ScopeList title={t("intent.inScope")} values={intent.in_scope} kind="inScope" />
-                <ScopeList title={t("intent.outOfScope")} values={intent.out_of_scope} kind="outOfScope" />
-              </div>
-              <div style={s.intentMeta}>{t("intent.confidenceSources", { confidence: t(`intent.${intent.confidence}`), count: usedSources })}</div>
-            </>
-          ) : <span style={s.intentUnavailable}>{t("intent.unavailable")}</span>}
-          <div style={s.intentDivider} />
-          <RiskAreas risks={risks} title={t("intent.riskAreas")} empty={t("intent.noRiskAreas")} />
-          {onRecalculate && (
-            <div style={s.recalculateAction}>
-              <Button kind="tertiary" size="sm" icon="RefreshCw" loading={recalculating} onClick={onRecalculate}>
-                {recalculating ? t("intent.recalculating") : t("intent.recalculate")}
+      <div data-testid="overview-analysis-grid" style={hasBlastPanel ? s.analysisGrid : s.analysisGridSingle}>
+        <section>
+          <SectionLabel
+            icon="Target"
+            right={onRerunIntent ? (
+              <Button kind="ghost" size="sm" icon="RefreshCw" loading={intentRerunning} onClick={onRerunIntent}>
+                {intentRerunning ? t("intent.running") : t("intent.run")}
               </Button>
-            </div>
-          )}
-        </div>
-      </section>
+            ) : undefined}
+          >
+            {t("intent.title")}
+          </SectionLabel>
+          <div style={s.intentBox}>
+            {intent ? (
+              <>
+                <p style={s.intentSummary}>“{intent.intent}”</p>
+                <div style={s.intentScopes}>
+                  <ScopeList title={t("intent.inScope")} values={intent.in_scope} kind="inScope" />
+                  <ScopeList title={t("intent.outOfScope")} values={intent.out_of_scope} kind="outOfScope" />
+                </div>
+                <div style={s.intentMeta}>{t("intent.confidenceSources", { confidence: t(`intent.${intent.confidence}`), count: usedSources })}</div>
+              </>
+            ) : <span style={s.intentUnavailable}>{t("intent.unavailable")}</span>}
+            <div style={s.intentDivider} />
+            <RiskAreas risks={risks} title={t("intent.riskAreas")} empty={t("intent.noRiskAreas")} />
+            {onRecalculate && (
+              <div style={s.recalculateAction}>
+                <Button kind="tertiary" size="sm" icon="RefreshCw" loading={recalculating} onClick={onRecalculate}>
+                  {recalculating ? t("intent.recalculating") : t("intent.recalculate")}
+                </Button>
+              </div>
+            )}
+          </div>
+        </section>
+        {hasBlastPanel && (
+          <div style={s.blastColumn}>
+            {blast && repoFullName && headSha && <BlastRadiusCard blast={blast} repoFullName={repoFullName} headSha={headSha} />}
+            {blastLoading && <p role="status" style={s.intentUnavailable}>{blastT("loading")}</p>}
+            {blastError && <p role="status" style={s.intentUnavailable}>{blastT("unavailable")}</p>}
+          </div>
+        )}
+      </div>
     </>
   );
 }

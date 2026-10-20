@@ -1,6 +1,17 @@
 import type { CSSProperties } from "react";
 
 export const s = {
+  analysisGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+    alignItems: "start",
+    gap: 24,
+  } satisfies CSSProperties,
+  analysisGridSingle: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr)",
+  } satisfies CSSProperties,
+  blastColumn: { minWidth: 0 } satisfies CSSProperties,
   descriptionBox: {
     border: "1px solid var(--border)",
     borderRadius: 8,

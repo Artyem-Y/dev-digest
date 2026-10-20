@@ -1,6 +1,6 @@
-import type { Agent, AgentVersion, CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import type { Agent, AgentVersion, CiFailOn, McpAgentSummary, Provider, ReviewStrategy } from '@devdigest/shared';
 import { AgentVersionConfig } from '@devdigest/shared';
-import type { AgentRow, AgentVersionRow } from './repository.js';
+import type { AgentRow, AgentVersionRow, McpAgentSummaryRow } from './repository.js';
 
 /**
  * Pure helpers for the agents module — DB row ⇄ DTO mapping and the
@@ -24,6 +24,23 @@ export function toAgentDto(row: AgentRow): Agent {
     ci_fail_on: row.ciFailOn as CiFailOn,
     repo_intel: row.repoIntel,
   };
+}
+
+/** Map a persisted agent row to the prompt-safe MCP projection. */
+export function toMcpAgentSummary(row: McpAgentSummaryRow): McpAgentSummary {
+  return {
+    id: row.id,
+    name: bounded(row.name, 500),
+    description: bounded(row.description, 1_000),
+    enabled: row.enabled,
+    provider: row.provider as Provider,
+    model: bounded(row.model, 500),
+    version: row.version,
+  };
+}
+
+function bounded(value: string, maxLength: number): string {
+  return value.slice(0, maxLength);
 }
 
 /**

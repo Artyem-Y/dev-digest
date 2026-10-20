@@ -47,6 +47,16 @@ export const BlastCaller = z.object({
 });
 export type BlastCaller = z.infer<typeof BlastCaller>;
 
+/** Raw repo-intel caller edge retained for MCP consumers. */
+export const BlastCallerEdge = z.object({
+  file: z.string(),
+  symbol: z.string(),
+  viaSymbol: z.string(),
+  line: z.number().int(),
+  rank: z.number(),
+});
+export type BlastCallerEdge = z.infer<typeof BlastCallerEdge>;
+
 export const DownstreamImpact = z.object({
   symbol: z.string(),
   callers: z.array(BlastCaller),
@@ -55,10 +65,42 @@ export const DownstreamImpact = z.object({
 });
 export type DownstreamImpact = z.infer<typeof DownstreamImpact>;
 
+export const BlastDegradedReason = z.enum([
+  'flag_off',
+  'index_failed',
+  'index_partial',
+  'repo_too_large',
+  'no_data',
+]);
+export type BlastDegradedReason = z.infer<typeof BlastDegradedReason>;
+
+// ---- PR History ----
+export const PrHistoryItem = z.object({
+  pr_number: z.number().int(),
+  title: z.string(),
+  merged_at: z.string(),
+  author: z.string(),
+  files_overlap: z.array(z.string()),
+  notes: z.string(),
+});
+export type PrHistoryItem = z.infer<typeof PrHistoryItem>;
+
+export const PrHistory = z.object({
+  history: z.array(PrHistoryItem),
+});
+export type PrHistory = z.infer<typeof PrHistory>;
+
 export const BlastRadius = z.object({
   changed_symbols: z.array(ChangedSymbol),
+  /** Raw repo-intel names retained for the MCP response. */
+  changedSymbols: z.array(ChangedSymbol).optional(),
+  callers: z.array(BlastCallerEdge).optional(),
   downstream: z.array(DownstreamImpact),
   summary: z.string(),
+  degraded: z.boolean().default(false),
+  reason: BlastDegradedReason.nullable().default(null),
+  /** Null means the optional GitHub history lookup was unavailable. */
+  prior_prs: PrHistory.nullish(),
 });
 export type BlastRadius = z.infer<typeof BlastRadius>;
 
@@ -79,22 +121,6 @@ export const Risks = z.object({
   risks: z.array(Risk),
 });
 export type Risks = z.infer<typeof Risks>;
-
-// ---- PR History ----
-export const PrHistoryItem = z.object({
-  pr_number: z.number().int(),
-  title: z.string(),
-  merged_at: z.string(),
-  author: z.string(),
-  files_overlap: z.array(z.string()),
-  notes: z.string(),
-});
-export type PrHistoryItem = z.infer<typeof PrHistoryItem>;
-
-export const PrHistory = z.object({
-  history: z.array(PrHistoryItem),
-});
-export type PrHistory = z.infer<typeof PrHistory>;
 
 // ---- Smart Diff ----
 export const SmartDiffRole = z.enum(['core', 'tests', 'wiring', 'docs', 'boilerplate']);

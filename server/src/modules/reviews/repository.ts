@@ -21,6 +21,7 @@ export type ReviewRow = typeof t.reviews.$inferSelect;
 import * as reviewRepo from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
 import * as pullRepo from './repository/pull.repo.js';
+import type { McpRunRecord } from './application/mcp-run-findings.js';
 
 export class ReviewRepository {
   constructor(private db: Db) {}
@@ -64,6 +65,10 @@ export class ReviewRepository {
     return reviewRepo.reviewsForPull(this.db, prId);
   }
 
+  latestReviewsForPull(prId: string): Promise<{ review: ReviewRow; findings: FindingRow[] }[]> {
+    return reviewRepo.latestReviewsForPull(this.db, prId);
+  }
+
   currentReviewsForPull(prId: string): Promise<{ review: ReviewRow; findings: Pick<FindingRow, 'reviewId' | 'file' | 'startLine'>[] }[]> {
     return reviewRepo.currentReviewsForPull(this.db, prId);
   }
@@ -84,6 +89,11 @@ export class ReviewRepository {
   /** All runs for a PR (any status), newest first — the PR run history. */
   listRunsForPull(workspaceId: string, prId: string): Promise<RunSummary[]> {
     return runRepo.listRunsForPull(this.db, workspaceId, prId);
+  }
+
+  /** One workspace-scoped run with its matching persisted review and findings. */
+  getMcpRunRecord(workspaceId: string, runId: string): Promise<McpRunRecord | undefined> {
+    return runRepo.getMcpRunRecord(this.db, workspaceId, runId);
   }
 
   /** Delete one agent run (+ its trace via FK cascade). Workspace-scoped. */

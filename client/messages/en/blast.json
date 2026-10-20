@@ -1,4 +1,7 @@
 {
+  "title": "Blast radius",
+  "loading": "Loading Blast Radius…",
+  "unavailable": "Blast Radius is unavailable.",
   "stat": {
     "symbols": "symbols",
     "callers": "callers",
@@ -10,9 +13,21 @@
     "graph": "graph"
   },
   "callerCount": "{count} callers",
+  "noCallerSymbols": "No downstream callers ({count})",
+  "priorPrs": "Prior PRs touching these files",
+  "overlapFiles": "{count} overlapping file(s)",
   "noDownstream": "{count} changed symbol(s), no downstream callers found.",
+  "endpointsAffected": "Endpoints affected",
+  "cronsAffected": "Cron/jobs affected",
+  "indexDegraded": "Repository index is incomplete: {reason}",
   "graph": {
     "empty": "No downstream callers to graph.",
-    "ariaLabel": "Blast radius graph"
+    "ariaLabel": "Blast radius graph",
+    "legend": {
+      "symbol": "Changed symbol",
+      "caller": "Caller",
+      "endpoint": "Endpoint",
+      "cron": "Cron / job"
+    }
   }
 }

@@ -36,6 +36,7 @@ function repository(): PullsRepositoryPort {
   return {
     findRepo: vi.fn().mockResolvedValue(repo),
     listPulls: vi.fn().mockResolvedValue([pull]),
+    findPullLocatorMatches: vi.fn().mockResolvedValue([]),
     upsertPull: vi.fn(),
     updateStats: vi.fn(),
     latestReviewSummaries: vi.fn().mockResolvedValue(new Map()),

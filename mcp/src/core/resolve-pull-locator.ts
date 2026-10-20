@@ -1,0 +1,29 @@
+import type { DevDigestApi, Pull, Repo } from '../http-client.js';
+import { resolveRepository } from './resolve-repository.js';
+
+export type ResolvedPull = Pull & { repository: Repo | null };
+
+/** Resolve the PR locators exposed by MCP without making a GitHub request. */
+export async function resolvePullLocator(
+  api: DevDigestApi,
+  prId: string,
+  repositoryLocator?: string,
+): Promise<ResolvedPull> {
+  const normalized = prId.trim();
+  if (isUuid(normalized)) return { id: normalized, number: 0, title: '', repository: null };
+
+  const repository = repositoryLocator ? await resolveRepository(api, repositoryLocator) : undefined;
+  const matches = repository
+    ? await api.lookupPulls(normalized, repository.id)
+    : await api.lookupPulls(normalized);
+
+  if (matches.length === 1) return matches[0]!;
+  if (matches.length > 1) {
+    throw new Error(`Pull request "${prId}" is ambiguous across configured repositories. Provide repository as owner/name, then retry.`);
+  }
+  throw new Error(`Pull request "${prId}" was not found in configured DevDigest repositories. Provide repository as owner/name or use GitHub MCP or gh to verify it.`);
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}

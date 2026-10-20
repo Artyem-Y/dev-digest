@@ -77,3 +77,13 @@ Terminal agent runs do not prove that their PR-level intent derivation has persi
 - Implication: When an SSE completion event may have happened before a page subscribes, invalidate the persisted query immediately and use SSE only to observe later completion.
 
 Supersedes eng-client-cf3a951954b7. Opening a PR after intent derivation settles can miss a transient completion signal even with replay protection across process restarts. The persisted intent query is the authoritative catch-up path, while the PR-scoped SSE stream remains the live-update path.
+
+<!-- insight-id: eng-client-4a85d1c51db7 -->
+## eng-client-4a85d1c51db7 — Optional GitHub history must preserve unavailable separately from no matches
+
+- Date: 2026-10-20
+- Category: invariant
+- Evidence: BlastRadiusCard renders the Prior PRs disclosure only from blast.prior_prs.history, while the shared BlastRadius contract keeps prior_prs nullable when the optional server lookup is unavailable; BlastRadiusCard.test.tsx covers a populated history.
+- Implication: Do not render a no-history claim when prior_prs is null; reserve empty-history UI for an explicit successful empty response.
+
+The history section is optional enrichment. Its absence means the GitHub lookup was unavailable, whereas an empty history collection means the bounded lookup succeeded and found no file overlap.

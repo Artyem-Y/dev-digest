@@ -147,3 +147,13 @@ An agent run is terminal once its review row and trace are persisted. Intent der
 - Implication: When a PR-scoped SSE stream represents shared asynchronous enrichment, reference-count concurrent producers and emit its terminal event only when the last producer settles.
 
 A PR-level stream is shared by overlapping review batches. Resetting it for a later batch disconnects existing subscribers, while completing it for the first batch makes the client observe stale enrichment. One shared stream with a pending-producer count preserves the subscription and reports the final persisted intent.
+
+<!-- insight-id: eng-server-84c906d6b063 -->
+## eng-server-84c906d6b063 — Optional GitHub history must preserve unavailable separately from no matches
+
+- Date: 2026-10-20
+- Category: invariant
+- Evidence: server/src/adapters/github/pr-history.ts converts GitHub token and network failures to null; BlastService transports null as prior_prs while successful file-overlap queries produce history arrays; server/test/blast-history.test.ts covers ordered overlap selection.
+- Implication: Optional enrichment responses must retain a nullable unavailable state instead of substituting an empty collection, so clients do not claim that GitHub found no prior pull requests.
+
+Blast Radius is still usable without GitHub history, but an empty result is trustworthy only after a successful bounded GitHub read. The service therefore exposes prior_prs as null on unavailable and as a history collection on success.

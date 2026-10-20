@@ -74,6 +74,27 @@ export async function reviewsForPull(
   }));
 }
 
+/** Latest review for each agent, retaining the complete persisted findings. */
+export async function latestReviewsForPull(
+  db: Db,
+  prId: string,
+): Promise<{ review: ReviewRow; findings: FindingRow[] }[]> {
+  const reviews = await db
+    .selectDistinctOn([t.reviews.agentId])
+    .from(t.reviews)
+    .where(and(eq(t.reviews.prId, prId), eq(t.reviews.kind, 'review')))
+    .orderBy(t.reviews.agentId, desc(t.reviews.createdAt), desc(t.reviews.id));
+  if (reviews.length === 0) return [];
+  const findings = await db.select().from(t.findings).where(inArray(t.findings.reviewId, reviews.map((review) => review.id)));
+  const findingsByReview = new Map<string, FindingRow[]>();
+  for (const finding of findings) {
+    const grouped = findingsByReview.get(finding.reviewId) ?? [];
+    grouped.push(finding);
+    findingsByReview.set(finding.reviewId, grouped);
+  }
+  return reviews.map((review) => ({ review, findings: findingsByReview.get(review.id) ?? [] }));
+}
+
 /** Latest completed review for each agent, with findings only for those rows. */
 export async function currentReviewsForPull(
   db: Db,

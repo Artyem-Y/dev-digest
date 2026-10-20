@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 import { PrCommentInput } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
@@ -19,6 +20,13 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
   app.get('/repos/:id/pulls', { schema: { params: IdParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     return service.list(workspaceId, req.params.id);
+  });
+
+  app.get('/pulls/lookup', {
+    schema: { querystring: z.object({ locator: z.string().trim().min(1).max(300), repository_id: z.string().uuid().optional() }) },
+  }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return service.lookup(workspaceId, req.query.locator, req.query.repository_id);
   });
 
   app.get('/pulls/:id', { schema: { params: IdParams } }, async (req) => {

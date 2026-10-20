@@ -8,6 +8,7 @@ import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
 import { ReviewRunExecutor, type Logger } from './run-executor.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
 import { reviewToDto } from './helpers.js';
+import { toMcpRunResult, type McpRunResult } from './application/mcp-run-findings.js';
 import type { IntentDerivation, IntentInput } from '../intents/application/derive-intent.js';
 
 // Re-export DTO types + converters for backward-compatible imports from
@@ -20,6 +21,7 @@ export type ReviewRepositoryPort = Pick<
   | 'deleteReview'
   | 'activeRunsForPull'
   | 'listRunsForPull'
+  | 'getMcpRunRecord'
   | 'deleteAgentRun'
   | 'cancelRunIfRunning'
   | 'reapStaleRunningRuns'
@@ -28,6 +30,7 @@ export type ReviewRepositoryPort = Pick<
   | 'getRepo'
   | 'createAgentRun'
   | 'reviewsForPull'
+  | 'latestReviewsForPull'
   | 'getRunTrace'
   | 'getFinding'
   | 'findingContext'
@@ -191,10 +194,12 @@ export class ReviewService {
   // Reads
   // ===========================================================================
 
-  async reviewsForPull(workspaceId: string, prId: string): Promise<ReviewDto[]> {
+  async reviewsForPull(workspaceId: string, prId: string, options: { latestPerAgent?: boolean } = {}): Promise<ReviewDto[]> {
     const pull = await this.dependencies.repository.getPull(workspaceId, prId);
     if (!pull) throw new NotFoundError('Pull request not found');
-    const rows = await this.dependencies.repository.reviewsForPull(prId);
+    const rows = options.latestPerAgent
+      ? await this.dependencies.repository.latestReviewsForPull(prId)
+      : await this.dependencies.repository.reviewsForPull(prId);
     const names = new Map<string, string>();
     for (const { review } of rows) {
       if (review.agentId && !names.has(review.agentId)) {
@@ -205,6 +210,13 @@ export class ReviewService {
     return rows.map(({ review, findings }) =>
       reviewToDto(review, findings, review.agentId ? names.get(review.agentId) : null),
     );
+  }
+
+  /** Safe, bounded persisted result for one run in the current workspace. */
+  async mcpRunFindings(workspaceId: string, runId: string): Promise<McpRunResult> {
+    const record = await this.dependencies.repository.getMcpRunRecord(workspaceId, runId);
+    if (!record) throw new NotFoundError('Review run not found');
+    return toMcpRunResult(record);
   }
 
   /** The persisted, source-safe intent for a pull request in this workspace. */

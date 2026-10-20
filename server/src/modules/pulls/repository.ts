@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray } from 'drizzle-orm';
 import type { PrDetail, PrMeta } from '@devdigest/shared';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
@@ -7,6 +7,7 @@ import type {
   PersistedPullCommit,
   PersistedPullFile,
   PullRepositoryRow,
+  PullLocatorMatch,
   PullReviewSummary,
   PullRow,
   PullsRepositoryPort,
@@ -56,6 +57,26 @@ export class PullsRepository implements PullsRepositoryPort {
   async listPulls(repoId: string): Promise<PullRow[]> {
     const rows = await this.db.select().from(t.pullRequests).where(eq(t.pullRequests.repoId, repoId));
     return rows.map(toPullRow);
+  }
+
+  async findPullLocatorMatches(workspaceId: string, locator: string, repoId?: string): Promise<PullLocatorMatch[]> {
+    const number = /^#?(\d+)$/.exec(locator);
+    const conditions = [eq(t.pullRequests.workspaceId, workspaceId)];
+    if (repoId) conditions.push(eq(t.pullRequests.repoId, repoId));
+    if (number) conditions.push(eq(t.pullRequests.number, Number(number[1])));
+    else conditions.push(ilike(t.pullRequests.title, `%${locator.replace(/[\\%_]/g, '\\$&')}%`));
+    const rows = await this.db
+      .select({ pull: t.pullRequests, repo: t.repos })
+      .from(t.pullRequests)
+      .innerJoin(t.repos, eq(t.pullRequests.repoId, t.repos.id))
+      .where(and(...conditions))
+      .limit(3);
+    return rows.map(({ pull, repo }) => ({
+      id: pull.id,
+      number: pull.number,
+      title: pull.title,
+      repository: { id: repo.id, owner: repo.owner, name: repo.name, fullName: repo.fullName },
+    }));
   }
 
   async upsertPull(workspaceId: string, repoId: string, pull: PrMeta): Promise<void> {

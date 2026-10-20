@@ -16,6 +16,7 @@ import type {
   PrReviewComment,
   OpenPrPayload,
   CommitFilesPayload,
+  MergedPullRequest,
   IssueMeta,
   GitClient,
   CloneOptions,
@@ -130,6 +131,7 @@ export class MockEmbedder implements Embedder {
 // ---------- Mock GitHub ----------
 export interface MockGitHubOptions {
   pulls?: PrMeta[];
+  mergedPulls?: MergedPullRequest[];
   detail?: Partial<PrDetail>;
   login?: string;
   /** Existing inline review comments returned by listReviewComments. */
@@ -163,6 +165,10 @@ export class MockGitHubClient implements GitHubClient {
         },
       ]
     );
+  }
+
+  async listRecentMergedPullRequests(_repo: RepoRef): Promise<MergedPullRequest[]> {
+    return this.opts.mergedPulls ?? [];
   }
 
   async getPullRequest(_repo: RepoRef, n: number): Promise<PrDetail> {
