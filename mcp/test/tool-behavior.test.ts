@@ -191,7 +191,7 @@ describe('DevDigest MCP tool behavior', () => {
 
   it('prioritizes critical findings and returns severity counts before truncating', async () => {
     const findings = Array.from({ length: 21 }, (_, index) => ({
-      id: `finding-${index}`, severity: index === 20 ? 'critical' : 'suggestion', category: 'security', title: `Finding ${index}`,
+      id: `finding-${index}`, severity: index === 20 ? 'CRITICAL' : 'SUGGESTION', category: 'security', title: `Finding ${index}`,
       file: 'src/a.ts', start_line: index + 1, end_line: index + 1, rationale: 'Reason.', suggestion: null, confidence: 0.9, kind: 'issue',
     }));
     const api = client({

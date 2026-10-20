@@ -86,6 +86,8 @@ export class DevDigestApiConfigurationError extends Error {
 }
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+// GitHub history reads allow four 30-second attempts with exponential backoff.
+const BLAST_RADIUS_REQUEST_TIMEOUT_MS = 130_000;
 
 function localBaseUrl(value: string): { baseUrl: string; diagnosticOrigin: string } {
   let url: URL;
@@ -134,15 +136,29 @@ export class HttpDevDigestApi implements DevDigestApi {
     return this.request(`/pulls/${encodeURIComponent(pullId)}/reviews${query}`, Review.array());
   }
   getConventions(repoId: string) { return this.request(`/repos/${encodeURIComponent(repoId)}/conventions`, Convention.array()); }
-  getBlastRadius(pullId: string) { return this.request(`/pulls/${encodeURIComponent(pullId)}/blast`, BlastRadius); }
+  getBlastRadius(pullId: string) {
+    return this.request(
+      `/pulls/${encodeURIComponent(pullId)}/blast`,
+      BlastRadius,
+      {},
+      { timeoutMs: BLAST_RADIUS_REQUEST_TIMEOUT_MS },
+      BLAST_RADIUS_REQUEST_TIMEOUT_MS,
+    );
+  }
   runReview(pullId: string, agentId: string) {
     return this.request(`/pulls/${encodeURIComponent(pullId)}/review`, ReviewStart, {
       method: 'POST', body: JSON.stringify({ agentId }),
     });
   }
 
-  private async request<T>(path: string, schema: z.ZodType<T>, init: RequestInit = {}, options: ApiRequestOptions = {}): Promise<T> {
-    const timeoutMs = Math.min(options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS, DEFAULT_REQUEST_TIMEOUT_MS);
+  private async request<T>(
+    path: string,
+    schema: z.ZodType<T>,
+    init: RequestInit = {},
+    options: ApiRequestOptions = {},
+    maximumTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+  ): Promise<T> {
+    const timeoutMs = Math.min(options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS, maximumTimeoutMs);
     let response: Response;
     try {
       response = await fetch(`${this.baseUrl}${path}`, {

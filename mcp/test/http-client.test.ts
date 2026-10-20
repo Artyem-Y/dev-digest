@@ -30,6 +30,7 @@ describe('HttpDevDigestApi', () => {
   });
 
   it('gets and validates the Blast Radius map for one pull request', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       changed_symbols: [], changedSymbols: [], callers: [], downstream: [], summary: '0 symbols · 0 callers · 0 endpoints · 0 cron/jobs', degraded: false, reason: null,
     }), { status: 200 }));
@@ -39,6 +40,7 @@ describe('HttpDevDigestApi', () => {
     expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:3999/pulls/pull-1/blast', expect.objectContaining({
       headers: expect.objectContaining({ accept: 'application/json' }),
     }));
+    expect(timeout).toHaveBeenCalledWith(130_000);
   });
 
   it('turns an unreachable local API into a startup action', async () => {

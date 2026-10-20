@@ -147,17 +147,29 @@ function formatPullFindings(
 }
 
 type ReviewFinding = Awaited<ReturnType<DevDigestApi['getPullReviews']>>[number]['findings'][number];
+type SupportedSeverity = 'critical' | 'warning' | 'suggestion';
 
 function sortFindingsBySeverity(findings: ReviewFinding[]): ReviewFinding[] {
-  const rank: Record<string, number> = { critical: 0, warning: 1, suggestion: 2 };
-  return [...findings].sort((left, right) => (rank[left.severity] ?? 3) - (rank[right.severity] ?? 3));
+  const rank: Record<SupportedSeverity, number> = { critical: 0, warning: 1, suggestion: 2 };
+  return [...findings].sort((left, right) => severityRank(left.severity, rank) - severityRank(right.severity, rank));
 }
 
 function severityCounts(findings: ReviewFinding[]) {
   return findings.reduce((counts, finding) => {
-    if (finding.severity === 'critical' || finding.severity === 'warning' || finding.severity === 'suggestion') counts[finding.severity] += 1;
+    const severity = normalizedSeverity(finding.severity);
+    if (severity) counts[severity] += 1;
     return counts;
   }, { critical: 0, warning: 0, suggestion: 0 });
+}
+
+function normalizedSeverity(severity: string): SupportedSeverity | null {
+  const normalized = severity.toLowerCase();
+  return normalized === 'critical' || normalized === 'warning' || normalized === 'suggestion' ? normalized : null;
+}
+
+function severityRank(severity: string, rank: Record<SupportedSeverity, number>): number {
+  const normalized = normalizedSeverity(severity);
+  return normalized ? rank[normalized] : 3;
 }
 
 function compactFinding(finding: ReviewFinding) {
