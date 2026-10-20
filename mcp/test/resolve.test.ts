@@ -28,18 +28,21 @@ describe('DevDigest locator errors', () => {
     }, 3)).rejects.toThrow('GitHub MCP or gh');
   });
 
-  it('searches repositories beyond the first 50 when repository is omitted', async () => {
-    const repositories = Array.from({ length: 51 }, (_, index) => ({
-      id: `repo-${index + 1}`, owner: 'acme', name: `repo-${index + 1}`, full_name: `acme/repo-${index + 1}`,
-    }));
+  it('uses the server-side locator instead of downloading repository pull lists', async () => {
     const api = {
-      listRepos: vi.fn().mockResolvedValue(repositories),
-      listPulls: vi.fn(async (repoId: string) => repoId === 'repo-51' ? [{ id: 'pull-51', number: 42, title: 'Late repository' }] : []),
+      lookupPulls: vi.fn().mockResolvedValue([{
+        id: 'pull-51', number: 42, title: 'Late repository',
+        repository: { id: 'repo-51', owner: 'acme', name: 'repo-51', full_name: 'acme/repo-51' },
+      }]),
+      listRepos: vi.fn(),
+      listPulls: vi.fn(),
     };
 
     await expect(resolvePullLocator(api as never, '42')).resolves.toMatchObject({
       id: 'pull-51', repository: { id: 'repo-51' },
     });
-    expect(api.listPulls).toHaveBeenCalledTimes(51);
+    expect(api.lookupPulls).toHaveBeenCalledWith('42');
+    expect(api.listRepos).not.toHaveBeenCalled();
+    expect(api.listPulls).not.toHaveBeenCalled();
   });
 });

@@ -8,6 +8,13 @@ export interface PullRepositoryRow {
   name: string;
 }
 
+export interface PullLocatorMatch {
+  id: string;
+  number: number;
+  title: string;
+  repository: { id: string; owner: string; name: string; fullName: string };
+}
+
 export interface PullRow {
   id: string;
   workspaceId: string;
@@ -54,6 +61,7 @@ export interface PersistedPullCommit {
 export interface PullsRepositoryPort {
   findRepo(workspaceId: string, repoId: string): Promise<PullRepositoryRow | undefined>;
   listPulls(repoId: string): Promise<PullRow[]>;
+  findPullLocatorMatches(workspaceId: string, locator: string, repoId?: string): Promise<PullLocatorMatch[]>;
   upsertPull(workspaceId: string, repoId: string, pull: PrMeta): Promise<void>;
   updateStats(pullId: string, stats: Pick<PrMeta, 'additions' | 'deletions' | 'files_count'>): Promise<void>;
   latestReviewSummaries(pullIds: string[]): Promise<Map<string, PullReviewSummary>>;
@@ -159,6 +167,22 @@ export class PullsService {
         cost_usd: costs.get(row.id) ?? null,
       };
     });
+  }
+
+  async lookup(workspaceId: string, locator: string, repoId?: string) {
+    return this.repository.findPullLocatorMatches(workspaceId, locator, repoId).then((matches) =>
+      matches.map((match) => ({
+        id: match.id,
+        number: match.number,
+        title: match.title,
+        repository: {
+          id: match.repository.id,
+          owner: match.repository.owner,
+          name: match.repository.name,
+          full_name: match.repository.fullName,
+        },
+      })),
+    );
   }
 
   async detail(workspaceId: string, pullId: string): Promise<PrDetail> {

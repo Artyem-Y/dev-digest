@@ -18,6 +18,7 @@ function client(overrides: Record<string, unknown> = {}) {
     listAgents: vi.fn().mockResolvedValue([agent]),
     listRepos: vi.fn().mockResolvedValue([repo]),
     listPulls: vi.fn().mockResolvedValue([pull]),
+    lookupPulls: vi.fn().mockResolvedValue([{ ...pull, repository: repo }]),
     runReview: vi.fn().mockResolvedValue({ runs: [{ run_id: 'run-1', agent_id: agent.id, agent_name: agent.name }] }),
     getRunFindings: vi.fn().mockResolvedValue({
       run_id: 'run-1', status: 'done', error: null, verdict: 'approve', summary: 'Looks good.', score: 95,
@@ -164,14 +165,15 @@ describe('DevDigest MCP tool behavior', () => {
     });
   });
 
-  it('searches configured repositories when repository is omitted for a review run', async () => {
+  it('uses the server-side pull locator when repository is omitted for a review run', async () => {
     const api = client();
     const result = await tool(createToolDefinitions(api as never), 'devdigest_run_agent_on_pr').handler({
       pr_number: 3, agent_id: agent.id,
     });
 
     expect(result.isError).not.toBe(true);
-    expect(api.listRepos).toHaveBeenCalledOnce();
+    expect(api.lookupPulls).toHaveBeenCalledWith('3');
+    expect(api.listRepos).not.toHaveBeenCalled();
     expect(api.runReview).toHaveBeenCalledWith('pull-1', agent.id);
   });
 
@@ -238,12 +240,13 @@ describe('DevDigest MCP tool behavior', () => {
     });
   });
 
-  it('searches configured repositories when repository is omitted for Blast Radius', async () => {
+  it('uses the server-side pull locator when repository is omitted for Blast Radius', async () => {
     const api = client();
     const result = await tool(createToolDefinitions(api as never), 'devdigest_get_blast_radius').handler({ pr_number: 3 });
 
     expect(result.isError).not.toBe(true);
-    expect(api.listRepos).toHaveBeenCalledOnce();
+    expect(api.lookupPulls).toHaveBeenCalledWith('3');
+    expect(api.listRepos).not.toHaveBeenCalled();
     expect(api.getBlastRadius).toHaveBeenCalledWith('pull-1');
   });
 

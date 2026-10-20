@@ -33,10 +33,14 @@ describe('HttpDevDigestApi', () => {
     const timeout = vi.spyOn(AbortSignal, 'timeout');
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       changed_symbols: [], changedSymbols: [], callers: [], downstream: [], summary: '0 symbols · 0 callers · 0 endpoints · 0 cron/jobs', degraded: false, reason: null,
+      prior_prs: { history: [{ pr_number: 17, title: 'Harden limiter', author: 'marisa', merged_at: '2026-10-19T10:00:00Z', files_overlap: ['src/limit.ts'], notes: '' }] },
     }), { status: 200 }));
     vi.stubGlobal('fetch', fetch);
 
-    await expect(new HttpDevDigestApi('http://127.0.0.1:3999').getBlastRadius('pull-1')).resolves.toMatchObject({ degraded: false });
+    await expect(new HttpDevDigestApi('http://127.0.0.1:3999').getBlastRadius('pull-1')).resolves.toMatchObject({
+      degraded: false,
+      prior_prs: { history: [{ pr_number: 17, files_overlap: ['src/limit.ts'] }] },
+    });
     expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:3999/pulls/pull-1/blast', expect.objectContaining({
       headers: expect.objectContaining({ accept: 'application/json' }),
     }));

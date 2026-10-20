@@ -11,6 +11,7 @@ const AgentSummary = z.object({
 });
 const Repo = z.object({ id: z.string(), owner: z.string(), name: z.string(), full_name: z.string() }).passthrough();
 const Pull = z.object({ id: z.string(), number: z.number().int(), title: z.string() }).passthrough();
+const PullLookup = Pull.extend({ repository: Repo });
 const Finding = z.object({
   id: z.string(), severity: z.string(), category: z.string(), title: z.string(), file: z.string(),
   start_line: z.number().int(), end_line: z.number().int(), rationale: z.string(), suggestion: z.string().nullable(),
@@ -32,6 +33,11 @@ const Review = z.object({
 const Convention = z.object({
   status: z.string(), rule: z.string(), category: z.string(), evidence_path: z.string(), evidence_line: z.number().int(), confidence: z.number(),
 }).passthrough();
+const PriorPrHistory = z.object({
+  history: z.array(z.object({
+    pr_number: z.number().int(), title: z.string(), merged_at: z.string(), author: z.string(), files_overlap: z.array(z.string()), notes: z.string(),
+  })),
+});
 const BlastRadius = z.object({
   changed_symbols: z.array(z.object({ name: z.string(), file: z.string(), kind: z.string() })),
   changedSymbols: z.array(z.object({ name: z.string(), file: z.string(), kind: z.string() })),
@@ -45,6 +51,7 @@ const BlastRadius = z.object({
   summary: z.string(),
   degraded: z.boolean(),
   reason: z.enum(['flag_off', 'index_failed', 'index_partial', 'repo_too_large', 'no_data']).nullable(),
+  prior_prs: PriorPrHistory.nullish(),
 });
 const ReviewStart = z.object({ runs: z.array(z.object({ run_id: z.string(), agent_id: z.string(), agent_name: z.string() })) });
 
@@ -64,6 +71,7 @@ export interface DevDigestApi {
   listAgents(): Promise<AgentSummary[]>;
   listRepos(): Promise<Repo[]>;
   listPulls(repoId: string): Promise<Pull[]>;
+  lookupPulls(locator: string, repositoryId?: string): Promise<Array<Pull & { repository: Repo }>>;
   runReview(pullId: string, agentId: string): Promise<z.infer<typeof ReviewStart>>;
   getRunFindings(runId: string, options?: ApiRequestOptions): Promise<RunFindings>;
   getPullReviews(pullId: string, options?: { latestPerAgent?: boolean }): Promise<Review[]>;
@@ -128,6 +136,11 @@ export class HttpDevDigestApi implements DevDigestApi {
   listAgents() { return this.request('/agents/summary', AgentSummary.array()); }
   listRepos() { return this.request('/repos', Repo.array()); }
   listPulls(repoId: string) { return this.request(`/repos/${encodeURIComponent(repoId)}/pulls`, Pull.array()); }
+  lookupPulls(locator: string, repositoryId?: string) {
+    const query = new URLSearchParams({ locator });
+    if (repositoryId) query.set('repository_id', repositoryId);
+    return this.request(`/pulls/lookup?${query}`, PullLookup.array());
+  }
   getRunFindings(runId: string, options: ApiRequestOptions = {}) {
     return this.request(`/runs/${encodeURIComponent(runId)}/findings`, RunFindings, {}, options);
   }
