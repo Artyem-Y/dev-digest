@@ -7,11 +7,19 @@ agent's own prompt or the repository instructions.
 ## Workflow
 
 ```text
-researcher → brainstorm → planner → test-writer → implementer
-                                       ↓                 ↓
-                                focused tests     implementation result
-                                                         ↓
-                 plan-verifier + architecture-reviewer + security-reviewer → doc-writer
+researcher → brainstorm → spec-creator → approval → implementation-planner
+                                                        ↓
+                                             plan-verifier (preflight)
+                                                        ↓
+                              optional test design → parallel implementers
+                                                        ↓
+                                      integration gate + pr-self-review
+                                                        ↓
+                                          plan-verifier (completion)
+                                                        ↓
+                        architecture-reviewer + security-reviewer (when triggered)
+                                                        ↓
+                                   focused remediation → re-verification → doc-writer
 ```
 
 ## Agents
@@ -20,26 +28,42 @@ researcher → brainstorm → planner → test-writer → implementer
 |---|---|---|---|---|---|
 | [researcher](researcher.md) | Answers a precise repository or external-research question with evidence; asks for clarification when the question is not concrete. | `terra` | Read, Grep, Glob, WebSearch, WebFetch; `Write` and `Edit` denied; plan mode. | Concrete question, scope or decision to inform, optional recency requirement. | `Repository Research Report` or `External Research Report`, each with evidence and `Not found`. |
 | [brainstorm](brainstorm.md) | Explores a bounded request before planning and recommends one evidence-grounded direction. | `terra` | Read, Grep, Glob; `Write` and `Edit` denied; plan mode. | Concrete request, constraints, and relevant repository context. | `Brainstorm Result` with options, trade-offs, recommendation, open decisions, and `Not found`. |
-| [planner](planner.md) | Converts researched context and product intent into an evidence-backed Development Plan. It identifies affected modules, constraints, required implementation skills, tests, risks, and handoff scope. | `terra` | Read, Grep, Glob; `Write` and `Edit` denied; plan mode. | Concrete change request, research report when needed, applicable package context. | `Development Plan` with acceptance criteria, ordered steps, exact files/symbols, verification commands, assumptions, and review handoff. |
-| [test-writer](test-writer.md) | Writes focused UI and backend regression tests for an approved behavior change without modifying production behavior. | `inherit` | Read, Grep, Glob, Bash, Write, Edit; prompt-limited to tests, fixtures, and test-local helpers. | Approved plan, expected behavior, permitted test scope. | `Test Design and Result` with coverage matrix and fresh command evidence. |
-| [implementer](implementer.md) | Implements an approved plan in the affected frontend/backend packages, applies relevant local skills, and verifies its direct changes. | `inherit` | Read, Grep, Glob, Bash, Write, Edit. | Approved Development Plan and relevant package context. | `Implementation Result`: completed plan steps, changed files, applied skills, fresh verification evidence, limitations, and handoff to reviewers. |
-| [plan-verifier](plan-verifier.md) | Traces every approved plan requirement to completed code and fresh test/command evidence. | `terra` | Read, Grep, Glob; `Write` and `Edit` denied; plan mode. | Plan, implementation result, diff, changed-file list, fresh verification output. | `Plan Verification Report` with requirement-level statuses and gaps. |
-| [architecture-reviewer](architecture-reviewer.md) | Reviews a completed change for package and dependency boundaries using evidence-backed findings. | `terra` | Read, Grep, Glob; `Write` and `Edit` denied; plan mode. | Plan, implementation result, diff, changed-file list. | `Architecture Review Report` with severity, `file:line` evidence, remediation, and unreviewed scope. |
-| [security-reviewer](security-reviewer.md) | Reviews a completed change for concrete vulnerabilities and unsafe trust flows. | `terra` | Read, Grep, Glob; `Write` and `Edit` denied; plan mode. | Plan, implementation result, diff, changed-file list. | `Security Review Report` with attack-path evidence, remediation, and unreviewed scope. |
+| [spec-creator](spec-creator.md) | Turns an agreed request and user-provided design sources into a draft SDD specification. It analyses gaps, corner cases, module interactions, and UX improvements before implementation planning. | `terra` | Read/search/fetch plus Markdown Write/Edit only for non-README SDD specs under `docs/specs/`; all other files are read-only. | Concrete request; user-provided text, Figma/design sources, screenshots, existing code, or repository context. | Draft specification defining WHAT/WHY, EARS acceptance criteria, design review, contracts, and open questions. |
+| [implementation-planner](implementation-planner.md) | Verifies agreed requirements and creates the HOW-only Implementation Plan. It asks clarifying questions, gives recommendations, and requires an execution-mode choice before writing. | `terra` | Read, Grep, Glob, Write, Edit, AskUserQuestion; writes only plans in `docs/superpowers/plans/`. | Approved specification, ticket, or clear requirements plus applicable package context. | Implementation Plan with verified requirements, selected execution mode, exact paths/symbols, dependencies, verification commands, and handoff scope. |
+| [test-writer](test-writer.md) | Creates a test-design matrix or writes focused regression tests without modifying production behavior. | `inherit` | Read, Grep, Glob, Bash, Write, Edit; prompt-limited to tests, fixtures, and test-local helpers. | Approved plan, expected behavior, assigned mode, permitted test scope. | `Test Design and Result` with coverage matrix and focused command evidence. |
+| [implementer](implementer.md) | Implements an approved plan task using planner-selected skills and either focused or integration-owned verification. | `inherit` | Read, Grep, Glob, Bash, Write, Edit. | Approved Development Plan, task card, and relevant package context. | `Implementation Result`: completed plan steps, changed files, applied skills, fresh verification receipts, limitations, and handoff to reviewers. |
+| [plan-verifier](plan-verifier.md) | Preflights plan traceability before code or traces every requirement to completed code and fresh evidence afterwards. | `sonnet` | Read, Grep, Glob; `Write` and `Edit` denied; plan mode. | Preflight: approved spec/waiver and plan. Completion: plan, implementation result, diff, changed-file list, fresh verification output. | `Plan Preflight Report` or `Plan Verification Report` with requirement-level gaps/statuses. |
+| [architecture-reviewer](architecture-reviewer.md) | Independently reviews a completed, completion-verified change for package and dependency boundaries. | `sonnet` | Read, Grep, Glob; `Write` and `Edit` denied; plan mode. | Plan, completion verification, implementation result, diff, changed-file list. | `Architecture Review Report` with severity, `file:line` evidence, remediation, and unreviewed scope. |
+| [security-reviewer](security-reviewer.md) | Independently reviews a completed, completion-verified change for concrete vulnerabilities and unsafe trust flows. | `terra` | Read, Grep, Glob; `Write` and `Edit` denied; plan mode. | Plan, completion verification, implementation result, diff, changed-file list. | `Security Review Report` with attack-path evidence, remediation, and unreviewed scope. |
 | [doc-writer](doc-writer.md) | Documents verified completed functionality in the correct README, docs, specs, or insights destination. | `inherit` | Read, Grep, Glob, Bash, Write, Edit; prompt-limited to documentation artifacts. | Plan, implementation result, changed-file list, fresh verification evidence. | `Documentation Result` with source evidence, destination rationale, and link/rendering checks. |
+
+## Plan execution command
+
+Use [`/run-plan`](../skills/run-plan/SKILL.md) only after the specification and
+Implementation Plan have been manually approved. It runs `plan-verifier`
+preflight, dispatches `implementer` tasks by the plan DAG, skips `test-writer`
+to save a dedicated agent pass, runs the integration gate and completion
+verification, then resolves actionable reviewer findings in a bounded loop. It
+never authors a specification/plan or pushes, merges, or opens a pull request.
 
 ## Boundaries
 
 - `researcher` is read-only and never invokes `/deep-research`.
 - `brainstorm` narrows options before planning; it neither approves scope nor edits files.
-- `planner` plans but does not mutate the repository.
+- `spec-creator` writes only draft/revised SDD specifications in the allowed `docs/specs/` locations; it never writes implementation plans or product files.
+- `implementation-planner` writes only implementation plans. It never authors or edits specifications, product code, tests, contracts, or configuration.
 - `implementer` does not substitute self-verification for architecture or
   security review; those are explicit downstream roles.
+- `pr-self-review` is a local integration-owner checklist. It catches obvious
+  final-diff omissions before handoff; it is not an independent review and
+  cannot replace `plan-verifier`, `architecture-reviewer`, or
+  `security-reviewer`.
 - `test-writer` does not change production behavior; implementation defects go
   back to `implementer` with test evidence.
-- `plan-verifier` verifies completed code against each plan requirement rather
-  than offering general advice.
-- `architecture-reviewer` reports only evidence-backed architecture findings;
+- `plan-verifier` (`sonnet`) runs a preflight before code is dispatched and verifies
+  completed code against each plan requirement afterwards; it does not offer
+  general advice in either mode.
+- `architecture-reviewer` (`sonnet`) reports only evidence-backed architecture findings;
   it is not a security reviewer.
 - `security-reviewer` independently reviews security paths and does not replace
   architecture review.
@@ -57,7 +81,7 @@ plus dispatch and model-routing rules. These compact artifacts do not replace
 required package instructions, Engineering Insights reads, or evidence-backed
 review.
 
-## Planner rule sources
+## Spec Creator and Implementation Planner rule sources
 
 | Rule group | Source |
 |---|---|

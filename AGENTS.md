@@ -17,7 +17,7 @@ These packages have separate manifests and lockfiles. Do not assume a root works
 
 1. Determine every package affected by the request.
 2. Before editing a package, read its `AGENTS.md`, `README.md`, and `INSIGHTS.md`.
-3. Read that package's `docs/README.md` and `specs/README.md`, then open only the documents relevant to the task.
+3. Read that package's `docs/README.md` and `docs/specs/README.md`, then open only the documents relevant to the task. Read its legacy `specs/README.md` too when the task concerns artifacts that still live there, such as E2E flow JSON.
 4. For cross-package work, repeat this for every affected package. A primary package does not replace another package's local instructions.
 
 ## Engineering Insights
@@ -50,7 +50,7 @@ Treat committed SQL migrations and `server/src/db/migrations/meta/` as immutable
 
 - `README.md` describes current behavior and standard commands.
 - `docs/` contains durable implementation and operational guidance.
-- `specs/` contains proposed or accepted feature contracts and acceptance criteria.
+- `docs/specs/` contains proposed or accepted SDD feature contracts and acceptance criteria. Existing package `specs/` directories retain their documented legacy assets, including executable E2E flows.
 - `INSIGHTS.md` contains append-only, reusable discoveries; it is not a changelog or task log.
 - `.claude/skills/` contains reusable procedures. Keep `AGENTS.md` focused on always-relevant facts and constraints. `CLAUDE.md` is a compatibility symlink for Claude Code.
 

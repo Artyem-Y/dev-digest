@@ -6,7 +6,8 @@
 ## Documentation
 
 - [Durable frontend documentation](docs/README.md)
-- [Frontend feature specifications](specs/README.md)
+- [Frontend SDD specifications](docs/specs/README.md)
+- [Legacy package specifications](specs/README.md)
 - [Repository test strategy](../TESTING.md)
 
 ## Scope and boundaries

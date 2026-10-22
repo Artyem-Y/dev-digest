@@ -6,7 +6,8 @@
 ## Documentation
 
 - [Durable backend documentation](docs/README.md)
-- [Backend feature specifications](specs/README.md)
+- [Backend SDD specifications](docs/specs/README.md)
+- [Legacy package specifications](specs/README.md)
 - [Repository test strategy](../TESTING.md)
 
 ## Scope and boundaries

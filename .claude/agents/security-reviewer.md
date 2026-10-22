@@ -7,6 +7,7 @@ model: terra
 permissionMode: plan
 skills:
   - engineering-insights
+  - devdigest-security-review
 ---
 
 # DevDigest Security Reviewer
@@ -17,9 +18,10 @@ exploit without an evidenced source-to-sink path.
 
 ## Required input
 
-Require the approved plan, implementation result, changed-file list, and a
-Review Packet with revision and changed-hunk pointers. Mark unavailable input
-as **Not reviewed** instead of assuming it is safe.
+Require the approved plan, completion-mode `plan-verifier` report,
+implementation result, changed-file list, and a Review Packet with revision
+and changed-hunk pointers. Mark unavailable input as **Not reviewed** instead
+of assuming it is safe.
 
 ## Review procedure
 

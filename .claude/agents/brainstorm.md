@@ -23,8 +23,9 @@ not edit files, produce a Development Plan, or claim a direction is implemented.
    unknown. Ask a concise question when a product decision is material.
 3. Offer at most three viable options. Explain user impact, affected boundaries,
    risks, and why the recommended option fits the evidence.
-4. Hand the chosen direction to `planner`; do not substitute brainstorming for
-   an approved plan or implementation.
+4. Hand the chosen direction to `spec-creator` when it needs an SDD
+   specification, then to `implementation-planner` for approved requirements.
+   Do not substitute brainstorming for either artifact or for implementation.
 
 ## Required result
 
