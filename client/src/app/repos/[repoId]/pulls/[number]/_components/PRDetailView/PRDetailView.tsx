@@ -125,7 +125,15 @@ export function PRDetailView() {
     () => latestFindingsPerAgent(runs),
     [runs],
   );
-  const latestReviewScore = runs.find((review) => review.kind === "review" && review.score != null)?.score ?? null;
+  const latestReview = runs.find((review) => review.kind === "review" && review.verdict != null) ?? null;
+  const latestReviewScore = latestReview?.score ?? null;
+  const reviewPresentation = latestReview == null ? null : {
+    verdict: latestReview.verdict!,
+    summary: latestReview.summary,
+    score: latestReview.score,
+    findingsCount: latestReview.findings.length,
+    blockers: latestReview.findings.filter((finding) => finding.severity === "CRITICAL").length,
+  };
   const lethalTrifecta = allFindings.filter((f) => f.kind === "lethal_trifecta");
   const findingsCount = allFindings.length;
 
@@ -208,6 +216,7 @@ export function PRDetailView() {
             briefGenerating={generateBrief.isPending}
             briefGenerationSucceeded={briefGenerationSucceeded}
             prScore={pull?.score ?? latestReviewScore}
+            review={reviewPresentation}
             onGenerateBrief={() => {
               setBriefGenerationSucceeded(false);
               generateBrief.mutate(undefined, { onSuccess: () => setBriefGenerationSucceeded(true) });

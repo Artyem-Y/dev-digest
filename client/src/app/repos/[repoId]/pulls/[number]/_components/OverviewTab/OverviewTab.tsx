@@ -7,7 +7,7 @@ import type { DerivedIntent } from "@/vendor/shared/contracts/brief";
 import type { BlastRadius } from "@/vendor/shared/contracts/brief";
 import type { FindingRecord } from "@/vendor/shared/contracts/review-api";
 import { BlastRadiusCard } from "../BlastRadiusCard/BlastRadiusCard";
-import { BriefReviewFocus, BriefRiskAreas, getCachedBrief, PRBriefCard } from "../PRBriefCard/PRBriefCard";
+import { BriefReviewFocus, BriefRiskAreas, getCachedBrief, PRBriefCard, type BriefReviewPresentation } from "../PRBriefCard/PRBriefCard";
 import type { BriefGenerateResponse } from "@devdigest/shared";
 import { s } from "./styles";
 
@@ -31,12 +31,13 @@ interface OverviewTabProps {
   briefGenerating?: boolean;
   briefGenerationSucceeded?: boolean;
   prScore?: number | null;
+  review?: BriefReviewPresentation | null;
   onGenerateBrief?: () => void;
   onReviewFocus?: (target: { file: string; line: number }) => void;
   reviewFocusHref?: (target: { file: string; line: number }) => string;
 }
 
-export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, intentRerunning = false, onRecalculate, recalculating = false, blast = null, repoFullName = null, headSha = null, blastLoading = false, blastError = false, brief, briefLoading = false, briefError = false, briefErrorCode, briefGenerating = false, briefGenerationSucceeded = false, prScore = null, onGenerateBrief = () => undefined, onReviewFocus = () => undefined, reviewFocusHref }: OverviewTabProps) {
+export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, intentRerunning = false, onRecalculate, recalculating = false, blast = null, repoFullName = null, headSha = null, blastLoading = false, blastError = false, brief, briefLoading = false, briefError = false, briefErrorCode, briefGenerating = false, briefGenerationSucceeded = false, prScore = null, review = null, onGenerateBrief = () => undefined, onReviewFocus = () => undefined, reviewFocusHref }: OverviewTabProps) {
   const t = useTranslations("prReview");
   const blastT = useTranslations("blast");
   const briefT = useTranslations("brief");
@@ -51,7 +52,7 @@ export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, 
   const hasBlastPanel = Boolean((activeBlast && repoFullName && headSha) || blastLoading || blastError || blastUnavailable);
   return (
     <>
-      <PRBriefCard data={brief} isLoading={briefLoading} isError={briefError} errorCode={briefErrorCode} isGenerating={briefGenerating} generationSucceeded={briefGenerationSucceeded} prScore={prScore} onGenerate={onGenerateBrief} />
+      <PRBriefCard data={brief} isLoading={briefLoading} isError={briefError} errorCode={briefErrorCode} isGenerating={briefGenerating} generationSucceeded={briefGenerationSucceeded} prScore={prScore} review={review} onGenerate={onGenerateBrief} />
       {prBody && (
         <section>
           <SectionLabel icon="MessageSquare">Description</SectionLabel>

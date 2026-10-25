@@ -9,6 +9,15 @@
   "stale": "This brief is for an earlier commit. Regenerate it before relying on it.",
   "generationFailed": "Couldn't generate the PR Brief. Try again.",
   "generationInProgress": "A brief is already being generated. Try again shortly.",
+  "reviewNotRun": "Review not run",
+  "reviewUnavailable": "Run a review to calculate a verdict and score.",
+  "findingsAndBlockers": "{findingsCount, plural, one {# finding} other {# findings}} · {blockers, plural, one {# blocker} other {# blockers}}",
+  "additionalFiles": "+{count}",
+  "verdict": {
+    "requestChanges": "Request changes",
+    "approve": "Approve",
+    "comment": "Comment"
+  },
   "summary": "Summary",
   "prScore": "PR Score",
   "risks": "Risk areas",

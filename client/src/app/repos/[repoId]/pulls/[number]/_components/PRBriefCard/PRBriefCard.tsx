@@ -1,11 +1,20 @@
 "use client";
 
 import React from "react";
-import { Button, CircularScore, Icon, SectionLabel } from "@devdigest/ui";
+import { Badge, Button, CircularScore, Icon, SectionLabel } from "@devdigest/ui";
 import { useTranslations } from "next-intl";
-import type { Brief, BriefGenerateResponse } from "@devdigest/shared";
+import type { Brief, BriefGenerateResponse, Verdict } from "@devdigest/shared";
+import { VERDICT_META } from "../VerdictBanner/constants";
 
 type ReviewFocus = { file: string; line: number };
+
+export interface BriefReviewPresentation {
+  verdict: Verdict;
+  summary: string | null;
+  score: number | null;
+  findingsCount: number;
+  blockers: number;
+}
 
 interface PRBriefCardProps {
   data: BriefGenerateResponse | undefined;
@@ -15,10 +24,11 @@ interface PRBriefCardProps {
   isGenerating: boolean;
   generationSucceeded?: boolean;
   prScore?: number | null;
+  review?: BriefReviewPresentation | null;
   onGenerate: () => void;
 }
 
-export function PRBriefCard({ data, isLoading, isError, errorCode, isGenerating, generationSucceeded = false, prScore = null, onGenerate }: PRBriefCardProps) {
+export function PRBriefCard({ data, isLoading, isError, errorCode, isGenerating, generationSucceeded = false, prScore = null, review = null, onGenerate }: PRBriefCardProps) {
   const t = useTranslations("brief");
   const brief = getCachedBrief(data);
   const cache = data?.cache;
@@ -27,20 +37,23 @@ export function PRBriefCard({ data, isLoading, isError, errorCode, isGenerating,
   const actionLabel = brief ? t("regenerate") : t("generate");
 
   return (
-    <section aria-label={t("title")} data-testid="brief-summary-card" style={styles.card}>
-      <SectionLabel
-        icon="FileText"
-        right={
-          <Button kind="primary" size="sm" icon="Sparkles" loading={isGenerating} disabled={isGenerating} onClick={onGenerate}>
-            {isGenerating ? t("generating") : actionLabel}
-          </Button>
-        }
-      >
-        {t("title")}
-      </SectionLabel>
+    <section aria-label={t("title")} data-testid="brief-summary-card">
+      <div data-testid="brief-section-header">
+        <SectionLabel
+          icon="FileText"
+          right={
+            <Button kind="primary" size="sm" icon="Sparkles" loading={isGenerating} disabled={isGenerating} onClick={onGenerate}>
+              {isGenerating ? t("generating") : actionLabel}
+            </Button>
+          }
+        >
+          {t("title")}
+        </SectionLabel>
+      </div>
 
-      <div style={styles.bodyRow}>
-        <div style={styles.body}>
+      <div data-testid="brief-verdict-banner" style={styles.card}>
+        <VerdictSummary review={review} score={review?.score ?? prScore} />
+        {(isGenerating || generationSucceeded || isError || (isLoading && !cache) || (!brief && !isLoading) || stale || unavailableSource) && <div style={styles.noticeArea}>
           {isGenerating && <p role="status" aria-live="polite" style={styles.status}>{t("generatingStatus")}</p>}
           {generationSucceeded && !isGenerating && <p role="status" aria-live="polite" style={styles.success}>{t("generationSucceeded")}</p>}
           {isError && (
@@ -50,16 +63,9 @@ export function PRBriefCard({ data, isLoading, isError, errorCode, isGenerating,
           )}
           {isLoading && !cache && <p role="status" style={styles.status}>{t("unavailable")}</p>}
           {!brief && !isLoading && <p style={styles.empty}>{t("missing")}</p>}
-
-          {brief && (
-            <div style={styles.content}>
-              {stale && <p role="status" aria-live="polite" style={styles.stale}>{t("stale")}</p>}
-              <BriefSection title={t("summary")}><p style={styles.summary}>{brief.summary}</p></BriefSection>
-              {unavailableSource && <p role="status" style={styles.status}>{t("sourceUnavailable")}</p>}
-            </div>
-          )}
-        </div>
-        <PrScore score={prScore} label={t("prScore")} />
+          {stale && <p role="status" aria-live="polite" style={styles.stale}>{t("stale")}</p>}
+          {unavailableSource && <p role="status" style={styles.status}>{t("sourceUnavailable")}</p>}
+        </div>}
       </div>
     </section>
   );
@@ -68,6 +74,25 @@ export function PRBriefCard({ data, isLoading, isError, errorCode, isGenerating,
 export function getCachedBrief(data: BriefGenerateResponse | undefined): Brief | null {
   const cache = data?.cache;
   return cache?.cache_state === "current" || cache?.cache_state === "stale" ? cache.brief : null;
+}
+
+function VerdictSummary({ review, score }: { review: BriefReviewPresentation | null; score: number | null }) {
+  const t = useTranslations("brief");
+  const meta = review ? VERDICT_META[review.verdict] : null;
+  const VerdictIcon = meta ? Icon[meta.icon] : Icon.Info;
+  return (
+    <div style={styles.verdictMain}>
+      <div style={verdictIconStyle(meta?.bg ?? "var(--bg-hover)", meta?.c ?? "var(--text-muted)")}><VerdictIcon size={22} /></div>
+      <div style={styles.verdictCopy}>
+        <div style={styles.verdictTitleRow}>
+          <span style={verdictLabelStyle(meta?.c ?? "var(--text-secondary)")}>{review ? t(`verdict.${meta!.labelKey}`) : t("reviewNotRun")}</span>
+          {review && <Badge color="var(--text-secondary)">{t("findingsAndBlockers", { findingsCount: review.findingsCount, blockers: review.blockers })}</Badge>}
+        </div>
+        <p style={styles.verdictSummary}>{review?.summary ?? t("reviewUnavailable")}</p>
+      </div>
+      <PrScore score={score} label={t("prScore")} />
+    </div>
+  );
 }
 
 function PrScore({ score, label }: { score: number | null; label: string }) {
@@ -82,23 +107,33 @@ function PrScore({ score, label }: { score: number | null; label: string }) {
 export function BriefRiskAreas({ brief }: { brief: Brief }) {
   const t = useTranslations("brief");
   return (
-    <div>
+    <div data-testid="brief-risk-areas">
       <div style={styles.riskTitle}><Icon.AlertTriangle size={13} />{t("risks")}</div>
       {brief.risks.risks.length === 0 ? <p style={styles.empty}>{t("noRisks")}</p> : (
         <ul style={styles.list}>
           {brief.risks.risks.map((risk, index) => (
-            <li key={`${risk.kind}-${risk.title}-${index}`} style={styles.risk}>
-              <Icon.AlertTriangle size={14} style={severityStyle(risk.severity)} />
-              <div>
-                <strong>{t(`severity.${risk.severity}`)} · {risk.title}</strong>
-                <p style={styles.explanation}>{risk.explanation}</p>
-                <div style={styles.refs}>{risk.file_refs.join(", ")}</div>
-              </div>
-            </li>
+            <RiskArea key={`${risk.kind}-${risk.title}-${index}`} risk={risk} index={index} />
           ))}
         </ul>
       )}
     </div>
+  );
+}
+
+function RiskArea({ risk, index }: { risk: Brief["risks"]["risks"][number]; index: number }) {
+  const t = useTranslations("brief");
+  const [primaryFile, ...additionalFiles] = risk.file_refs;
+  return (
+    <li data-testid={`brief-risk-area-${index}`} style={styles.risk}>
+      <Icon.AlertTriangle size={14} style={severityStyle(risk.severity)} />
+      <div style={styles.riskCopy}>
+        <strong style={styles.riskName}>{risk.title}</strong>
+        {primaryFile && <div style={styles.refs}>
+          <span title={primaryFile} style={styles.primaryRef}>{primaryFile}</span>
+          {additionalFiles.length > 0 && <span style={styles.additionalFiles}>{t("additionalFiles", { count: additionalFiles.length })}</span>}
+        </div>}
+      </div>
+    </li>
   );
 }
 
@@ -136,21 +171,25 @@ export function BriefReviewFocus({ brief, onReviewFocus, focusHref }: { brief: B
   );
 }
 
-function BriefSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section><h3 style={styles.heading}>{title}</h3>{children}</section>;
-}
-
 function severityStyle(severity: "high" | "medium" | "low") {
   return { color: severity === "high" ? "var(--crit)" : severity === "medium" ? "var(--warn)" : "var(--sugg)", marginTop: 2, flex: "0 0 auto" };
 }
 
+function verdictIconStyle(background: string, color: string): React.CSSProperties {
+  return { display: "grid", width: 48, height: 48, flex: "0 0 auto", placeItems: "center", borderRadius: 10, background, color };
+}
+
+function verdictLabelStyle(color: string): React.CSSProperties {
+  return { color, fontSize: 18, fontWeight: 700 };
+}
+
 const styles: Record<string, React.CSSProperties> = {
   card: { border: "1px solid var(--border)", borderRadius: 8, padding: 16, background: "var(--bg-elevated)" },
-  bodyRow: { display: "flex", alignItems: "center", gap: 20 },
-  body: { flex: "1 1 auto", minWidth: 0 },
-  content: { display: "flex", flexDirection: "column", gap: 16 },
-  heading: { margin: "0 0 6px", fontSize: 12, color: "var(--text-muted)", letterSpacing: ".06em", textTransform: "uppercase" },
-  summary: { margin: 0, lineHeight: 1.55 },
+  verdictMain: { display: "flex", alignItems: "flex-start", gap: 16 },
+  verdictCopy: { flex: "1 1 auto", minWidth: 0 },
+  verdictTitleRow: { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10 },
+  verdictSummary: { margin: "8px 0 0", color: "var(--text-secondary)", fontSize: 14, lineHeight: 1.5 },
+  noticeArea: { marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border)" },
   score: { display: "flex", flex: "0 0 auto", flexDirection: "column", alignItems: "center", gap: 4, paddingLeft: 16, borderLeft: "1px solid var(--border)" },
   unavailableScore: { display: "grid", width: 52, height: 52, placeItems: "center", border: "5px solid var(--bg-hover)", borderRadius: "50%", color: "var(--text-muted)", fontSize: 16, fontWeight: 700 },
   scoreLabel: { color: "var(--text-muted)", fontSize: 10, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase" },
@@ -159,11 +198,14 @@ const styles: Record<string, React.CSSProperties> = {
   error: { margin: "10px 0 0", color: "var(--crit)", fontSize: 13 },
   success: { margin: "10px 0 0", color: "var(--good)", fontSize: 13 },
   stale: { margin: 0, color: "var(--warn)", fontSize: 13, fontWeight: 600 },
-  list: { display: "flex", flexDirection: "column", gap: 9, margin: 0, padding: 0, listStyle: "none" },
+  list: { display: "flex", flexDirection: "column", gap: 8, margin: 0, padding: 0, listStyle: "none" },
   riskTitle: { display: "flex", alignItems: "center", gap: 6, marginBottom: 9, color: "var(--text-muted)", fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase" },
-  risk: { display: "flex", gap: 8, fontSize: 13 },
-  explanation: { margin: "3px 0", color: "var(--text-muted)", lineHeight: 1.4 },
-  refs: { color: "var(--accent-text)", fontFamily: "var(--font-mono)", fontSize: 12 },
+  risk: { display: "flex", minWidth: 0, alignItems: "flex-start", gap: 8, border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", fontSize: 13 },
+  riskCopy: { flex: "1 1 auto", minWidth: 0 },
+  riskName: { display: "block", color: "var(--text-primary)", fontSize: 13, lineHeight: 1.35 },
+  refs: { display: "flex", minWidth: 0, alignItems: "center", gap: 6, marginTop: 2, color: "var(--accent-text)", fontFamily: "var(--font-mono)", fontSize: 12 },
+  primaryRef: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  additionalFiles: { flex: "0 0 auto", color: "var(--text-muted)" },
   focusList: { display: "flex", flexDirection: "column", gap: 7, margin: 0, padding: 0, listStyle: "none" },
   focusCard: { border: "1px solid var(--border)", borderRadius: 8, background: "var(--bg-elevated)", padding: 16 },
   focusCount: { display: "inline-grid", minWidth: 22, placeItems: "center", borderRadius: 5, background: "var(--accent-bg)", color: "var(--accent-text)", fontSize: 12, fontWeight: 700, padding: "2px 6px", fontVariantNumeric: "tabular-nums" },

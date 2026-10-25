@@ -12,6 +12,13 @@ describe('OverviewTab intent', () => {
       <NextIntlClientProvider locale="en" messages={{ prReview: messages, blast: blastMessages, brief: briefMessages }}>
         <OverviewTab
           prBody={null}
+          review={{
+            verdict: 'request_changes',
+            summary: 'Two blockers must be fixed before merge.',
+            score: 61,
+            findingsCount: 6,
+            blockers: 2,
+          }}
           brief={{
             cache: {
               cache_state: 'current',
@@ -37,7 +44,12 @@ describe('OverviewTab intent', () => {
     expect(summary.compareDocumentPosition(analysis) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(analysis.compareDocumentPosition(focus) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(analysis).getByText(/Missing retry header/)).toBeInTheDocument();
+    expect(within(analysis).getByTestId("brief-risk-areas")).toBeInTheDocument();
+    expect(within(analysis).getByTestId("brief-risk-area-0")).toHaveAttribute("style", expect.stringContaining("border: 1px solid var(--border)"));
     expect(within(focus).getByText('src/limit.ts:42')).toBeInTheDocument();
+    expect(screen.getByText('Request changes')).toBeInTheDocument();
+    expect(screen.getByText('6 findings · 2 blockers')).toBeInTheDocument();
+    expect(screen.getByLabelText('PR score: 61')).toBeInTheDocument();
   });
 
   it('places Blast Radius beside Intent inside the overview analysis grid', () => {

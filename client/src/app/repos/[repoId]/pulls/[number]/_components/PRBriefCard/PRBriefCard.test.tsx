@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 import messages from "../../../../../../../../messages/en/brief.json";
-import { BriefReviewFocus, PRBriefCard } from "./PRBriefCard";
+import { BriefReviewFocus, BriefRiskAreas, PRBriefCard } from "./PRBriefCard";
 
 const current = {
   cache: {
@@ -38,12 +38,21 @@ describe("PRBriefCard", () => {
     expect(screen.getByRole("region", { name: "PR Brief" })).toBeInTheDocument();
   });
 
-  it("renders a stale Brief summary and regenerate action", () => {
+  it("keeps stale Brief feedback out of the verdict banner and offers regeneration", () => {
     renderCard({ data: { ...current, cache: { ...current.cache, cache_state: "stale" } } });
 
     expect(screen.getByText("This brief is for an earlier commit. Regenerate it before relying on it.")).toBeInTheDocument();
-    expect(screen.getByText("Rate limiting protects public endpoints.")).toBeInTheDocument();
+    expect(screen.queryByText("Rate limiting protects public endpoints.")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Regenerate brief" })).toBeInTheDocument();
+  });
+
+  it("keeps the PR Brief heading outside the verdict banner", () => {
+    renderCard({ data: current });
+
+    const heading = screen.getByTestId("brief-section-header");
+    const banner = screen.getByTestId("brief-verdict-banner");
+    expect(heading.compareDocumentPosition(banner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(banner).not.toContainElement(heading);
   });
 
   it("shows the factual PR score ring alongside a generated Brief", () => {
@@ -65,6 +74,57 @@ describe("PRBriefCard", () => {
 
     expect(screen.getByLabelText("PR score unavailable")).toHaveTextContent("—");
     expect(screen.getByText("PR Score")).toBeInTheDocument();
+  });
+
+  it("renders a neutral verdict banner when no review has run", () => {
+    renderCard({ data: current, review: null });
+
+    expect(screen.getByText("Review not run")).toBeInTheDocument();
+    expect(screen.getByText("Run a review to calculate a verdict and score.")).toBeInTheDocument();
+    expect(screen.getByLabelText("PR score unavailable")).toBeInTheDocument();
+  });
+
+  it("renders review facts in the verdict banner", () => {
+    renderCard({
+      data: current,
+      review: {
+        verdict: "request_changes",
+        summary: "Two blockers must be fixed before merge.",
+        score: 61,
+        findingsCount: 6,
+        blockers: 2,
+      },
+    });
+
+    expect(screen.getByText("Request changes")).toBeInTheDocument();
+    expect(screen.getByText("6 findings · 2 blockers")).toBeInTheDocument();
+    expect(screen.getByText("Two blockers must be fixed before merge.")).toBeInTheDocument();
+    expect(screen.getByLabelText("PR score: 61")).toBeInTheDocument();
+  });
+
+  it("keeps multi-file risk references compact", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={{ brief: messages }}>
+        <BriefRiskAreas
+          brief={{
+            ...current.cache.brief,
+            risks: {
+              risks: [{
+                kind: "security",
+                title: "Missing retry header",
+                explanation: "Clients need a retry window.",
+                severity: "high",
+                file_refs: ["server/src/brief.ts", "server/src/cache.ts", "client/src/brief.ts"],
+              }],
+            },
+          }}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("server/src/brief.ts")).toBeInTheDocument();
+    expect(screen.getByText("+2")).toBeInTheDocument();
+    expect(screen.queryByText("server/src/cache.ts")).not.toBeInTheDocument();
   });
 
   it("renders Review focus separately and preserves its navigation action", () => {
@@ -109,7 +169,7 @@ describe("PRBriefCard", () => {
 
     expect(screen.queryByText("This brief is for an earlier commit. Regenerate it before relying on it.")).not.toBeInTheDocument();
     expect(screen.getByText("Some optional review sources were unavailable when this brief was generated.")).toBeInTheDocument();
-    expect(screen.getByText("Rate limiting protects public endpoints.")).toBeInTheDocument();
+    expect(screen.queryByText("Rate limiting protects public endpoints.")).not.toBeInTheDocument();
   });
 
   it("announces pending, conflict, and empty successful sections without inventing unavailable data", () => {
