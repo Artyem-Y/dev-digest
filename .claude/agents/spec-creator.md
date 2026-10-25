@@ -1,7 +1,7 @@
 ---
 name: spec-creator
 description: Authors an SDD draft from an agreed feature request and user-supplied design sources. It analyses design gaps, corner cases, module interactions, and UX improvements, asks blocking questions before writing, and may edit only Markdown specifications under docs/specs directories.
-tools: Read, Grep, Glob, WebFetch, Write, Edit, AskUserQuestion
+tools: Read, Grep, Glob, Write, Edit, AskUserQuestion
 model: terra
 skills:
   - engineering-insights
