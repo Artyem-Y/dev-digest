@@ -53,6 +53,12 @@ export function PRBriefCard({ data, isLoading, isError, errorCode, isGenerating,
 
       <div data-testid="brief-verdict-banner" style={styles.card}>
         <VerdictSummary review={review} score={review?.score ?? prScore} />
+        {brief && !stale && (
+          <div data-testid="brief-generated-summary" style={styles.briefSummary}>
+            <div style={styles.briefSummaryLabel}>{t("summary")}</div>
+            <p style={styles.briefSummaryText}>{brief.summary}</p>
+          </div>
+        )}
         {(isGenerating || generationSucceeded || isError || (isLoading && !cache) || (!brief && !isLoading) || stale || unavailableSource) && <div style={styles.noticeArea}>
           {isGenerating && <p role="status" aria-live="polite" style={styles.status}>{t("generatingStatus")}</p>}
           {generationSucceeded && !isGenerating && <p role="status" aria-live="polite" style={styles.success}>{t("generationSucceeded")}</p>}
@@ -189,6 +195,9 @@ const styles: Record<string, React.CSSProperties> = {
   verdictCopy: { flex: "1 1 auto", minWidth: 0 },
   verdictTitleRow: { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10 },
   verdictSummary: { margin: "8px 0 0", color: "var(--text-secondary)", fontSize: 14, lineHeight: 1.5 },
+  briefSummary: { marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border)" },
+  briefSummaryLabel: { color: "var(--text-muted)", fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase" },
+  briefSummaryText: { margin: "5px 0 0", color: "var(--text-primary)", fontSize: 14, lineHeight: 1.5 },
   noticeArea: { marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border)" },
   score: { display: "flex", flex: "0 0 auto", flexDirection: "column", alignItems: "center", gap: 4, paddingLeft: 16, borderLeft: "1px solid var(--border)" },
   unavailableScore: { display: "grid", width: 52, height: 52, placeItems: "center", border: "5px solid var(--bg-hover)", borderRadius: "50%", color: "var(--text-muted)", fontSize: 16, fontWeight: 700 },

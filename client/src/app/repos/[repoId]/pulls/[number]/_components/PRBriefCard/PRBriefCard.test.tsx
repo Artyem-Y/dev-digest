@@ -102,6 +102,22 @@ describe("PRBriefCard", () => {
     expect(screen.getByLabelText("PR score: 61")).toBeInTheDocument();
   });
 
+  it("renders the generated Brief summary separately from the review verdict summary", () => {
+    renderCard({
+      data: current,
+      review: {
+        verdict: "request_changes",
+        summary: "Two blockers must be fixed before merge.",
+        score: 61,
+        findingsCount: 6,
+        blockers: 2,
+      },
+    });
+
+    expect(screen.getByText("Rate limiting protects public endpoints.")).toBeInTheDocument();
+    expect(screen.getByText("Two blockers must be fixed before merge.")).toBeInTheDocument();
+  });
+
   it("keeps multi-file risk references compact", () => {
     render(
       <NextIntlClientProvider locale="en" messages={{ brief: messages }}>
@@ -169,7 +185,7 @@ describe("PRBriefCard", () => {
 
     expect(screen.queryByText("This brief is for an earlier commit. Regenerate it before relying on it.")).not.toBeInTheDocument();
     expect(screen.getByText("Some optional review sources were unavailable when this brief was generated.")).toBeInTheDocument();
-    expect(screen.queryByText("Rate limiting protects public endpoints.")).not.toBeInTheDocument();
+    expect(screen.getByText("Rate limiting protects public endpoints.")).toBeInTheDocument();
   });
 
   it("announces pending, conflict, and empty successful sections without inventing unavailable data", () => {
