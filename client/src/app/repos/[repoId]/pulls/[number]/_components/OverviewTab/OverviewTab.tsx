@@ -7,7 +7,7 @@ import type { DerivedIntent } from "@/vendor/shared/contracts/brief";
 import type { BlastRadius } from "@/vendor/shared/contracts/brief";
 import type { FindingRecord } from "@/vendor/shared/contracts/review-api";
 import { BlastRadiusCard } from "../BlastRadiusCard/BlastRadiusCard";
-import { PRBriefCard } from "../PRBriefCard/PRBriefCard";
+import { BriefReviewFocus, BriefRiskAreas, getCachedBrief, PRBriefCard } from "../PRBriefCard/PRBriefCard";
 import type { BriefGenerateResponse } from "@devdigest/shared";
 import { s } from "./styles";
 
@@ -30,18 +30,28 @@ interface OverviewTabProps {
   briefErrorCode?: string;
   briefGenerating?: boolean;
   briefGenerationSucceeded?: boolean;
+  prScore?: number | null;
   onGenerateBrief?: () => void;
   onReviewFocus?: (target: { file: string; line: number }) => void;
+  reviewFocusHref?: (target: { file: string; line: number }) => string;
 }
 
-export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, intentRerunning = false, onRecalculate, recalculating = false, blast = null, repoFullName = null, headSha = null, blastLoading = false, blastError = false, brief, briefLoading = false, briefError = false, briefErrorCode, briefGenerating = false, briefGenerationSucceeded = false, onGenerateBrief = () => undefined, onReviewFocus = () => undefined }: OverviewTabProps) {
+export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, intentRerunning = false, onRecalculate, recalculating = false, blast = null, repoFullName = null, headSha = null, blastLoading = false, blastError = false, brief, briefLoading = false, briefError = false, briefErrorCode, briefGenerating = false, briefGenerationSucceeded = false, prScore = null, onGenerateBrief = () => undefined, onReviewFocus = () => undefined, reviewFocusHref }: OverviewTabProps) {
   const t = useTranslations("prReview");
   const blastT = useTranslations("blast");
+  const briefT = useTranslations("brief");
   const usedSources = intent?.evidence.filter((source) => source.status === "used").length ?? 0;
-  const hasBlastPanel = Boolean((blast && repoFullName && headSha) || blastLoading || blastError);
+  const generatedBrief = getCachedBrief(brief);
+  const sourceUnavailable = (sourceKind: "intent" | "blast_radius") => brief?.sources.some((source) =>
+    source.source_kind === sourceKind && (source.status === "unavailable" || source.status === "rejected"),
+  ) ?? false;
+  const intentUnavailable = sourceUnavailable("intent");
+  const blastUnavailable = sourceUnavailable("blast_radius");
+  const activeBlast = blast ?? (blastUnavailable ? null : generatedBrief?.blast ?? null);
+  const hasBlastPanel = Boolean((activeBlast && repoFullName && headSha) || blastLoading || blastError || blastUnavailable);
   return (
     <>
-      <PRBriefCard data={brief} isLoading={briefLoading} isError={briefError} errorCode={briefErrorCode} isGenerating={briefGenerating} generationSucceeded={briefGenerationSucceeded} onGenerate={onGenerateBrief} onReviewFocus={onReviewFocus} />
+      <PRBriefCard data={brief} isLoading={briefLoading} isError={briefError} errorCode={briefErrorCode} isGenerating={briefGenerating} generationSucceeded={briefGenerationSucceeded} prScore={prScore} onGenerate={onGenerateBrief} />
       {prBody && (
         <section>
           <SectionLabel icon="MessageSquare">Description</SectionLabel>
@@ -70,9 +80,17 @@ export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, 
                 </div>
                 <div style={s.intentMeta}>{t("intent.confidenceSources", { confidence: t(`intent.${intent.confidence}`), count: usedSources })}</div>
               </>
-            ) : <span style={s.intentUnavailable}>{t("intent.unavailable")}</span>}
+            ) : generatedBrief && !intentUnavailable ? (
+              <>
+                <p style={s.intentSummary}>“{generatedBrief.intent.intent}”</p>
+                <div style={s.intentScopes}>
+                  <ScopeList title={t("intent.inScope")} values={generatedBrief.intent.in_scope} kind="inScope" />
+                  <ScopeList title={t("intent.outOfScope")} values={generatedBrief.intent.out_of_scope} kind="outOfScope" />
+                </div>
+              </>
+            ) : <span role="status" style={s.intentUnavailable}>{intentUnavailable ? briefT("intentUnavailable") : t("intent.unavailable")}</span>}
             <div style={s.intentDivider} />
-            <RiskAreas risks={risks} title={t("intent.riskAreas")} empty={t("intent.noRiskAreas")} />
+            {generatedBrief ? <BriefRiskAreas brief={generatedBrief} /> : <RiskAreas risks={risks} title={t("intent.riskAreas")} empty={t("intent.noRiskAreas")} />}
             {onRecalculate && (
               <div style={s.recalculateAction}>
                 <Button kind="tertiary" size="sm" icon="RefreshCw" loading={recalculating} onClick={onRecalculate}>
@@ -84,12 +102,14 @@ export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, 
         </section>
         {hasBlastPanel && (
           <div style={s.blastColumn}>
-            {blast && repoFullName && headSha && <BlastRadiusCard blast={blast} repoFullName={repoFullName} headSha={headSha} />}
+            {activeBlast && repoFullName && headSha && <BlastRadiusCard blast={activeBlast} repoFullName={repoFullName} headSha={headSha} />}
             {blastLoading && <p role="status" style={s.intentUnavailable}>{blastT("loading")}</p>}
             {blastError && <p role="status" style={s.intentUnavailable}>{blastT("unavailable")}</p>}
+            {blastUnavailable && !blast && !blastLoading && !blastError && <p role="status" style={s.intentUnavailable}>{briefT("blastUnavailable")}</p>}
           </div>
         )}
       </div>
+      <BriefReviewFocus brief={generatedBrief} onReviewFocus={onReviewFocus} focusHref={reviewFocusHref} />
     </>
   );
 }

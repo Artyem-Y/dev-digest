@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 import messages from "../../../../../../../../messages/en/brief.json";
-import { PRBriefCard } from "./PRBriefCard";
+import { BriefReviewFocus, PRBriefCard } from "./PRBriefCard";
 
 const current = {
   cache: {
@@ -23,7 +23,7 @@ const current = {
 function renderCard(props: Partial<React.ComponentProps<typeof PRBriefCard>> = {}) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ brief: messages }}>
-      <PRBriefCard data={undefined} isLoading={false} isError={false} isGenerating={false} onGenerate={vi.fn()} onReviewFocus={vi.fn()} {...props} />
+      <PRBriefCard data={undefined} isLoading={false} isError={false} isGenerating={false} onGenerate={vi.fn()} {...props} />
     </NextIntlClientProvider>,
   );
 }
@@ -38,19 +38,65 @@ describe("PRBriefCard", () => {
     expect(screen.getByRole("region", { name: "PR Brief" })).toBeInTheDocument();
   });
 
-  it("renders a stale brief, grounded risks and keyboard-operable review focus", () => {
-    const onReviewFocus = vi.fn();
-    renderCard({ data: { ...current, cache: { ...current.cache, cache_state: "stale" } }, onReviewFocus });
+  it("renders a stale Brief summary and regenerate action", () => {
+    renderCard({ data: { ...current, cache: { ...current.cache, cache_state: "stale" } } });
 
     expect(screen.getByText("This brief is for an earlier commit. Regenerate it before relying on it.")).toBeInTheDocument();
     expect(screen.getByText("Rate limiting protects public endpoints.")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Risk areas" })).toBeInTheDocument();
-    expect(screen.getByText("High · Missing retry header")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Regenerate brief" })).toBeInTheDocument();
+  });
+
+  it("shows the factual PR score ring alongside a generated Brief", () => {
+    renderCard({ data: current, prScore: 61 });
+
+    expect(screen.getByLabelText("PR score: 61")).toBeInTheDocument();
+    expect(screen.getByText("61")).toBeInTheDocument();
+    expect(screen.getByText("PR Score")).toBeInTheDocument();
+  });
+
+  it("keeps the factual PR score visible before a Brief has been generated", () => {
+    renderCard({ data: { cache: { cache_state: "missing" }, sources: [] }, prScore: 61 });
+
+    expect(screen.getByLabelText("PR score: 61")).toBeInTheDocument();
+  });
+
+  it("shows an unavailable score ring instead of omitting the PR Score block", () => {
+    renderCard({ data: current });
+
+    expect(screen.getByLabelText("PR score unavailable")).toHaveTextContent("—");
+    expect(screen.getByText("PR Score")).toBeInTheDocument();
+  });
+
+  it("renders Review focus separately and preserves its navigation action", () => {
+    const onReviewFocus = vi.fn();
+    render(
+      <NextIntlClientProvider locale="en" messages={{ brief: messages }}>
+        <BriefReviewFocus brief={current.cache.brief} onReviewFocus={onReviewFocus} />
+      </NextIntlClientProvider>,
+    );
+
     const focus = screen.getByRole("button", { name: "Open src/limit.ts at line 42" });
-    fireEvent.keyDown(focus, { key: "Enter" });
+    expect(screen.getByTestId("brief-review-focus")).toContainElement(focus);
+    expect(focus).toHaveProperty("tagName", "BUTTON");
     fireEvent.click(focus);
     expect(onReviewFocus).toHaveBeenCalledWith({ file: "src/limit.ts", line: 42 });
-    expect(screen.getByRole("button", { name: "Regenerate brief" })).toBeInTheDocument();
+  });
+
+  it("renders Review focus as a routeable Files changed link when a target URL is supplied", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={{ brief: messages }}>
+        <BriefReviewFocus
+          brief={current.cache.brief}
+          onReviewFocus={vi.fn()}
+          focusHref={({ file, line }) => `/repos/repo-1/pulls/42?tab=diff&briefFile=${file}&briefLine=${line}`}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByRole("link", { name: "Open src/limit.ts at line 42" })).toHaveAttribute(
+      "href",
+      "/repos/repo-1/pulls/42?tab=diff&briefFile=src/limit.ts&briefLine=42",
+    );
   });
 
   it("renders a current cached brief and truthfully marks unavailable optional sources", () => {
@@ -73,12 +119,10 @@ describe("PRBriefCard", () => {
 
     rerender(
       <NextIntlClientProvider locale="en" messages={{ brief: messages }}>
-        <PRBriefCard data={{ ...current, cache: { cache_state: "current", brief: { ...current.cache.brief, risks: { risks: [] }, review_focus: [] } } }} isLoading={false} isError isGenerating={false} errorCode="brief_generation_in_progress" onGenerate={vi.fn()} onReviewFocus={vi.fn()} />
+        <PRBriefCard data={{ ...current, cache: { cache_state: "current", brief: { ...current.cache.brief, risks: { risks: [] }, review_focus: [] } } }} isLoading={false} isError isGenerating={false} errorCode="brief_generation_in_progress" onGenerate={vi.fn()} />
       </NextIntlClientProvider>,
     );
     expect(screen.getByRole("status")).toHaveTextContent("A brief is already being generated");
-    expect(screen.getByText("No notable risks were returned.")).toBeInTheDocument();
-    expect(screen.getByText("No review focus was returned.")).toBeInTheDocument();
   });
 
   it("announces completed explicit generation", () => {

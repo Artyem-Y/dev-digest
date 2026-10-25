@@ -49,7 +49,7 @@ function SmartDiffGroup({ role, files, findings, commenting, showFindings, rende
   React.useEffect(() => {
     if ((role === 'docs' || role === 'boilerplate') && findingFiles.size > 0) setGroupOpen(true);
   }, [findingFiles.size, role]);
-  return <section style={{ borderBottom: '1px solid var(--border)' }}>
+  return <section data-testid={`smart-diff-group-${role}`} style={{ borderBottom: '1px solid var(--border)' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '2px 0' }}>
       <button type="button" onClick={() => setGroupOpen((value) => !value)} aria-expanded={groupOpen} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 9, padding: '13px 2px', border: 0, background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'left' }}>
         <Icon.ChevronRight size={14} style={{ color: 'var(--text-muted)', transform: groupOpen ? 'rotate(90deg)' : undefined, transition: 'transform .12s' }} />
