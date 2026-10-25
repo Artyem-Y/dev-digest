@@ -1,0 +1,20 @@
+{
+  "name": "Generate, navigate from, and reload the hermetic PR Brief",
+  "description": "Hermetic-only mutation flow. scripts/e2e.sh supplies its isolated database plus the double-gated deterministic PrBrief fixture; do not run it against a developer stack. From seeded PR #482 it proves the empty card, explicit generation, grounded risk/focus, Files changed navigation, and persisted reload without a live provider.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the hermetic seeded app" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the seeded PR list" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open seeded PR #482" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "open the PR Overview" },
+    { "cmd": ["wait", "--text", "Generate a concise, file-backed starting point for this review."], "label": "empty Brief state is visible" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Generate brief"], "label": "explicitly generate the Brief" },
+    { "cmd": ["wait", "--text", "Public API rate limiting is wired through the new middleware."], "label": "fixture summary is rendered" },
+    { "cmd": ["wait", "--text", "Keep the public limiter configuration reviewable"], "label": "grounded fixture risk is rendered" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Open src/config.ts at line 12"], "label": "open the Brief review-focus target" },
+    { "cmd": ["wait", "--url", "tab=diff"], "label": "Files changed becomes active" },
+    { "cmd": ["wait", "--text", "src/config.ts"], "label": "target changed file is visible" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Overview"], "label": "return to the PR Overview" },
+    { "cmd": ["reload"], "label": "reload the persisted Brief cache" },
+    { "cmd": ["wait", "--text", "Public API rate limiting is wired through the new middleware."], "label": "persisted Brief reloads without another POST" }
+  ]
+}

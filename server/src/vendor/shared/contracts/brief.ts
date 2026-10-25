@@ -122,6 +122,63 @@ export const Risks = z.object({
 });
 export type Risks = z.infer<typeof Risks>;
 
+// ---- PR Brief transport ----
+/** A path that is safe to resolve only within the repository checkout. */
+export const RepositoryRelativePath = z
+  .string()
+  .min(1)
+  .refine(
+    (path) =>
+      !path.startsWith('/') &&
+      !path.startsWith('\\') &&
+      !/^[A-Za-z]:/.test(path) &&
+      !path.split(/[\\/]/).includes('..'),
+    'must be a repository-relative path without traversal',
+  );
+export type RepositoryRelativePath = z.infer<typeof RepositoryRelativePath>;
+
+export const BriefReviewFocus = z
+  .object({
+    file: RepositoryRelativePath,
+    line: z.number().int().positive(),
+    reason: z.string().min(1),
+  })
+  .strict();
+export type BriefReviewFocus = z.infer<typeof BriefReviewFocus>;
+
+/** Risk data persisted inside a brief keeps every file reference checkout-relative. */
+export const BriefRisk = Risk.extend({
+  file_refs: z.array(RepositoryRelativePath),
+}).strict();
+export type BriefRisk = z.infer<typeof BriefRisk>;
+
+export const BriefRisks = Risks.extend({
+  risks: z.array(BriefRisk),
+}).strict();
+export type BriefRisks = z.infer<typeof BriefRisks>;
+
+/** Trace-safe source metadata. Source content and provider internals never cross this boundary. */
+export const BriefSourceStatus = z
+  .object({
+    source_kind: z.enum([
+      'pr_title',
+      'pr_description',
+      'changed_file',
+      'repository_file',
+      'spec',
+      'intent',
+      'blast_radius',
+      'smart_diff',
+    ]),
+    path: RepositoryRelativePath.nullable(),
+    provenance: z.enum(['pull_request', 'changed_files', 'tracked_checkout']),
+    status: z.enum(['available', 'omitted', 'unavailable', 'rejected']),
+    reason_code: z.string().min(1).max(80).nullable(),
+    estimated_tokens: z.number().int().nonnegative(),
+  })
+  .strict();
+export type BriefSourceStatus = z.infer<typeof BriefSourceStatus>;
+
 // ---- Smart Diff ----
 export const SmartDiffRole = z.enum(['core', 'tests', 'wiring', 'docs', 'boilerplate']);
 export type SmartDiffRole = z.infer<typeof SmartDiffRole>;
@@ -159,9 +216,37 @@ export type SmartDiff = z.infer<typeof SmartDiff>;
 
 // ---- Composed PR Brief (pr_brief.json) ----
 export const PrBrief = z.object({
+  summary: z.string().min(1),
+  review_focus: z.array(BriefReviewFocus),
+  head_sha: z.string().min(1),
   intent: Intent,
   blast: BlastRadius,
-  risks: Risks,
+  risks: BriefRisks,
   history: PrHistory,
-});
+}).strict();
 export type PrBrief = z.infer<typeof PrBrief>;
+
+/** Exact legacy pr_brief JSON retained only for stale-cache classification and regeneration. */
+export const LegacyPrBrief = z
+  .object({
+    intent: Intent,
+    blast: BlastRadius,
+    risks: Risks,
+    history: PrHistory,
+  });
+export type LegacyPrBrief = z.infer<typeof LegacyPrBrief>;
+
+/** Version-tolerant persisted cache parser; API responses still require the current Brief shape. */
+export const StoredPrBrief = z.union([PrBrief, LegacyPrBrief]);
+export type StoredPrBrief = z.infer<typeof StoredPrBrief>;
+
+/** Generated, review-ready PR context. The focus array preserves priority order. */
+export const Brief = PrBrief;
+export type Brief = z.infer<typeof Brief>;
+
+export const BriefCacheResponse = z.discriminatedUnion('cache_state', [
+  z.object({ cache_state: z.literal('missing') }).strict(),
+  z.object({ cache_state: z.literal('current'), brief: Brief }).strict(),
+  z.object({ cache_state: z.literal('stale'), brief: Brief }).strict(),
+]);
+export type BriefCacheResponse = z.infer<typeof BriefCacheResponse>;

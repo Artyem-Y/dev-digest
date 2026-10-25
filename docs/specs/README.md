@@ -18,9 +18,8 @@ interaction. It does not prescribe implementation files, code, or task
 ordering.
 
 The `spec-creator` agent authors these documents. The
-`implementation-planner` turns approved requirements into an implementation
-plan under [`../superpowers/plans/`](../superpowers/plans/); the plan owns the
-**how**.
+`implementation-planner` turns approved requirements into a separate
+implementation plan; the plan owns the **how**.
 
 Record the request, design sources, and repository evidence that support the
 specification. If a design URL is private or inaccessible, obtain screenshots

@@ -157,3 +157,13 @@ A PR-level stream is shared by overlapping review batches. Resetting it for a la
 - Implication: Optional enrichment responses must retain a nullable unavailable state instead of substituting an empty collection, so clients do not claim that GitHub found no prior pull requests.
 
 Blast Radius is still usable without GitHub history, but an empty result is trustworthy only after a successful bounded GitHub read. The service therefore exposes prior_prs as null on unavailable and as a history collection on success.
+
+<!-- insight-id: eng-server-6f1fd1f38f9c -->
+## eng-server-6f1fd1f38f9c — Brief optional facts must share the facts token reservation
+
+- Date: 2026-10-24
+- Category: invariant
+- Evidence: server/src/modules/brief/application/generate-brief.ts assembles PR metadata, Intent, Blast Radius, and Smart Diff into one 4,000-token factual slot; server/test/brief-budget.test.ts verifies the 8,000-token total ceiling.
+- Implication: Do not add a new factual prompt section without charging it to the canonical facts budget, or the documented 8,000-token ceiling can be exceeded despite a passing attachment budget.
+
+Brief source slots are presentation structure, not independent budget buckets. The factual content must be combined and capped before documents consume remaining capacity.

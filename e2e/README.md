@@ -103,3 +103,11 @@ a CI artifact by `.github/workflows/e2e-web.yml`).
 | `08-agent-run-cost` | nullable/latest agent-run cost renders in list, timeline, and trace |
 | `09-agent-enabled-toggle` | seeded agent enablement can be toggled and restored |
 | `10-smart-diff` | five role groups, lockfile, inline finding and order switch |
+| `11-pr-brief` | hermetic-only explicit Brief generation, focus navigation, and persisted reload |
+
+`11-pr-brief` is intentionally excluded from ordinary `npm test`: it mutates the
+seeded PR cache and requires the isolated database and double-gated deterministic
+Brief fixture supplied by `./scripts/e2e.sh` / `npm run e2e:hermetic`. The runner
+also requires that script's exact test, fixture, base-port, and invocation
+attestation; `E2E_HERMETIC=1` by itself cannot enable the flow. It must never run
+against a developer stack.

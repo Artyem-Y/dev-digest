@@ -68,3 +68,21 @@ export {
   type DerivePullIntentInput,
   type IntentSourceInput,
 } from './intent.js';
+
+// Explicit, one-call structured PR Brief generation.
+export {
+  generateBrief,
+  assembleBriefPrompt,
+  estimateBriefPromptTokens,
+  BriefModelOutputSchema,
+  type BriefModelOutput,
+  type BriefFactStatus,
+  type BriefFactSlot,
+  type BriefModelFacts,
+  type BriefProjectDocument,
+  type BriefModelInput,
+  type BriefPromptSection,
+  type BriefPromptSectionTelemetry,
+  type GenerateBriefResult,
+  type AssembledBriefPrompt,
+} from './brief.js';

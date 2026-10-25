@@ -3,12 +3,13 @@ import { NextIntlClientProvider } from 'next-intl';
 import { describe, expect, it, vi } from 'vitest';
 import messages from '../../../../../../../../messages/en/prReview.json';
 import blastMessages from '../../../../../../../../messages/en/blast.json';
+import briefMessages from '../../../../../../../../messages/en/brief.json';
 import { OverviewTab } from './OverviewTab';
 
 describe('OverviewTab intent', () => {
   it('places Blast Radius beside Intent inside the overview analysis grid', () => {
     render(
-      <NextIntlClientProvider locale="en" messages={{ prReview: messages, blast: blastMessages }}>
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages, blast: blastMessages, brief: briefMessages }}>
         <OverviewTab
           prBody={null}
           repoFullName="acme/payments-api"
@@ -30,7 +31,7 @@ describe('OverviewTab intent', () => {
 
   it('keeps Blast Radius visible while its read-only map is loading', () => {
     render(
-      <NextIntlClientProvider locale="en" messages={{ prReview: messages, blast: { loading: 'Loading Blast Radius…', unavailable: 'Blast Radius is unavailable.' } }}>
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages, blast: { loading: 'Loading Blast Radius…', unavailable: 'Blast Radius is unavailable.' }, brief: briefMessages }}>
         <OverviewTab prBody={null} blastLoading />
       </NextIntlClientProvider>,
     );
@@ -41,7 +42,7 @@ describe('OverviewTab intent', () => {
   it('renders the derived intent, scope, confidence, and safe source count', () => {
     const onRerunIntent = vi.fn();
     render(
-      <NextIntlClientProvider locale="en" messages={{ prReview: messages, blast: blastMessages }}>
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages, blast: blastMessages, brief: briefMessages }}>
         <OverviewTab
           prBody={null}
           onRerunIntent={onRerunIntent}
@@ -73,7 +74,7 @@ describe('OverviewTab intent', () => {
     expect(onRerunIntent).toHaveBeenCalledOnce();
     const onRecalculate = vi.fn();
     render(
-      <NextIntlClientProvider locale="en" messages={{ prReview: messages, blast: blastMessages }}>
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages, blast: blastMessages, brief: briefMessages }}>
         <OverviewTab prBody={null} onRecalculate={onRecalculate} />
       </NextIntlClientProvider>,
     );

@@ -9,6 +9,7 @@ import { findingsForFiles, latestFindingsPerAgent } from "@/lib/review-findings"
 import { smartDiffPathMismatches } from "@/lib/smart-diff";
 import { FindingCard } from "../FindingCard";
 import { notify } from "@/lib/toast";
+import { scheduleBriefFocusClear } from "./brief-focus";
 import type { FindingRecord, PrFile, ReviewRecord, SmartDiffRole } from "@devdigest/shared";
 import { useTranslations } from "next-intl";
 
@@ -19,6 +20,11 @@ interface DiffTabProps {
   reviews?: ReviewRecord[];
   canComment?: boolean;
   detailReady: boolean;
+  /** Persisted for the Files changed visit so the referenced file stays visible. */
+  revealTarget?: { file: string; line: number } | null;
+  /** Temporary exact-line marker, cleared after its non-disruptive duration. */
+  focusTarget?: { file: string; line: number } | null;
+  onFocusConsumed?: () => void;
 }
 
 const roles: SmartDiffRole[] = ['core', 'tests', 'wiring', 'docs', 'boilerplate'];
@@ -63,7 +69,7 @@ function SmartDiffGroup({ role, files, findings, commenting, showFindings, rende
   </section>;
 }
 
-export function DiffTab({ prId, filesCount, files, reviews = [], canComment, detailReady }: DiffTabProps) {
+export function DiffTab({ prId, filesCount, files, reviews = [], canComment, detailReady, revealTarget = null, focusTarget = null, onFocusConsumed }: DiffTabProps) {
   const t = useTranslations('prReview');
   const { data: comments } = usePrComments(prId);
   const { data: smartDiff, isLoading: smartLoading, isError: smartError, refetch: retrySmartDiff } = useSmartDiff(prId, detailReady);
@@ -71,6 +77,10 @@ export function DiffTab({ prId, filesCount, files, reviews = [], canComment, det
   const findingAction = useFindingAction();
   const [showDetails, setShowDetails] = React.useState(true);
   const [originalOrder, setOriginalOrder] = React.useState(false);
+  React.useEffect(() => {
+    if (!focusTarget || !onFocusConsumed) return;
+    return scheduleBriefFocusClear(onFocusConsumed);
+  }, [focusTarget, onFocusConsumed]);
   const currentFindings = React.useMemo(() => latestFindingsPerAgent(reviews), [reviews]);
   const displayFindings = React.useMemo(() => findingsForFiles(files, currentFindings), [files, currentFindings]);
   const commentCount = comments?.length ?? 0;
@@ -86,7 +96,9 @@ export function DiffTab({ prId, filesCount, files, reviews = [], canComment, det
   const snapshotMismatches = smartDiffPathMismatches(files, smartDiff);
   const orderedGroups = smartDiff?.groups.map((group) => ({ ...group, files: group.files.map((item) => filesByPath.get(item.path)).filter((file): file is PrFile => !!file) }));
   const smartDiffReady = detailReady && !smartLoading && !smartError && !!orderedGroups && snapshotMismatches.length === 0;
-  const effectiveOriginalOrder = originalOrder || !smartDiffReady;
+  // A revealed Brief file has a precise target; original order guarantees the
+  // target is visibly rendered even if Smart Diff would keep its group closed.
+  const effectiveOriginalOrder = originalOrder || !smartDiffReady || !!revealTarget;
   const additions = files.reduce((total, file) => total + file.additions, 0);
   const deletions = files.reduce((total, file) => total + file.deletions, 0);
 
@@ -109,7 +121,7 @@ export function DiffTab({ prId, filesCount, files, reviews = [], canComment, det
       {t('smartDiff.largeTitle', { lines: smartDiff.split_suggestion.total_lines })}
     </div>}
     {snapshotMismatches.length > 0 && <div style={{ color: 'var(--warn)', padding: '0 0 12px' }}>{t('smartDiff.refreshing')} <Button kind="ghost" size="sm" onClick={() => retrySmartDiff()}>{t('smartDiff.retry')}</Button></div>}
-    {effectiveOriginalOrder ? <DiffViewer files={files} commenting={commenting} findings={displayFindings} showFindings={showDetails} renderFinding={renderFinding} /> : (
+    {effectiveOriginalOrder ? <DiffViewer files={files} commenting={commenting} findings={displayFindings} showFindings={showDetails} renderFinding={renderFinding} focusTarget={focusTarget} revealFile={revealTarget?.file} /> : (
       <div>{orderedGroups!.sort((a, b) => roles.indexOf(a.role) - roles.indexOf(b.role)).map((group) => <SmartDiffGroup key={group.role} role={group.role} files={group.files} findings={currentFindings} commenting={commenting} showFindings={showDetails} renderFinding={renderFinding} />)}</div>
     )}
     {!originalOrder && smartError && <div style={{ color: 'var(--crit)', padding: '12px 0' }}>{t('smartDiff.unavailable')} <Button kind="ghost" size="sm" onClick={() => retrySmartDiff()}>{t('smartDiff.retry')}</Button></div>}

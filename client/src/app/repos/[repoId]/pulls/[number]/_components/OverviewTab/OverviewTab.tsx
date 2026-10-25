@@ -7,6 +7,8 @@ import type { DerivedIntent } from "@/vendor/shared/contracts/brief";
 import type { BlastRadius } from "@/vendor/shared/contracts/brief";
 import type { FindingRecord } from "@/vendor/shared/contracts/review-api";
 import { BlastRadiusCard } from "../BlastRadiusCard/BlastRadiusCard";
+import { PRBriefCard } from "../PRBriefCard/PRBriefCard";
+import type { BriefGenerateResponse } from "@devdigest/shared";
 import { s } from "./styles";
 
 interface OverviewTabProps {
@@ -22,15 +24,24 @@ interface OverviewTabProps {
   headSha?: string | null;
   blastLoading?: boolean;
   blastError?: boolean;
+  brief?: BriefGenerateResponse;
+  briefLoading?: boolean;
+  briefError?: boolean;
+  briefErrorCode?: string;
+  briefGenerating?: boolean;
+  briefGenerationSucceeded?: boolean;
+  onGenerateBrief?: () => void;
+  onReviewFocus?: (target: { file: string; line: number }) => void;
 }
 
-export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, intentRerunning = false, onRecalculate, recalculating = false, blast = null, repoFullName = null, headSha = null, blastLoading = false, blastError = false }: OverviewTabProps) {
+export function OverviewTab({ prBody, intent = null, risks = [], onRerunIntent, intentRerunning = false, onRecalculate, recalculating = false, blast = null, repoFullName = null, headSha = null, blastLoading = false, blastError = false, brief, briefLoading = false, briefError = false, briefErrorCode, briefGenerating = false, briefGenerationSucceeded = false, onGenerateBrief = () => undefined, onReviewFocus = () => undefined }: OverviewTabProps) {
   const t = useTranslations("prReview");
   const blastT = useTranslations("blast");
   const usedSources = intent?.evidence.filter((source) => source.status === "used").length ?? 0;
   const hasBlastPanel = Boolean((blast && repoFullName && headSha) || blastLoading || blastError);
   return (
     <>
+      <PRBriefCard data={brief} isLoading={briefLoading} isError={briefError} errorCode={briefErrorCode} isGenerating={briefGenerating} generationSucceeded={briefGenerationSucceeded} onGenerate={onGenerateBrief} onReviewFocus={onReviewFocus} />
       {prBody && (
         <section>
           <SectionLabel icon="MessageSquare">Description</SectionLabel>

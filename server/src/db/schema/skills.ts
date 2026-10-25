@@ -1,6 +1,7 @@
-import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey, uniqueIndex } from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces } from './core';
+import { repos } from './repos';
 
 export const skills = pgTable('skills', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -31,4 +32,18 @@ export const skillVersions = pgTable(
     createdAt: now(),
   },
   (t) => ({ pk: primaryKey({ columns: [t.skillId, t.version] }) }),
+);
+
+/** Repository-scoped, read-only Project Context attachments for one skill. */
+export const skillProjectDocuments = pgTable(
+  'skill_project_documents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+    repoId: uuid('repo_id').notNull().references(() => repos.id, { onDelete: 'cascade' }),
+    skillId: uuid('skill_id').notNull().references(() => skills.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    createdAt: now(),
+  },
+  (t) => ({ uniqueAttachment: uniqueIndex('skill_project_documents_owner_path_uq').on(t.repoId, t.skillId, t.path) }),
 );

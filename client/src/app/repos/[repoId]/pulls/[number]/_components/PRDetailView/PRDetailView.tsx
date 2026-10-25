@@ -15,7 +15,7 @@ import { OverviewTab } from "../OverviewTab";
 import { FindingsTab } from "../FindingsTab";
 import { DiffTab } from "../DiffTab";
 import RunTraceDrawer from "../RunTraceDrawer";
-import { useBlastRadius, useDerivedIntent, usePullDetail, usePulls, useRerunIntent } from "@/lib/hooks";
+import { useBlastRadius, useBrief, useDerivedIntent, useGenerateBrief, usePullDetail, usePulls, useRerunIntent } from "@/lib/hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun, useRunReview } from "@/lib/hooks/reviews";
 import { useReviewRefresh } from "@/lib/hooks/use-review-refresh";
@@ -40,7 +40,12 @@ export function PRDetailView() {
   const { data: pr, isLoading: detailLoading, isFetching: detailFetching, isError, error, refetch } = usePullDetail(prId);
   const { data: intent } = useDerivedIntent(prId);
   const { data: blast, isLoading: blastLoading, isError: blastError } = useBlastRadius(prId, tab === "overview");
+  const { data: brief, isLoading: briefLoading, isError: briefError } = useBrief(prId, tab === "overview");
+  const generateBrief = useGenerateBrief(prId);
   const rerunIntent = useRerunIntent(prId);
+  const [revealedTarget, setRevealedTarget] = React.useState<{ file: string; line: number } | null>(null);
+  const [focusMarker, setFocusMarker] = React.useState<{ file: string; line: number } | null>(null);
+  const [briefGenerationSucceeded, setBriefGenerationSucceeded] = React.useState(false);
 
   const isLoading = pullsLoading || (prId != null && detailLoading);
   const { data: reviews, refetch: refetchReviews } = usePrReviews(prId);
@@ -91,7 +96,13 @@ export function PRDetailView() {
     else sp.set(key, val);
     router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
   };
-  const setTab = (t: string) => setParam("tab", t);
+  const setTab = (t: string) => {
+    if (t !== "diff") {
+      setRevealedTarget(null);
+      setFocusMarker(null);
+    }
+    setParam("tab", t);
+  };
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
@@ -178,6 +189,21 @@ export function PRDetailView() {
             headSha={pr.head_sha}
             blastLoading={blastLoading}
             blastError={blastError}
+            brief={brief}
+            briefLoading={briefLoading}
+            briefError={briefError || generateBrief.isError}
+            briefErrorCode={generateBrief.error instanceof ApiError ? generateBrief.error.code : undefined}
+            briefGenerating={generateBrief.isPending}
+            briefGenerationSucceeded={briefGenerationSucceeded}
+            onGenerateBrief={() => {
+              setBriefGenerationSucceeded(false);
+              generateBrief.mutate(undefined, { onSuccess: () => setBriefGenerationSucceeded(true) });
+            }}
+            onReviewFocus={(target) => {
+              setRevealedTarget(target);
+              setFocusMarker(target);
+              setTab("diff");
+            }}
           />
         )}
 
@@ -214,6 +240,9 @@ export function PRDetailView() {
             reviews={reviews}
             canComment={pr.status === "open"}
             detailReady={!detailLoading && !detailFetching && !!pr}
+            revealTarget={revealedTarget}
+            focusTarget={focusMarker}
+            onFocusConsumed={() => setFocusMarker(null)}
           />
         )}
       </div>

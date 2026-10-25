@@ -1,7 +1,8 @@
-import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey, uniqueIndex } from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces, users } from './core';
 import { skills } from './skills';
+import { repos } from './repos';
 
 // ============================================================ Agents & skills
 
@@ -61,4 +62,18 @@ export const agentSkills = pgTable(
     enabled: boolean('enabled').notNull().default(true),
   },
   (t) => ({ pk: primaryKey({ columns: [t.agentId, t.skillId] }) }),
+);
+
+/** Repository-scoped, read-only Project Context attachments for one agent. */
+export const agentProjectDocuments = pgTable(
+  'agent_project_documents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+    repoId: uuid('repo_id').notNull().references(() => repos.id, { onDelete: 'cascade' }),
+    agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    createdAt: now(),
+  },
+  (t) => ({ uniqueAttachment: uniqueIndex('agent_project_documents_owner_path_uq').on(t.repoId, t.agentId, t.path) }),
 );

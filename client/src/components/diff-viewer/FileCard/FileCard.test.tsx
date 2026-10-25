@@ -1,10 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import messages from '../../../../messages/en/shell.json';
 import { FileCard } from './FileCard';
 
 describe('FileCard findings', () => {
+  beforeEach(() => {
+    HTMLElement.prototype.scrollIntoView = vi.fn();
+  });
+
   it('renders a finding outside the visible patch at the end of its file', () => {
     render(
       <NextIntlClientProvider locale="en" messages={{ shell: messages }}>
@@ -41,5 +45,41 @@ describe('FileCard findings', () => {
       </NextIntlClientProvider>,
     );
     expect(screen.getByText('large-file-line')).toBeInTheDocument();
+  });
+
+  it('keeps a revealed Brief file open after its temporary line marker expires', () => {
+    const file = { path: 'src/target.ts', additions: 201, deletions: 0, patch: '@@ -4 +4 @@\n+focused line' };
+    const { rerender } = render(
+      <NextIntlClientProvider locale="en" messages={{ shell: messages }}>
+        <FileCard file={file} focusLine={4} reveal />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText('focused line')).toBeInTheDocument();
+    expect(document.querySelector('[data-diff-line="4"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-brief-focused="true"]')).toHaveAttribute('data-diff-line', '4');
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledOnce();
+
+    rerender(
+      <NextIntlClientProvider locale="en" messages={{ shell: messages }}>
+        <FileCard file={file} reveal />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.getByText('focused line')).toBeInTheDocument();
+    expect(document.querySelector('[data-diff-line="4"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-brief-focused="true"]')).not.toBeInTheDocument();
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledOnce();
+  });
+
+  it('reveals a target file even when the requested line is outside the rendered patch', () => {
+    const file = { path: 'src/target.ts', additions: 201, deletions: 0, patch: '@@ -4 +4 @@\n+visible fallback line' };
+    render(
+      <NextIntlClientProvider locale="en" messages={{ shell: messages }}>
+        <FileCard file={file} focusLine={99} reveal />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText('visible fallback line')).toBeInTheDocument();
+    expect(document.querySelector('[data-diff-line="99"]')).not.toBeInTheDocument();
   });
 });

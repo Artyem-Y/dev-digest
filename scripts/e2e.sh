@@ -131,7 +131,7 @@ log "seeding demo data (isolated db)"
 # tsx directly (not `pnpm start`, which needs a build; not `tsx watch`, to avoid
 # a mid-suite watcher restart).
 log "starting API on :$API_PORT"
-(cd server && pnpm exec tsx src/server.ts) &
+(cd server && env NODE_ENV=test DEVDIGEST_E2E_BRIEF_FIXTURE=1 E2E_HERMETIC=1 E2E_HERMETIC_RUNNER=scripts-e2e-sh-v1 E2E_HERMETIC_WEB_PORT="$WEB_PORT" pnpm exec tsx src/server.ts) &
 SERVER_PID=$!
 log "waiting for API /health"
 api_up=0
@@ -145,7 +145,7 @@ log "API healthy"
 
 # --- web on :$WEB_PORT (next dev → reads NEXT_PUBLIC_API_BASE from env) -------
 log "starting web on :$WEB_PORT"
-(cd client && pnpm exec next dev -p "$WEB_PORT") &
+(cd client && env NODE_ENV=test DEVDIGEST_E2E_BRIEF_FIXTURE=1 E2E_HERMETIC=1 E2E_HERMETIC_RUNNER=scripts-e2e-sh-v1 E2E_HERMETIC_WEB_PORT="$WEB_PORT" pnpm exec next dev -p "$WEB_PORT") &
 WEB_PID=$!
 log "waiting for web :$WEB_PORT"
 web_up=0
@@ -160,7 +160,7 @@ log "web up"
 # --- run the flows; propagate the exit code through the trap -----------------
 log "running e2e flows against $E2E_BASE_URL"
 set +e
-(cd e2e && npm test)
+(cd e2e && env NODE_ENV=test DEVDIGEST_E2E_BRIEF_FIXTURE=1 E2E_HERMETIC=1 E2E_HERMETIC_RUNNER=scripts-e2e-sh-v1 E2E_HERMETIC_WEB_PORT="$WEB_PORT" npm test)
 E2E_CODE=$?
 set -e
 exit "$E2E_CODE"
