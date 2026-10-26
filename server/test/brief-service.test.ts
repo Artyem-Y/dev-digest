@@ -8,11 +8,12 @@ const snapshot = { id: 'p', repoId: 'r', headSha: 'sha', number: 1, title: 'Titl
 const output = { summary: 'summary', risks: { risks: [{ kind: 'bug', title: 'risk', explanation: 'why', severity: 'high', file_refs: ['src/a.ts'] }] }, review_focus: [{ file: 'src/a.ts', line: 1, reason: 'read' }] };
 
 describe('Brief services', () => {
-  it('GET reads cache only and reports stale by captured SHA', async () => {
-    const read = { getSnapshot: vi.fn().mockResolvedValue(snapshot), getCache: vi.fn().mockResolvedValue({ brief: { ...output, head_sha: 'old', intent: { intent: '', in_scope: [], out_of_scope: [] }, blast: { changed_symbols: [], downstream: [], summary: '', degraded: true, reason: 'no_data', prior_prs: null }, history: { history: [] } }, sources: [] }), replace: vi.fn() };
+  it('GET reads only the current head SHA and reports stale cache', async () => {
+    const read = { getHeadSha: vi.fn().mockResolvedValue('sha'), getSnapshot: vi.fn(), getCache: vi.fn().mockResolvedValue({ brief: { ...output, head_sha: 'old', intent: { intent: '', in_scope: [], out_of_scope: [] }, blast: { changed_symbols: [], downstream: [], summary: '', degraded: true, reason: 'no_data', prior_prs: null }, history: { history: [] } }, sources: [] }), replace: vi.fn() };
     const result = await new GetBrief(read).execute('w', 'p');
     expect(result.cache.cache_state).toBe('stale');
-    expect(read.getSnapshot).toHaveBeenCalledTimes(1);
+    expect(read.getHeadSha).toHaveBeenCalledWith('w', 'p');
+    expect(read.getSnapshot).not.toHaveBeenCalled();
     expect(read.replace).not.toHaveBeenCalled();
   });
 
@@ -35,6 +36,18 @@ describe('Brief services', () => {
     const service = new GenerateBrief({ read, projectContext: { resolve: vi.fn().mockResolvedValue({ documents: [], skipped: [] }) }, featureModels: { resolve: vi.fn().mockResolvedValue({ provider: 'openai', model: 'gpt' }) }, llm: { resolve: vi.fn().mockResolvedValue({ id: 'openai', completeStructured: vi.fn().mockRejectedValue(new Error('provider secret detail')) }) } }, new BriefInFlight());
     await expect(service.execute('w', 'p')).rejects.toMatchObject({ statusCode: 502, code: 'external_service_error', message: 'Brief generation failed', details: undefined });
     expect(read.replace).not.toHaveBeenCalled();
+  });
+
+  it('continues generation when optional Project Context resolution fails and records it as unavailable', async () => {
+    const read = { getSnapshot: vi.fn().mockResolvedValue(snapshot), getCache: vi.fn(), replace: vi.fn() };
+    const completeStructured = vi.fn().mockResolvedValue({ data: output, model: 'gpt', tokensIn: 1, tokensOut: 1, costUsd: null, raw: '', attempts: 1 });
+    const service = new GenerateBrief({ read, projectContext: { resolve: vi.fn().mockRejectedValue(new Error('checkout unavailable')) }, featureModels: { resolve: vi.fn().mockResolvedValue({ provider: 'openai', model: 'gpt' }) }, llm: { resolve: vi.fn().mockResolvedValue({ id: 'openai', completeStructured }) } }, new BriefInFlight());
+
+    await expect(service.execute('w', 'p')).resolves.toMatchObject({ cache: { cache_state: 'current' } });
+    expect(completeStructured).toHaveBeenCalledOnce();
+    expect(read.replace).toHaveBeenCalledWith('w', 'p', expect.objectContaining({
+      sources: expect.arrayContaining([expect.objectContaining({ source_kind: 'spec', status: 'unavailable', reason_code: 'project_context_unavailable' })]),
+    }));
   });
 
   it('bounds the actual reviewer-core user message with oversized documents and source metadata', async () => {

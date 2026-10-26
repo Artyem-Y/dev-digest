@@ -2,9 +2,11 @@ import { estimateProjectDocumentTokens } from '../domain/token-estimator.js';
 import type { AttachmentProvenance, ResolvedBriefContext, SkippedProjectDocument } from '../domain/types.js';
 import type { ProjectContextRepository, TrackedDocumentStore } from './ports.js';
 import { normalizeProjectPath } from '../domain/path-policy.js';
+import { mapWithConcurrency } from './bounded-read.js';
 
 /** Never echo an untrusted persisted path (which may be absolute or contain NUL) into Brief metadata. */
 const invalidAttachmentLabel = (ordinal: number) => `[invalid project-context path #${ordinal}]`;
+const DOCUMENT_READ_CONCURRENCY = 4;
 
 export async function resolveBriefContext(input: {
   workspaceId: string;
@@ -33,19 +35,27 @@ export async function resolveBriefContext(input: {
     if (!current.includes(attachment.provenance)) current.push(attachment.provenance);
     grouped.set(path, current);
   }
-  const documents: ResolvedBriefContext['documents'] = [];
+  const readable: Array<{ path: string; provenance: AttachmentProvenance[] }> = [];
   for (const path of [...grouped.keys()].sort((a, b) => a.localeCompare(b))) {
     const provenance = grouped.get(path)!;
     if (!eligible.has(path)) {
       skipped.push({ path, reason: 'no_longer_eligible', provenance });
       continue;
     }
-    const read = await input.store.read(path);
+    readable.push({ path, provenance });
+  }
+  const resolved = await mapWithConcurrency(readable, DOCUMENT_READ_CONCURRENCY, async ({ path, provenance }) => ({
+    path,
+    provenance,
+    read: await input.store.read(path),
+  }));
+  const documents: ResolvedBriefContext['documents'] = [];
+  for (const { path, provenance, read } of resolved) {
     if ('reason' in read) {
       skipped.push({ path, reason: read.reason, provenance });
       continue;
     }
     documents.push({ path, content: read.content, estimatedTokens: estimateProjectDocumentTokens(read.content), provenance });
   }
-  return { documents, skipped };
+  return { documents, skipped: skipped.sort((left, right) => left.path.localeCompare(right.path)) };
 }

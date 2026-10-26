@@ -7,6 +7,10 @@ export interface BriefReadPort {
   getCache(workspaceId: string, prId: string): Promise<BriefCacheRecord | undefined>;
   replace(workspaceId: string, prId: string, record: BriefCacheRecord): Promise<void>;
 }
+export interface BriefCacheReadPort {
+  getHeadSha(workspaceId: string, prId: string): Promise<string | undefined>;
+  getCache(workspaceId: string, prId: string): Promise<BriefCacheRecord | undefined>;
+}
 export interface BriefDependencies {
   read: BriefReadPort;
   projectContext: { resolve(input: { workspaceId: string; repoId: string }): Promise<ResolvedBriefContext> };

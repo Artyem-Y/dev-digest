@@ -84,4 +84,27 @@ describe('resolveBriefContext', () => {
     expect(new Set(result.skipped.map((skipped) => skipped.path)).size).toBe(4);
     expect(JSON.stringify(result)).not.toContain('outside');
   });
+
+  it('reads eligible attachments with bounded concurrency while retaining sorted output', async () => {
+    let active = 0;
+    let peak = 0;
+    const paths = Array.from({ length: 8 }, (_, index) => `docs/${index}.md`);
+    const repository: ProjectContextRepository = { listForBrief: vi.fn().mockResolvedValue(paths.map((path) => ({ path, provenance: 'direct_agent' as const }))) };
+    const store: TrackedDocumentStore = {
+      catalog: vi.fn().mockResolvedValue(paths),
+      read: vi.fn(async (path) => {
+        active += 1;
+        peak = Math.max(peak, active);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        active -= 1;
+        return { path, content: path };
+      }),
+    };
+
+    const result = await resolveBriefContext({ workspaceId: 'workspace', repoId: 'repo', repository, store });
+
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThanOrEqual(4);
+    expect(result.documents.map((document) => document.path)).toEqual(paths);
+  });
 });

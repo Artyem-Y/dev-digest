@@ -10,6 +10,12 @@ import type { BriefReadPort } from '../application/ports.js';
 export class DrizzleBriefRepository implements BriefReadPort {
   constructor(private readonly db: Db) {}
 
+  async getHeadSha(workspaceId: string, prId: string): Promise<string | undefined> {
+    const [pull] = await this.db.select({ headSha: t.pullRequests.headSha }).from(t.pullRequests)
+      .where(and(eq(t.pullRequests.workspaceId, workspaceId), eq(t.pullRequests.id, prId)));
+    return pull?.headSha;
+  }
+
   async getSnapshot(workspaceId: string, prId: string): Promise<BriefPullSnapshot | undefined> {
     const [pull] = await this.db.select().from(t.pullRequests).where(and(eq(t.pullRequests.workspaceId, workspaceId), eq(t.pullRequests.id, prId)));
     if (!pull) return undefined;

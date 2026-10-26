@@ -56,8 +56,14 @@ export class GenerateBrief {
       }
       const facts = assembleFacts(snapshot);
       let context;
+      let projectContextUnavailable = false;
       try { context = await this.deps.projectContext.resolve({ workspaceId, repoId: snapshot.repoId }); }
-      catch { throw new ExternalServiceError('Project Context is unavailable'); }
+      catch {
+        // Project Context enriches the Brief; its checkout/catalog may be
+        // transiently unavailable without invalidating the PR facts.
+        context = { documents: [], skipped: [] };
+        projectContextUnavailable = true;
+      }
       // Each fact is selected independently and in deterministic priority order;
       // a long body cannot silently crowd changed-file or derived evidence out.
       const selection = selectBriefBudget(facts.components, context.documents.map((document) => ({ path: document.path, content: document.content, estimatedTokens: document.estimatedTokens })));
@@ -78,6 +84,7 @@ export class GenerateBrief {
           return { source_kind: 'spec' as const, path: document.path, provenance: 'tracked_checkout' as const, status: selected ? 'available' as const : 'omitted' as const, reason_code: selected ? null : 'budget_exhausted', estimated_tokens: selected?.estimatedTokens ?? 0 };
         }),
         ...context.skipped.map((document) => ({ source_kind: 'spec' as const, path: document.path, provenance: 'tracked_checkout' as const, status: 'unavailable' as const, reason_code: document.reason, estimated_tokens: 0 })),
+        ...(projectContextUnavailable ? [{ source_kind: 'spec' as const, path: null, provenance: 'tracked_checkout' as const, status: 'unavailable' as const, reason_code: 'project_context_unavailable', estimated_tokens: 0 }] : []),
       ];
       let model;
       try { model = await this.deps.featureModels.resolve(workspaceId); }
