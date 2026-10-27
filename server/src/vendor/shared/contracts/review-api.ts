@@ -1,6 +1,19 @@
 import { z } from 'zod';
 import { Finding, Verdict } from './findings.js';
-import { Intent, SmartDiff } from './brief.js';
+import { BriefCacheResponse, BriefSourceStatus, Intent, SmartDiff } from './brief.js';
+
+export {
+  Brief,
+  BriefCacheResponse,
+  LegacyPrBrief,
+  BriefRisk,
+  BriefRisks,
+  BriefReviewFocus,
+  BriefSourceStatus,
+  PrBrief,
+  RepositoryRelativePath,
+  StoredPrBrief,
+} from './brief.js';
 
 /**
  * A2 — Review-Core API surface contracts. These extend the core
@@ -63,3 +76,16 @@ export type PrIntentRecord = z.infer<typeof PrIntentRecord>;
 /** Smart-diff response for a PR (the SmartDiff). */
 export const SmartDiffResponse = SmartDiff;
 export type SmartDiffResponse = z.infer<typeof SmartDiffResponse>;
+
+/** Stable conflict response while a PR brief is being generated. */
+export const BriefGenerationInProgressError = z.object({
+  code: z.literal('brief_generation_in_progress'),
+}).strict();
+export type BriefGenerationInProgressError = z.infer<typeof BriefGenerationInProgressError>;
+
+/** Response from PR brief generation or retrieval. */
+export const BriefGenerateResponse = z.object({
+  cache: BriefCacheResponse,
+  sources: z.array(BriefSourceStatus),
+}).strict();
+export type BriefGenerateResponse = z.infer<typeof BriefGenerateResponse>;

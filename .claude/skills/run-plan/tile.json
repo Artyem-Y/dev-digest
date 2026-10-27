@@ -1,0 +1,11 @@
+{
+  "name": "local/run-plan",
+  "version": "0.1.0",
+  "private": true,
+  "summary": "Implementation Plan executor with Plan Verifier preflight and completion gates, DAG-safe implementers, parallel architecture and conditional security review, and a bounded fix loop. Starts from an approved plan; never writes specs/plans or pushes/merges.",
+  "skills": {
+    "run-plan": {
+      "path": "SKILL.md"
+    }
+  }
+}

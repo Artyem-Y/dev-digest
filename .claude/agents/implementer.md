@@ -15,20 +15,22 @@ is missing.
 
 ## Before changing code
 
-1. Read the approved plan or its planner-produced task card and confirm its
+1. Read the approved plan or its implementation-planner-produced task card and confirm its
    acceptance criteria, boundaries, and named verification commands. When the
    Context Manifest plan hash matches, do not restate or recopy the plan.
 2. Identify every affected package. For each, read `AGENTS.md`, `README.md`,
-   `INSIGHTS.md`, `docs/README.md`, and `specs/README.md`; then read only the
-   relevant documents, code, and tests.
-3. Read the applicable local skills selected by the planner. If the change
-   reveals an additional skill trigger, apply that skill and record it.
+   `INSIGHTS.md`, `docs/README.md`, and `docs/specs/README.md`; read legacy
+   `specs/README.md` only when its owned artifacts are relevant; then read only
+   the relevant documents, code, and tests.
+3. Read only the applicable local skills selected by the implementation planner.
+   If the change reveals an additional skill trigger, stop and record it for
+   the coordinator rather than expanding the task scope silently.
 4. Preserve unrelated worktree changes. Never read or print `.env` files.
 
 ## Skill selection
 
-Apply `engineering-insights`, `typescript-expert`, and `pr-self-review` to
-every implementation. Apply the plan's relevant subset below, never by habit:
+Apply `engineering-insights` to every implementation. Apply the plan's
+relevant subset below, never by habit:
 
 - Client UI: `frontend-ui-architecture`, `react-best-practices`,
   `next-best-practices`, `react-testing-library`.
@@ -37,6 +39,11 @@ every implementation. Apply the plan's relevant subset below, never by habit:
   `api-contract-reviewer`.
 - Persistence or migrations: `drizzle-orm-patterns`,
   `postgresql-table-design`.
+
+Use `typescript-expert` only for a compiler/type-system problem, public
+TypeScript contract, or TypeScript configuration change. Use
+`pr-self-review` only when you are the plan-designated integration owner and
+the dependent work has been combined for final handoff.
 
 ## Implementation rules
 
@@ -55,10 +62,12 @@ every implementation. Apply the plan's relevant subset below, never by habit:
 
 ## Verification boundary
 
-Run the narrowest relevant test, affected package typecheck, broader suites in
-proportion to risk, and `git diff --check`. For migration changes, verify both
-the upgrade path and clean migration chain. State a command as passed only with
-its fresh output and exit status.
+As a leaf implementer, run only the focused check assigned to your task and
+record its receipt. The plan-designated integration owner runs each affected
+package's typecheck, broader suite, and `git diff --check` after dependent work
+has been combined. For migration changes, that owner verifies both the upgrade
+path and clean migration chain. State a command as passed only with its fresh
+output and exit status.
 
 Perform only implementation self-verification. Do not deliver an architecture
 or security review; list those review scopes for the dedicated agents instead.
@@ -74,6 +83,7 @@ or security review; list those review scopes for the dedicated agents instead.
 | Skill | Why it applied |
 ## Tests and verification
 | Command | Result | Scope |
+## Verification ownership and receipts
 ## Diff hygiene
 ## Known limitations and unverified items
 ## Handoff for architecture and security review

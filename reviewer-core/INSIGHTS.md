@@ -27,3 +27,23 @@ ReviewPullRequest does not select a temperature. The provider adapter must not c
 - Implication: Add prompt telemetry from structured section metadata, never by serializing or parsing assembled messages, so observability cannot disclose untrusted prompt content.
 
 Rendered prompts mix headers, delimiters, diffs, PR text, and project context. The assembly boundary still knows only section identity, static source, and length, which is sufficient for diagnostics without retaining or logging content.
+
+<!-- insight-id: eng-reviewer-core-437c16855848 -->
+## eng-reviewer-core-437c16855848 — Prompt budgets must measure canonical Brief serialization
+
+- Date: 2026-10-24
+- Category: invariant
+- Evidence: reviewer-core/src/brief.ts exports assembleBriefPrompt and generateBrief uses it; server/src/modules/brief/application/generate-brief.ts applies its 8,000-token gate to the exported user serialization.
+- Implication: Keep every Brief prompt-format change inside assembleBriefPrompt so server-side admission accounting cannot drift from the request sent to a provider.
+
+A content-only estimate misses headings, delimiters, statuses, and paths. The canonical serialized user message is the budget boundary.
+
+<!-- insight-id: eng-reviewer-core-34d6e50003bb -->
+## eng-reviewer-core-34d6e50003bb — Brief budgets must include trusted system framing
+
+- Date: 2026-10-24
+- Category: invariant
+- Evidence: Supersedes eng-reviewer-core-437c16855848. reviewer-core/src/brief.ts estimateBriefPromptTokens measures system and user message framing; server/src/modules/brief/application/generate-brief.ts uses it before the provider call and for persisted telemetry.
+- Implication: Any injection-guard or trusted-instruction change must remain inside the canonical full-message estimator, because user-only accounting can exceed the configured provider-input cap.
+
+The untrusted user serialization is necessary but insufficient for a model-input limit. Brief admission and telemetry now share a system-plus-user estimator.

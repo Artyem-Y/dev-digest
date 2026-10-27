@@ -18,6 +18,7 @@ import { SimpleGitClient } from '../adapters/git/simple-git.js';
 import { RipgrepCodeIndex } from '../adapters/codeindex/ripgrep.js';
 import { OpenAIProvider } from '../adapters/llm/openai.js';
 import { AnthropicProvider } from '../adapters/llm/anthropic.js';
+import { createE2EBriefFixture, shouldUseE2EBriefFixture } from '../adapters/llm/e2e-brief-fixture.js';
 import { OpenAIEmbedder } from '../adapters/embedder/openai.js';
 import { OpenRouterProvider } from '@devdigest/reviewer-core';
 import { estimateCost } from '../adapters/llm/pricing.js';
@@ -171,6 +172,10 @@ export class Container {
   }
 
   private async buildLlm(id: 'openai' | 'anthropic' | 'openrouter'): Promise<LLMProvider> {
+    // The deterministic browser fixture has a deliberately narrow, double-gated
+    // seam. It is unavailable in development and production and cannot be
+    // selected by request data, a model id, or a client-side control.
+    if (id === 'openai' && shouldUseE2EBriefFixture(process.env)) return createE2EBriefFixture();
     if (id === 'openai') {
       const key = await this.secrets.get('OPENAI_API_KEY');
       if (!key) throw new ConfigError('OPENAI_API_KEY is not configured');

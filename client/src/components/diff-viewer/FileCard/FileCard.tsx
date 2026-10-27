@@ -39,6 +39,8 @@ export function FileCard({
   showFindings = true,
   allFilesOpen,
   renderFinding,
+  focusLine,
+  reveal = false,
 }: {
   file: PrFile;
   commenting?: DiffCommentApi;
@@ -46,6 +48,10 @@ export function FileCard({
   showFindings?: boolean;
   allFilesOpen?: boolean;
   renderFinding?: (finding: FindingRecord) => React.ReactNode;
+  /** Opens the file for Brief navigation; missing patch lines remain unanchored. */
+  focusLine?: number;
+  /** Keeps a Brief-referenced file open after the temporary line marker clears. */
+  reveal?: boolean;
 }) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
@@ -54,6 +60,12 @@ export function FileCard({
   React.useEffect(() => {
     if (allFilesOpen !== undefined) setOpen(allFilesOpen);
   }, [allFilesOpen]);
+  React.useEffect(() => {
+    if (focusLine !== undefined) setOpen(true);
+  }, [focusLine]);
+  React.useEffect(() => {
+    if (reveal) setOpen(true);
+  }, [reveal]);
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
 
   // Group this file's comments into threads, then split into ones we can anchor
@@ -117,6 +129,7 @@ export function FileCard({
                 findings={matchedFindings.get(lineKey('RIGHT', ln.newNo) ?? '') ?? []}
                 showFindings={showFindings}
                 renderFinding={renderFinding}
+                focused={focusLine !== undefined && ln.newNo === focusLine}
               />
             ))
           )}

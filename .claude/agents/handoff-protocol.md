@@ -17,23 +17,36 @@ full diff into another handoff.
 | Artifact | Producer | Maximum content |
 |---|---|---|
 | Research Bundle | researcher | Question, conclusions, evidence table, constraints, unknowns; no raw search transcript. |
-| Task Card | planner | One bounded outcome, files/symbols, invariants, skills, focused checks, dependencies. |
+| Task Card | implementation-planner | One bounded outcome, files/symbols, invariants, skills, focused checks, dependencies. |
 | Verification Matrix | implementer | Requirement, command, exit status, scope, evidence location, unverified reason. |
 | Review Packet | coordinator | Context manifest plus changed-file and verification-matrix references. Reviewers inspect the working tree directly. |
 
 ## Dispatch rules
 
-1. Do not dispatch research for a mechanical repository inventory; planner or
+1. Do not dispatch research for a mechanical repository inventory; implementation-planner or
    implementer gathers it locally.
 2. Run independent research in parallel only when it changes a decision.
-3. Execute dependent task cards sequentially with one implementer. Do not
-   start another implementer on overlapping files.
-4. Always run `plan-verifier` after material implementation. Add
-   `architecture-reviewer` only for a new/changed module boundary, DI,
-   external adapter, shared contract, migration, or cross-package change.
-5. Do not dispatch documentation or security review before known functional
-   gaps block completion; list the deferred scope instead.
-6. Use the least capable approved model for inventory, manifest assembly,
+3. Run `plan-verifier` in `preflight` mode after the implementation plan and
+   before dispatching implementation. Resolve blocked traceability, owned-path,
+   and verification gaps first.
+4. Execute dependent task cards sequentially with one implementer. Do not
+   start another implementer on overlapping files or test paths. A
+   plan-designated integration owner runs package-wide gates after dependent
+   work is combined; leaf implementers keep to focused checks.
+5. Always run `plan-verifier` in `completion` mode after material
+   implementation and its integration gate. Remediate functional gaps before
+   independent reviews.
+6. Add `architecture-reviewer` for a new/changed module boundary, DI, external
+   adapter, shared contract, migration, or cross-package change. Add
+   `security-reviewer` for untrusted input, authorization, secret handling,
+   rendered external/model content, outbound network/tool access, or a
+   dependency change. The two reviews may run in parallel once completion is
+   evidenced.
+7. After a finding is fixed, rerun the finding's focused check and the affected
+   independent review; rerun completion verification when the fix changes a
+   requirement's evidence. Do not dispatch documentation before these known
+   gaps are resolved or explicitly deferred.
+8. Use the least capable approved model for inventory, manifest assembly,
    mechanical comparison, and command-result normalization. Reserve Terra or
    an equivalent high-capability model for external research, architecture,
    and ambiguous cross-package judgment. Keep an agent's configured model when

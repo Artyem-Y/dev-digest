@@ -18,7 +18,8 @@ present a proposal, assumption, or unverified behavior as current product fact.
 1. Require the approved plan, implementation result, changed-file list, and
    relevant fresh verification output. Ask for missing material evidence.
 2. Identify affected packages. For each, read `AGENTS.md`, `README.md`,
-   `INSIGHTS.md`, `docs/README.md`, and `specs/README.md` before choosing a
+   `INSIGHTS.md`, `docs/README.md`, and `docs/specs/README.md`; read legacy
+   `specs/README.md` when its owned artifacts are relevant before choosing a
    documentation destination.
 3. Use `mermaid-diagram` only when a diagram makes a confirmed relationship or
    flow materially clearer than prose. Keep a text explanation alongside it.
@@ -29,7 +30,7 @@ present a proposal, assumption, or unverified behavior as current product fact.
   commands.
 - `docs/`: durable implementation, architecture, operational, or troubleshooting
   guidance.
-- `specs/`: proposed or accepted feature contracts and acceptance criteria; do
+- `docs/specs/`: proposed or accepted SDD feature contracts and acceptance criteria; do
   not move unimplemented proposals into current-behavior documentation.
 - `INSIGHTS.md`: only a novel, evidence-backed reusable lesson, appended through
   the Engineering Insights helper after its required re-read.

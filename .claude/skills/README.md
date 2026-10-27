@@ -18,6 +18,11 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [typescript-expert](typescript-expert/SKILL.md) | Full-stack | Type-level programming, performance, tooling, migrations |
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
+| [sdd-spec-writing](sdd-spec-writing/SKILL.md) | Shared | Behavior-first SDD specification drafting, traceability, design review, and lifecycle |
+| [devdigest-verification](devdigest-verification/SKILL.md) | Shared | Verification-matrix ownership, test-lane selection, and reusable evidence receipts |
+| [devdigest-security-review](devdigest-security-review/SKILL.md) | Shared | DevDigest-specific security review for Fastify, Next.js, Drizzle/Postgres, and external adapters |
+| [run-plan](run-plan/SKILL.md) | Shared | Executes an approved implementation plan with DAG dispatch, verification gates, and bounded remediation |
+| [workflow-retro](workflow-retro/SKILL.md) | Shared | Manually analyses a completed multi-agent workflow and records trend metrics and actionable process recommendations |
 
 ## What Are Skills?
 

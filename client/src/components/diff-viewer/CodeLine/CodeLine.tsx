@@ -19,6 +19,7 @@ export function CodeLine({
   findings = [],
   showFindings = true,
   renderFinding,
+  focused = false,
 }: {
   ln: Line;
   path: string;
@@ -27,10 +28,15 @@ export function CodeLine({
   findings?: FindingRecord[];
   showFindings?: boolean;
   renderFinding?: (finding: FindingRecord) => React.ReactNode;
+  focused?: boolean;
 }) {
   const t = useTranslations('shell');
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
+  const rowRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (focused) rowRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [focused]);
 
   if (ln.kind === "hunk") {
     return (
@@ -53,7 +59,7 @@ export function CodeLine({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <div style={{ ...lineRowFor(ln.kind), ...(findingLabel ? { borderLeft: `3px solid ${findingColor}` } : {}) }}>
+      <div ref={rowRef} data-diff-line={ln.newNo} data-brief-focused={focused ? "true" : undefined} style={{ ...lineRowFor(ln.kind), ...(findingLabel ? { borderLeft: `3px solid ${findingColor}` } : {}), ...(focused ? { outline: "2px solid var(--accent)", outlineOffset: "-2px" } : {}) }}>
         <span className="mono tnum" style={{ ...s.lineNo, position: "relative" }}>
           {showAdd && target && (
             <button

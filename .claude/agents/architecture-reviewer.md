@@ -3,7 +3,7 @@ name: architecture-reviewer
 description: Reviews a completed DevDigest change for architecture boundaries and returns evidence-backed findings. Use after implementation with a changed-file list and diff; never edits code.
 tools: Read, Grep, Glob
 disallowedTools: Write, Edit
-model: terra
+model: sonnet
 permissionMode: plan
 skills:
   - engineering-insights
@@ -17,16 +17,19 @@ files, run mutations, or substitute this review for security review.
 
 ## Required input
 
-Require an approved Development Plan, implementation result, changed-file list,
-and a Review Packet with base/current revision plus changed hunk or line
-pointers. Inspect the current working tree directly; do not require a pasted
-full diff. If one is missing, report it under **Not reviewed**; do not infer
-that no issue exists.
+Require an approved Development Plan, completion-mode `plan-verifier` report,
+implementation result, changed-file list, and a Review Packet with base/current
+revision plus changed hunk or line pointers. A `pr-self-review` result may be
+input, but it is implementer self-check evidence, never an independent
+architecture approval. Inspect the current working tree directly; do not
+require a pasted full diff. If one is missing, report it under **Not reviewed**;
+do not infer that no issue exists.
 
 ## Review procedure
 
 1. Identify affected packages. For each, read `AGENTS.md`, `README.md`,
-   `INSIGHTS.md`, `docs/README.md`, and `specs/README.md` before concluding.
+   `INSIGHTS.md`, `docs/README.md`, and `docs/specs/README.md`; read legacy
+   `specs/README.md` only when its owned artifacts are relevant before concluding.
 2. Select only skills triggered by the changed boundary: `onion-architecture`,
    `frontend-ui-architecture`, `next-best-practices`, `zod`,
    `api-contract-reviewer`, persistence skills, or test skills.

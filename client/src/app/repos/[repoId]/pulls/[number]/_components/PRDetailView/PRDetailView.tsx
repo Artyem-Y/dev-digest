@@ -15,7 +15,7 @@ import { OverviewTab } from "../OverviewTab";
 import { FindingsTab } from "../FindingsTab";
 import { DiffTab } from "../DiffTab";
 import RunTraceDrawer from "../RunTraceDrawer";
-import { useBlastRadius, useDerivedIntent, usePullDetail, usePulls, useRerunIntent } from "@/lib/hooks";
+import { useBlastRadius, useBrief, useDerivedIntent, useGenerateBrief, usePullDetail, usePulls, useRerunIntent } from "@/lib/hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun, useRunReview } from "@/lib/hooks/reviews";
 import { useReviewRefresh } from "@/lib/hooks/use-review-refresh";
@@ -36,14 +36,30 @@ export function PRDetailView() {
   // The route is keyed by PR number, but every PR API is keyed by the row's
   // uuid — resolve number → uuid via the (cached) pulls list before fetching.
   const { data: pulls, isLoading: pullsLoading } = usePulls(repoId);
-  const prId = pulls?.find((p) => p.number === Number(number))?.id ?? null;
+  const pull = pulls?.find((p) => p.number === Number(number));
+  const prId = pull?.id ?? null;
   const { data: pr, isLoading: detailLoading, isFetching: detailFetching, isError, error, refetch } = usePullDetail(prId);
   const { data: intent } = useDerivedIntent(prId);
   const { data: blast, isLoading: blastLoading, isError: blastError } = useBlastRadius(prId, tab === "overview");
+  const { data: brief, isLoading: briefLoading, isError: briefError } = useBrief(prId, tab === "overview");
+  const generateBrief = useGenerateBrief(prId);
   const rerunIntent = useRerunIntent(prId);
+  const [revealedTarget, setRevealedTarget] = React.useState<{ file: string; line: number } | null>(null);
+  const [focusMarker, setFocusMarker] = React.useState<{ file: string; line: number } | null>(null);
+  const [briefGenerationSucceeded, setBriefGenerationSucceeded] = React.useState(false);
+  const briefFile = search.get("briefFile");
+  const briefLine = Number(search.get("briefLine"));
 
   const isLoading = pullsLoading || (prId != null && detailLoading);
   const { data: reviews, refetch: refetchReviews } = usePrReviews(prId);
+
+  React.useEffect(() => {
+    if (tab !== "diff" || !pr || !briefFile || !Number.isInteger(briefLine) || briefLine < 1) return;
+    if (!pr.files.some((file) => file.path === briefFile)) return;
+    const target = { file: briefFile, line: briefLine };
+    setRevealedTarget(target);
+    setFocusMarker(target);
+  }, [briefFile, briefLine, pr, tab]);
 
   // Live run tracking is SERVER-SOURCED (agent_runs status='running'): survives
   // navigation AND reload, and self-clears via polling when runs finish.
@@ -91,7 +107,13 @@ export function PRDetailView() {
     else sp.set(key, val);
     router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
   };
-  const setTab = (t: string) => setParam("tab", t);
+  const setTab = (t: string) => {
+    if (t !== "diff") {
+      setRevealedTarget(null);
+      setFocusMarker(null);
+    }
+    setParam("tab", t);
+  };
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
@@ -103,6 +125,15 @@ export function PRDetailView() {
     () => latestFindingsPerAgent(runs),
     [runs],
   );
+  const latestReview = runs.find((review) => review.kind === "review" && review.verdict != null) ?? null;
+  const latestReviewScore = latestReview?.score ?? null;
+  const reviewPresentation = latestReview == null ? null : {
+    verdict: latestReview.verdict!,
+    summary: latestReview.summary,
+    score: latestReview.score,
+    findingsCount: latestReview.findings.length,
+    blockers: latestReview.findings.filter((finding) => finding.severity === "CRITICAL").length,
+  };
   const lethalTrifecta = allFindings.filter((f) => f.kind === "lethal_trifecta");
   const findingsCount = allFindings.length;
 
@@ -178,6 +209,29 @@ export function PRDetailView() {
             headSha={pr.head_sha}
             blastLoading={blastLoading}
             blastError={blastError}
+            brief={brief}
+            briefLoading={briefLoading}
+            briefError={briefError || generateBrief.isError}
+            briefErrorCode={generateBrief.error instanceof ApiError ? generateBrief.error.code : undefined}
+            briefGenerating={generateBrief.isPending}
+            briefGenerationSucceeded={briefGenerationSucceeded}
+            prScore={pull?.score ?? latestReviewScore}
+            review={reviewPresentation}
+            onGenerateBrief={() => {
+              setBriefGenerationSucceeded(false);
+              generateBrief.mutate(undefined, { onSuccess: () => setBriefGenerationSucceeded(true) });
+            }}
+            onReviewFocus={(target) => {
+              setRevealedTarget(target);
+              setFocusMarker(target);
+            }}
+            reviewFocusHref={({ file, line }) => {
+              const params = new URLSearchParams(search.toString());
+              params.set("tab", "diff");
+              params.set("briefFile", file);
+              params.set("briefLine", String(line));
+              return `/repos/${repoId}/pulls/${number}?${params.toString()}`;
+            }}
           />
         )}
 
@@ -214,6 +268,9 @@ export function PRDetailView() {
             reviews={reviews}
             canComment={pr.status === "open"}
             detailReady={!detailLoading && !detailFetching && !!pr}
+            revealTarget={revealedTarget}
+            focusTarget={focusMarker}
+            onFocusConsumed={() => setFocusMarker(null)}
           />
         )}
       </div>

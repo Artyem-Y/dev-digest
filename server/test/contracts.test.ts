@@ -17,6 +17,14 @@ import {
   Settings,
   Repo,
   PrDetail,
+  PrBrief,
+  LegacyPrBrief,
+  StoredPrBrief,
+  Brief,
+  BriefCacheResponse,
+  BriefGenerateResponse,
+  BriefGenerationInProgressError,
+  BriefSourceStatus,
 } from '@devdigest/shared';
 
 /**
@@ -216,6 +224,222 @@ describe('AI contracts parse fixtures', () => {
     };
     expect(RunSummary.parse({ ...summary, cost_usd: null }).cost_usd).toBeNull();
     expect(RunSummary.safeParse({ ...summary, cost_usd: -0.01 }).success).toBe(false);
+  });
+});
+
+describe('PR Brief transport contracts', () => {
+  const brief = {
+    summary: 'Add validation to the brief endpoint.',
+    review_focus: [
+      { file: 'server/src/modules/brief/routes.ts', line: 42, reason: 'Validate cache freshness.' },
+      { file: 'client/src/lib/api.ts', line: 18, reason: 'Render the returned state.' },
+    ],
+    head_sha: '4d2a7f8',
+    intent: { intent: 'Validate brief transport.', in_scope: ['contracts'], out_of_scope: [] },
+    blast: { changed_symbols: [], downstream: [], summary: 'No downstream impact.' },
+    risks: { risks: [] },
+    history: { history: [] },
+  };
+
+  it('accepts a brief with ordered repository-relative review focus', () => {
+    const parsed = Brief.parse(brief);
+    expect(parsed.summary).toBe(brief.summary);
+    expect(parsed.review_focus.map((focus) => focus.file)).toEqual([
+      'server/src/modules/brief/routes.ts',
+      'client/src/lib/api.ts',
+    ]);
+  });
+
+  it('makes the composed PrBrief carry generated summary, focus, and revision fields', () => {
+    expect(PrBrief.parse(brief)).toMatchObject({
+      summary: brief.summary,
+      review_focus: brief.review_focus,
+      head_sha: brief.head_sha,
+    });
+    expect(PrBrief.safeParse({ ...brief, summary: undefined }).success).toBe(false);
+  });
+
+  it('parses legacy stored cache data without treating it as a current brief', () => {
+    const legacyBrief = {
+      intent: brief.intent,
+      blast: brief.blast,
+      risks: brief.risks,
+      history: brief.history,
+      legacy_provider_metadata: 'ignored by the former non-strict parser',
+    };
+
+    const parsedLegacyBrief = LegacyPrBrief.parse(legacyBrief);
+    expect(parsedLegacyBrief).toMatchObject({
+      intent: brief.intent,
+      blast: brief.blast,
+      risks: brief.risks,
+      history: brief.history,
+    });
+    expect(parsedLegacyBrief).not.toHaveProperty('legacy_provider_metadata');
+    expect(StoredPrBrief.parse(legacyBrief)).toMatchObject({
+      intent: brief.intent,
+      blast: brief.blast,
+      risks: brief.risks,
+      history: brief.history,
+    });
+    expect(PrBrief.safeParse(legacyBrief).success).toBe(false);
+    expect(BriefCacheResponse.safeParse({ cache_state: 'current', brief: legacyBrief }).success).toBe(false);
+  });
+
+  it.each([undefined, ''])('rejects a missing or empty brief head SHA', (head_sha) => {
+    expect(Brief.safeParse({ ...brief, head_sha }).success).toBe(false);
+  });
+
+  it('accepts grounded risks and rejects invalid risk fields', () => {
+    const withRisk = {
+      ...brief,
+      risks: {
+        risks: [
+          {
+            kind: 'security',
+            title: 'Validate authorization boundary',
+            explanation: 'The route changes access control.',
+            severity: 'high',
+            file_refs: ['server/src/modules/brief/routes.ts'],
+          },
+        ],
+      },
+    };
+
+    expect(Brief.parse(withRisk).risks.risks).toHaveLength(1);
+    expect(
+      Brief.safeParse({
+        ...withRisk,
+        risks: { risks: [{ ...withRisk.risks.risks[0], severity: 'critical' }] },
+      }).success,
+    ).toBe(false);
+    expect(
+      Brief.safeParse({
+        ...withRisk,
+        risks: { risks: [{ ...withRisk.risks.risks[0], file_refs: ['\\windows\\system32'] }] },
+      }).success,
+    ).toBe(false);
+  });
+
+  it.each([
+    { ...brief, summary: '' },
+    { ...brief, review_focus: [{ file: 'server/src/brief.ts', line: 0, reason: 'bad line' }] },
+    { ...brief, review_focus: [{ file: '/etc/passwd', line: 1, reason: 'absolute path' }] },
+    { ...brief, review_focus: [{ file: '\\windows\\system32', line: 1, reason: 'backslash absolute path' }] },
+    { ...brief, review_focus: [{ file: 'server/../.env', line: 1, reason: 'traversal' }] },
+    { ...brief, review_focus: [{ file: 'C:\\secret.txt', line: 1, reason: 'windows absolute path' }] },
+    { ...brief, review_focus: [{ file: 'C:outside.txt', line: 1, reason: 'drive-prefixed path' }] },
+    {
+      ...brief,
+      risks: {
+        risks: [{ kind: 'security', title: 'Unsafe reference', explanation: 'outside checkout', severity: 'high', file_refs: ['../.env'] }],
+      },
+    },
+  ])('rejects invalid brief input %#', (value) => {
+    expect(Brief.safeParse(value).success).toBe(false);
+  });
+
+  it('models missing, current, and stale cache states without a brief on missing', () => {
+    expect(BriefCacheResponse.parse({ cache_state: 'missing' })).toEqual({ cache_state: 'missing' });
+    expect(BriefCacheResponse.parse({ cache_state: 'current', brief })).toMatchObject({ cache_state: 'current', brief });
+    expect(BriefCacheResponse.parse({ cache_state: 'stale', brief })).toMatchObject({ cache_state: 'stale', brief });
+    expect(BriefCacheResponse.safeParse({ cache_state: 'missing', brief }).success).toBe(false);
+  });
+
+  it('transports trace-safe source status only', () => {
+    expect(
+      BriefSourceStatus.parse({
+        source_kind: 'repository_file',
+        path: 'docs/specs/brief.md',
+        provenance: 'tracked_checkout',
+        status: 'available',
+        reason_code: null,
+        estimated_tokens: 250,
+      }),
+    ).toMatchObject({ source_kind: 'repository_file', path: 'docs/specs/brief.md', status: 'available' });
+    expect(
+      BriefSourceStatus.parse({
+        source_kind: 'repository_file',
+        path: 'docs/specs/brief.md',
+        provenance: 'tracked_checkout',
+        status: 'omitted',
+        reason_code: 'token_budget',
+        estimated_tokens: 250,
+      }).status,
+    ).toBe('omitted');
+    expect(
+      BriefSourceStatus.parse({
+        source_kind: 'smart_diff',
+        path: null,
+        provenance: 'pull_request',
+        status: 'unavailable',
+        reason_code: 'repo_intel_unavailable',
+        estimated_tokens: 0,
+      }),
+    ).toMatchObject({ source_kind: 'smart_diff', status: 'unavailable' });
+    expect(
+      BriefSourceStatus.parse({
+        source_kind: 'intent',
+        path: null,
+        provenance: 'pull_request',
+        status: 'unavailable',
+        reason_code: 'intent_not_derived',
+        estimated_tokens: 0,
+      }),
+    ).toMatchObject({ source_kind: 'intent', status: 'unavailable' });
+    expect(
+      BriefSourceStatus.parse({
+        source_kind: 'blast_radius',
+        path: null,
+        provenance: 'pull_request',
+        status: 'unavailable',
+        reason_code: 'blast_not_derived',
+        estimated_tokens: 0,
+      }),
+    ).toMatchObject({ source_kind: 'blast_radius', status: 'unavailable' });
+    expect(
+      BriefSourceStatus.safeParse({
+        source_kind: 'repository_file',
+        path: '../secrets.env',
+        provenance: 'tracked_checkout',
+        status: 'unavailable',
+        reason_code: null,
+        estimated_tokens: 250,
+      }).success,
+    ).toBe(false);
+    expect(
+      BriefSourceStatus.safeParse({
+        source_kind: 'repository_file',
+        path: 'docs/specs/brief.md',
+        provenance: 'tracked_checkout',
+        status: 'rejected',
+        reason_code: null,
+        estimated_tokens: 250,
+        content: 'sensitive source text',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('uses a stable in-progress error code in the generate response', () => {
+    expect(BriefGenerationInProgressError.parse({ code: 'brief_generation_in_progress' })).toEqual({
+      code: 'brief_generation_in_progress',
+    });
+    expect(BriefGenerationInProgressError.safeParse({ code: 'other' }).success).toBe(false);
+    expect(
+      BriefGenerateResponse.parse({
+        cache: { cache_state: 'current', brief },
+        sources: [
+          {
+            source_kind: 'pr_description',
+            path: null,
+            provenance: 'pull_request',
+            status: 'available',
+            reason_code: null,
+            estimated_tokens: 38,
+          },
+        ],
+      }),
+    ).toMatchObject({ cache: { cache_state: 'current' } });
   });
 });
 

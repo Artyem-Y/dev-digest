@@ -18,6 +18,8 @@ export function DiffViewer({
   showFindings = true,
   allFilesOpen,
   renderFinding,
+  focusTarget,
+  revealFile,
 }: {
   files: PrFile[];
   commenting?: DiffCommentApi;
@@ -26,6 +28,10 @@ export function DiffViewer({
   /** Applies a group-level expand/collapse command to every file card. */
   allFilesOpen?: boolean;
   renderFinding?: (finding: FindingRecord) => React.ReactNode;
+  /** Brief navigation target. It is display-only and never invents a line anchor. */
+  focusTarget?: { file: string; line: number } | null;
+  /** A Brief-referenced file remains expanded even after its line marker expires. */
+  revealFile?: string;
 }) {
   const t = useTranslations("shell");
   const visibleFindings = showFindings ? findings : [];
@@ -44,7 +50,7 @@ export function DiffViewer({
   return (
     <div style={s.list}>
       {files.map((f) => (
-        <FileCard key={f.path} file={f} commenting={commenting} findings={findingsByFile.get(f.path) ?? []} showFindings={showFindings} allFilesOpen={allFilesOpen} renderFinding={renderFinding} />
+        <FileCard key={f.path} file={f} commenting={commenting} findings={findingsByFile.get(f.path) ?? []} showFindings={showFindings} allFilesOpen={allFilesOpen} renderFinding={renderFinding} focusLine={focusTarget?.file === f.path ? focusTarget.line : undefined} reveal={revealFile === f.path} />
       ))}
     </div>
   );

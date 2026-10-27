@@ -6,6 +6,7 @@
 ## Documentation
 
 - [Durable browser-test documentation](docs/README.md)
+- [E2E SDD specifications](docs/specs/README.md)
 - [Executable flow specifications and index](specs/README.md)
 - [Repository test strategy](../TESTING.md)
 

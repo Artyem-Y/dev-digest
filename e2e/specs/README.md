@@ -16,3 +16,4 @@ New flow specifications should state the user journey, seed-data assumptions, de
 - `08-agent-run-cost.flow.json` — cost in PR list, run timeline, and trace
 - `09-agent-enabled-toggle.flow.json` — toggle and restore a seeded agent's enabled state
 - `10-smart-diff.flow.json` — Smart Diff grouping, findings and order switch
+- `11-pr-brief.flow.json` — hermetic-only explicit Brief generation and reload
