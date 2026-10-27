@@ -1,0 +1,32 @@
+name: eval static checks
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eval-static-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  eval-static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/validate-eval-assets.mjs
+      - run: >-
+          node --test
+          .claude/skills/devdigest-verification/evals/grade-workflow.test.mjs
+          .claude/skills/devdigest-verification/evals/run-workflows.test.mjs
+          .claude/skills/dependencies-checker/evals/run-evals.test.mjs
+          .claude/skills/dependencies-checker/evals/run-evals-exit.test.mjs
+          scripts/eval-summary.test.mjs

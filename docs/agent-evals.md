@@ -47,6 +47,25 @@ The private `expected.json` is available only to the post-run grader.
 
 ## CI selection and skips
 
+The separate `eval static checks` workflow runs on every pull request without
+model calls or API credentials. Its `eval-static` job has a stable name suitable
+for branch protection. Configure branch protection separately in GitHub.
+
+Live model-backed evals are disabled by default. Set the GitHub Actions
+repository variable `LIVE_EVAL_ENABLED` to the exact string `true` to enable
+them for eligible PRs and manual dispatches. Other values and an unset variable
+skip live jobs; validation and the static checks still run. This is a repository
+variable because the job-level condition is evaluated before the job's
+environment is available.
+
+The desired limits are $0.25 per model session and $2 per month for the eval
+project. Neither limit is enforced by the workflow. Codex CLI has no verified
+per-session dollar cap, and timeouts or token counts are not a hard spend cap.
+Configure the monthly hard limit in the dedicated OpenAI project's Limits page;
+OpenAI notes that enforcement is not instantaneous. Do not enable live evals
+expecting a $0.25 session cap until an independently verified spending controller
+is in place.
+
 The `agent-evals` GitHub Actions workflow runs on pull requests that change a
 skill, agent, instruction file, eval selector, validator, or the workflow
 itself. It first validates assets and runs deterministic grader tests.
@@ -64,9 +83,22 @@ has no `evals/` directory, an eval directory without a runner, or a changed
 agent has no configured agent eval, the selector emits a GitHub Actions notice
 with `Eval skipped` and a reason. It does not make a model call for that item.
 
-The live job repeats selection in its own workspace, runs only selected entries,
-and uploads `artifacts/evals/` even after a failure. Local artifacts remain
-ignored by Git.
+The live job receives the selection from validation and runs each selected eval
+in a separate matrix job, with at most two jobs in parallel and no fail-fast.
+Each job summarizes its benchmark and uploads its own artifact even after a
+failure. Local artifacts remain ignored by Git.
+
+CI starts the OpenAI Responses API proxy as root and runs the eval harness as a
+separate unprivileged user with a clean environment. The API key is provided to
+the proxy only; it is not passed to the eval user. The proxy limits the endpoint,
+but an eval can still use it to make model requests. The workflow and harness
+must themselves be trusted: a same-repository PR can modify workflow steps or
+scripts executed before the proxy starts. The fork restriction alone is not an
+authorization boundary for untrusted contributors. Apply environment approval
+and branch protections as appropriate. The Linux smoke test exercises the
+official proxy and Codex against a local mock with a synthetic key and checks
+the proxy process boundary. This does not verify the full eval harness, the
+GitHub runner configuration, or a real OpenAI API request.
 
 ## Evaluation protocol
 
