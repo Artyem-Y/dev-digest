@@ -23,7 +23,7 @@ plan:<path> [mode:multi|single] [max-fix:N]
 
 ## When to invoke
 
-- `/run-plan plan:docs/superpowers/plans/<feature>.md`
+- `/run-plan plan:docs/plans/<feature>.md`
 - “run the plan”, “execute the plan”, or “implement this plan”.
 
 The specification and Implementation Plan are manual, approved inputs. The

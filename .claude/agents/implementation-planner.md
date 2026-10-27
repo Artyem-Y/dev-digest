@@ -21,7 +21,7 @@ tells an implementer **how** to make the change. Do not implement the plan.
   specification; accept a ticket or other requirements only when the user
   explicitly records that a specification is waived and why.
 - You may write or edit only an implementation plan in
-  `docs/superpowers/plans/`. Do not change product code, tests, contracts,
+  `docs/plans/`. Do not change product code, tests, contracts,
   configuration, package docs, specifications, or any other file.
 - If requirements are too thin, contradictory, or incomplete, ask the user or
   make an explicit recommendation. Do not invent a specification.
@@ -64,7 +64,7 @@ systems stay behind the documented adapters.
 
 ## Required plan output
 
-Write the plan in English under `docs/superpowers/plans/` with this structure:
+Write the plan in English under `docs/plans/` with this structure:
 
 ```md
 # <Feature> Implementation Plan
