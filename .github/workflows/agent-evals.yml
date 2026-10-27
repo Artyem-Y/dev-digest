@@ -108,7 +108,7 @@ jobs:
       - name: Set up Codex sandbox
         run: |
           sudo apt-get update
-          sudo apt-get install --yes bubblewrap apparmor-profiles apparmor-utils
+          sudo apt-get install --yes bubblewrap apparmor-profiles apparmor-utils acl
           sudo install -m 0644 \
             /usr/share/apparmor/extra-profiles/bwrap-userns-restrict \
             /etc/apparmor.d/bwrap-userns-restrict
@@ -120,6 +120,17 @@ jobs:
           sudo useradd --create-home --shell /bin/bash evalworker
           sudo install -d -o evalworker -g evalworker -m 0700 /home/evalworker/.codex
           sudo install -d -o evalworker -g evalworker -m 0755 "$GITHUB_WORKSPACE/artifacts/evals"
+          sudo setfacl -m u:evalworker:--x /home/runner /home/runner/work "$RUNNER_WORKSPACE" "$GITHUB_WORKSPACE"
+          sudo setfacl -R -P -m u:evalworker:rX "$GITHUB_WORKSPACE/.claude"
+          sudo setfacl -m u:evalworker:--x "$GITHUB_WORKSPACE/artifacts"
+          for runner in \
+            .claude/skills/devdigest-verification/evals/run-workflows.mjs \
+            .claude/skills/dependencies-checker/evals/run-evals.mjs; do
+            if ! sudo -n -u evalworker test -r "$GITHUB_WORKSPACE/$runner"; then
+              echo "Eval user cannot read $runner" >&2
+              exit 1
+            fi
+          done
           if sudo -n -u evalworker sudo -n true 2>/dev/null; then
             echo 'Eval user unexpectedly has sudo access' >&2
             exit 1
