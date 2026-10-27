@@ -51,11 +51,12 @@ Treat committed SQL migrations and `server/src/db/migrations/meta/` as immutable
 - `README.md` describes current behavior and standard commands.
 - `docs/` contains durable implementation and operational guidance.
 - `docs/specs/` contains proposed or accepted SDD feature contracts and acceptance criteria. Existing package `specs/` directories retain their documented legacy assets, including executable E2E flows.
-- A verified change to current behavior in `client/` or `server/` must create or
-  update a durable topic document in that package's `docs/` directory and its
-  `docs/README.md` index. For test-only, build-only, or behavior-preserving
-  refactors, record the evidence-backed reason that package documentation is
-  not needed in the implementation result and documentation handoff.
+- A verified change to current behavior in `client/`, `server/`,
+  `reviewer-core/`, or `mcp/` must create or update a durable topic document in
+  that package's `docs/` directory and its `docs/README.md` index. For
+  test-only, build-only, or behavior-preserving refactors, record the
+  evidence-backed reason that package documentation is not needed in the
+  implementation result and documentation handoff.
 - `INSIGHTS.md` contains append-only, reusable discoveries; it is not a changelog or task log.
 - `.claude/skills/` contains reusable procedures. Keep `AGENTS.md` focused on always-relevant facts and constraints. `CLAUDE.md` is a compatibility symlink for Claude Code.
 

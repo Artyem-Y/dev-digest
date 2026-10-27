@@ -83,10 +83,10 @@ For iteration `1..max-fix`:
 
 After the remediation loop, dispatch `doc-writer` with the approved plan,
 implementation result, changed-file manifest, and fresh verification matrix.
-For every changed `client/` or `server/` package, it must create or update the
-package-local durable documentation required by the plan, or report the
-evidence-backed test-only/refactor exception. Run the documentation link and
-rendering checks before final reporting.
+For every changed `client/`, `server/`, `reviewer-core/`, or `mcp/` package, it
+must create or update the package-local durable documentation required by the
+plan, or report the evidence-backed test-only/refactor exception. Run the
+documentation link and rendering checks before final reporting.
 
 ## Final report
 
