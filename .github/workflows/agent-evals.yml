@@ -47,7 +47,12 @@ jobs:
         with:
           node-version: 22
       - run: node scripts/validate-eval-assets.mjs
-      - run: node --test .claude/skills/devdigest-verification/evals/grade-workflow.test.mjs
+      - run: >-
+          node --test
+          .claude/skills/devdigest-verification/evals/grade-workflow.test.mjs
+          .claude/skills/devdigest-verification/evals/run-workflows.test.mjs
+          .claude/skills/dependencies-checker/evals/run-evals.test.mjs
+          .claude/skills/dependencies-checker/evals/run-evals-exit.test.mjs
       - name: Select runnable evals and explain skips
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then

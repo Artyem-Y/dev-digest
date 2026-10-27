@@ -278,6 +278,10 @@ async function main() {
   const benchmark = { ...aggregate(results), results };
   await writeFile(path.join(output, 'benchmark.json'), `${JSON.stringify(benchmark, null, 2)}\n`);
   process.stdout.write(`${JSON.stringify(benchmark, null, 2)}\n`);
+  if (completed.some((run) => !run.valid || (args.judge && run.judge?.exit_code !== 0))) {
+    process.stderr.write('One or more dependency eval runs had an infrastructure failure.\n');
+    process.exitCode = 1;
+  }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

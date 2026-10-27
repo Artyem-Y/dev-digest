@@ -99,6 +99,10 @@ async function main() {
   await mkdir(output, { recursive: true });
   await writeFile(path.join(output, 'benchmark.json'), `${JSON.stringify({ workflow: workflow.id, ...summary, results }, null, 2)}\n`);
   process.stdout.write(`${JSON.stringify({ workflow: workflow.id, ...summary }, null, 2)}\n`);
+  if (results.some((result) => !result.valid)) {
+    process.stderr.write('One or more workflow eval runs had an infrastructure failure.\n');
+    process.exitCode = 1;
+  }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main().catch((error) => { process.stderr.write(`${error.stack || error.message}\n`); process.exitCode = 1; });
