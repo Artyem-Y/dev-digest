@@ -26,6 +26,8 @@ not edit files, produce a Development Plan, or claim a direction is implemented.
 4. Hand the chosen direction to `spec-creator` when it needs an SDD
    specification, then to `implementation-planner` for approved requirements.
    Do not substitute brainstorming for either artifact or for implementation.
+5. For agent or skill evaluation work, distinguish a runnable eval from a
+   fixture-only or missing eval in the recommendation.
 
 ## Required result
 

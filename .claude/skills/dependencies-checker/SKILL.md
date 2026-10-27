@@ -34,3 +34,7 @@ It makes model calls only when explicitly invoked with `--live`; that switch
 must be authorized because it can incur usage cost.
 Add `--judge` only with `--live` to run a separate, read-only structured
 Markdown-quality judge after each generated report.
+
+In CI, this skill is evaluated only when the changed-file selector includes its
+executable runner. A missing or fixture-only eval must be reported as skipped,
+not treated as a successful dependency analysis.

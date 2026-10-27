@@ -64,6 +64,7 @@ jobs:
        github.event.pull_request.head.repo.full_name == github.repository) &&
       (github.event_name != 'workflow_dispatch' || inputs.provider == 'codex')
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     env:
       EVAL_PROVIDER: codex
       EVAL_MODEL: ${{ inputs.model || vars.CODEX_EVAL_MODEL || 'codex-mini-latest' }}
