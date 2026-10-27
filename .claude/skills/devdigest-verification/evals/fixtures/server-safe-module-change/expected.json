@@ -1,0 +1,13 @@
+{
+  "required_paths": [
+    "server/src/modules/pulls/routes.ts",
+    "server/src/modules/pulls/application/get-pull-summary.ts",
+    "server/src/modules/pulls/application/ports/pull-summary-reader.ts"
+  ],
+  "required_text": {
+    "server/src/modules/pulls/routes.ts": ["requireScope", "getPullSummary"],
+    "server/src/modules/pulls/application/get-pull-summary.ts": ["PullSummaryReader"],
+    "server/src/modules/pulls/application/ports/pull-summary-reader.ts": ["workspaceId"]
+  },
+  "verification_commands": ["pnpm exec vitest run"]
+}

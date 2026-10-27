@@ -1,0 +1,18 @@
+diff --git a/src/http/create-user.ts b/src/http/create-user.ts
+index a70ac21..19bbd0a 100644
+--- a/src/http/create-user.ts
++++ b/src/http/create-user.ts
+@@ -1,11 +1,9 @@
+ export const CreateUserBody = z.object({
+-  email: z.string().email().optional(),
+-  timezone: z.string().min(1).optional(),
+-  role: z.enum(['admin', 'editor', 'viewer']).default('viewer'),
++  email: z.string().email(),
++  locale: z.string().min(2).default('en'),
++  role: z.enum(['admin', 'editor']).default('editor'),
+ });
+ 
+ export async function createUser(request: Request): Promise<Response> {
+   const body = CreateUserBody.parse(request.body);
+   return json(201, await users.create(body));
+ }

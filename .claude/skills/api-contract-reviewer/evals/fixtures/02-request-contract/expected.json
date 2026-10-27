@@ -1,0 +1,22 @@
+{
+  "findings": [
+    {
+      "id": "email-became-required",
+      "file": "src/http/create-user.ts",
+      "line": 2,
+      "must_convey": "The email request field changed from optional to required, rejecting existing valid client requests."
+    },
+    {
+      "id": "timezone-request-field-removed",
+      "file": "src/http/create-user.ts",
+      "line": 3,
+      "must_convey": "The public timezone request field was removed or renamed to locale, so clients that send timezone no longer have the same contract."
+    },
+    {
+      "id": "viewer-enum-value-removed",
+      "file": "src/http/create-user.ts",
+      "line": 4,
+      "must_convey": "The accepted role value viewer was removed, breaking existing request payloads."
+    }
+  ]
+}

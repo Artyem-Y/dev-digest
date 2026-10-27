@@ -1,0 +1,27 @@
+diff --git a/src/http/invoices.ts b/src/http/invoices.ts
+index 57a21ad..9f2e7a0 100644
+--- a/src/http/invoices.ts
++++ b/src/http/invoices.ts
+@@ -1,24 +1,18 @@
+ export const apiVersion = '2.4.0';
+ 
+-router.get('/v1/invoices', listInvoicesV1);
+ router.get('/v2/invoices', listInvoicesV2);
+ router.get('/v2/invoices/:id', getInvoiceV2);
+ 
+-export const ListInvoicesQuery = z.object({
+-  cursor: z.string().optional(),
+-  limit: z.coerce.number().int().min(1).max(100).default(25),
+-});
++export const ListInvoicesQuery = z.object({ page: z.coerce.number().int().min(1).default(1) });
+ 
+ export type InvoiceResponse = {
+   id: string;
+-  total_cents: number;
++  total: number;
+   currency: string;
+ };
+ 
+ export async function getInvoiceV2(request: Request): Promise<Response> {
+   return json(200, await invoices.byId(request.params.id));
+ }

@@ -1,0 +1,22 @@
+{
+  "findings": [
+    {
+      "id": "removed-name-response-field",
+      "file": "src/http/users.ts",
+      "line": 6,
+      "must_convey": "The public response field name was removed or renamed to display_name, breaking clients that read name."
+    },
+    {
+      "id": "removed-status-response-field",
+      "file": "src/http/users.ts",
+      "line": 7,
+      "must_convey": "The public response field status was removed or renamed to state, breaking clients that read status."
+    },
+    {
+      "id": "changed-not-found-error-shape",
+      "file": "src/http/users.ts",
+      "line": 14,
+      "must_convey": "The 404 error payload no longer contains error.code, breaking callers that branch on the documented error shape."
+    }
+  ]
+}
