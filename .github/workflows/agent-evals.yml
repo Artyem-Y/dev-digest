@@ -93,13 +93,13 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          workflows="$(node -e \"const selection=require('./artifacts/evals/selection.json'); console.log(selection.runnable.filter((item) => item.kind === 'composite-workflow').map((item) => item.id).join(' '))\")"
+          workflows="$(node -e 'const selection=require("./artifacts/evals/selection.json"); console.log(selection.runnable.filter((item) => item.kind === "composite-workflow").map((item) => item.id).join(" "))')"
           for workflow in $workflows; do
             node .claude/skills/devdigest-verification/evals/run-workflows.mjs \
               --live --workflow "$workflow" --runs 1 \
               --output "artifacts/evals/$workflow"
           done
-          skills="$(node -e \"const selection=require('./artifacts/evals/selection.json'); console.log(selection.runnable.filter((item) => item.kind === 'skill').map((item) => item.id).join(' '))\")"
+          skills="$(node -e 'const selection=require("./artifacts/evals/selection.json"); console.log(selection.runnable.filter((item) => item.kind === "skill").map((item) => item.id).join(" "))')"
           for skill in $skills; do
             if [ "$skill" = "dependencies-checker" ]; then
               node .claude/skills/dependencies-checker/evals/run-evals.mjs \
