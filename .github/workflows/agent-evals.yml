@@ -74,7 +74,7 @@ jobs:
     timeout-minutes: 25
     env:
       EVAL_PROVIDER: codex
-      EVAL_MODEL: ${{ inputs.model || vars.CODEX_EVAL_MODEL || 'codex-mini-latest' }}
+      EVAL_MODEL: ${{ inputs.model || vars.CODEX_EVAL_MODEL || 'gpt-6-luna' }}
     steps:
       - uses: actions/checkout@v4
         with:
