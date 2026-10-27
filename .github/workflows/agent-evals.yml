@@ -1,0 +1,109 @@
+name: agent evals
+
+on:
+  pull_request:
+    paths:
+      - '.claude/skills/**'
+      - '.claude/agents/**'
+      - '.agents/agents/**'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'client/AGENTS.md'
+      - 'server/AGENTS.md'
+      - 'reviewer-core/AGENTS.md'
+      - 'e2e/AGENTS.md'
+      - 'scripts/validate-eval-assets.mjs'
+      - 'scripts/select-evals.mjs'
+      - '.github/workflows/agent-evals.yml'
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: 'Executor provider: codex is active; openrouter is reserved.'
+        required: false
+        default: codex
+        type: choice
+        options: [codex, openrouter]
+      model:
+        description: 'Codex model override for currently supported runners.'
+        required: false
+        default: codex-mini-latest
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-evals-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/validate-eval-assets.mjs
+      - run: node --test .claude/skills/devdigest-verification/evals/grade-workflow.test.mjs
+      - name: Select runnable evals and explain skips
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            node scripts/select-evals.mjs \
+              --base "${{ github.event.pull_request.base.sha }}" \
+              --head "${{ github.event.pull_request.head.sha }}" \
+              --output artifacts/evals/selection.json
+          else
+            node scripts/select-evals.mjs --all-known --output artifacts/evals/selection.json
+          fi
+
+  live-evals:
+    needs: validate
+    if: >-
+      (github.event_name == 'workflow_dispatch' ||
+       github.event.pull_request.head.repo.full_name == github.repository) &&
+      (github.event_name != 'workflow_dispatch' || inputs.provider == 'codex')
+    runs-on: ubuntu-latest
+    env:
+      EVAL_PROVIDER: codex
+      EVAL_MODEL: ${{ inputs.model || vars.CODEX_EVAL_MODEL || 'codex-mini-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Codex CLI
+        run: npm install --global @openai/codex
+      - name: Select runnable evals
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            node scripts/select-evals.mjs \
+              --base "${{ github.event.pull_request.base.sha }}" \
+              --head "${{ github.event.pull_request.head.sha }}" \
+              --output artifacts/evals/selection.json
+          else
+            node scripts/select-evals.mjs --all-known --output artifacts/evals/selection.json
+          fi
+      - name: Run selected evals
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          workflows="$(node -e \"const selection=require('./artifacts/evals/selection.json'); console.log(selection.runnable.filter((item) => item.kind === 'composite-workflow').map((item) => item.id).join(' '))\")"
+          for workflow in $workflows; do
+            node .claude/skills/devdigest-verification/evals/run-workflows.mjs \
+              --live --workflow "$workflow" --runs 1 \
+              --output "artifacts/evals/$workflow"
+          done
+          skills="$(node -e \"const selection=require('./artifacts/evals/selection.json'); console.log(selection.runnable.filter((item) => item.kind === 'skill').map((item) => item.id).join(' '))\")"
+          for skill in $skills; do
+            if [ "$skill" = "dependencies-checker" ]; then
+              node .claude/skills/dependencies-checker/evals/run-evals.mjs \
+                --live --runs 1 --output "artifacts/evals/$skill"
+            fi
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-eval-artifacts
+          path: artifacts/evals/
+          if-no-files-found: warn
