@@ -19,6 +19,7 @@ plan:<path> [mode:multi|single] [max-fix:N]
   -> plan-verifier completion
   -> architecture-reviewer || conditional security-reviewer
   -> bounded fix loop and re-verification
+  -> doc-writer: package-local documentation decision and updates
 ```
 
 ## When to invoke

@@ -62,6 +62,13 @@ invariants: vendored shared contracts stay synchronized, reviewer-core changes
 require server typechecking, migrations are immutable history, and external
 systems stay behind the documented adapters.
 
+For every affected `client/` or `server/` package, add a documentation decision
+to the plan. A change to verified current behavior requires a `doc-writer` task
+after completion verification that creates or updates a durable topic document
+under `<package>/docs/` and updates `<package>/docs/README.md`. A test-only,
+build-only, or behavior-preserving refactor may omit that task only when the
+plan records the concrete reason and the evidence that behavior is unchanged.
+
 ## Required plan output
 
 Write the plan in English under `docs/plans/` with this structure:
@@ -91,6 +98,7 @@ Write the plan in English under `docs/plans/` with this structure:
   - **Known gotchas:** <insight or none>
   - **Acceptance:** <measurable behavior or command>
 ## Testing strategy
+## Package documentation decisions
 ## Risks & mitigations
 ## Red-flags check
 ```
@@ -115,3 +123,5 @@ Before returning the plan, verify that:
 - multi-agent concurrent tasks have no overlapping owned paths;
 - every acceptance criterion is measurable; and
 - shared contracts or migration history are explicitly called out when relevant.
+- every affected `client/` and `server/` package has a documentation task or an
+  evidence-backed no-documentation decision.
