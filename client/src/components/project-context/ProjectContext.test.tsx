@@ -3,18 +3,25 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import messages from "../../../messages/en/project-context.json";
 
-const mocks = vi.hoisted(() => ({ change: vi.fn(), reorder: vi.fn(), retryPreview: vi.fn(), previewError: false, documents: [{ path: "docs/a.md", availability: "available", estimated_tokens: 4 }, { path: "docs/b.md", availability: "available", estimated_tokens: 5 }] }));
+const mocks = vi.hoisted(() => ({ change: vi.fn(), reorder: vi.fn(), retryPreview: vi.fn(), previewError: false, pendingPath: null as string | null, documents: [{ path: "docs/a.md", availability: "available", estimated_tokens: 4 }, { path: "docs/b.md", availability: "available", estimated_tokens: 5 }] }));
 vi.mock("@/lib/repo-context", () => ({ useActiveRepo: () => ({ repoId: "repo" }) }));
 vi.mock("@/lib/hooks/project-context", () => ({
   useProjectDocuments: () => ({ data: mocks.documents, refetch: vi.fn() }),
   useProjectDocument: (_repo: string, path: string | null) => ({ data: path && !mocks.previewError ? { content: "Document content\n\n![tracking image](https://example.com/pixel)" } : undefined, isError: mocks.previewError, refetch: mocks.retryPreview }),
   useResolvedProjectContext: () => ({ data: { documents: [], skipped: [] } }),
-  useProjectAttachments: () => ({ query: { data: [{ path: "docs/a.md", status: "attached", estimated_tokens: 4 }, { path: "docs/missing.md", status: "missing", estimated_tokens: 0 }], refetch: vi.fn() }, change: { mutate: mocks.change }, reorder: { mutate: mocks.reorder } }),
+  useProjectAttachments: () => ({ query: { data: [{ path: "docs/a.md", status: "attached", estimated_tokens: 4 }, { path: "docs/missing.md", status: "missing", estimated_tokens: 0 }], refetch: vi.fn() }, change: { mutate: mocks.change, isPending: mocks.pendingPath !== null, variables: mocks.pendingPath ? { path: mocks.pendingPath, attached: true } : undefined }, reorder: { mutate: mocks.reorder } }),
 }));
 import { ProjectContext } from "./ProjectContext";
-afterEach(() => { cleanup(); vi.clearAllMocks(); mocks.previewError = false; mocks.documents = [{ path: "docs/a.md", availability: "available", estimated_tokens: 4 }, { path: "docs/b.md", availability: "available", estimated_tokens: 5 }]; });
+afterEach(() => { cleanup(); vi.clearAllMocks(); mocks.previewError = false; mocks.pendingPath = null; mocks.documents = [{ path: "docs/a.md", availability: "available", estimated_tokens: 4 }, { path: "docs/b.md", availability: "available", estimated_tokens: 5 }]; });
 
 describe("Project Context selection", () => {
+  it("keeps other skill document checkboxes enabled while one attachment is saving", () => {
+    mocks.pendingPath = "docs/b.md";
+    render(<NextIntlClientProvider locale="en" messages={{ "project-context": messages }}><ProjectContext owner="skill" ownerId="skill" /></NextIntlClientProvider>);
+    expect(screen.getByRole("checkbox", { name: "Attach docs/b.md" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Detach docs/a.md" })).toBeEnabled();
+    expect(screen.getByRole("checkbox", { name: "Detach docs/missing.md" })).toBeEnabled();
+  });
   it("places a document preview immediately after its row, before later documents", () => {
     render(<NextIntlClientProvider locale="en" messages={{ "project-context": messages }}><ProjectContext owner="agent" ownerId="agent" /></NextIntlClientProvider>);
     fireEvent.click(screen.getByRole("button", { name: "Preview docs/a.md" }));

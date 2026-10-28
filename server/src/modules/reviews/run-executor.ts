@@ -237,6 +237,8 @@ export class ReviewRunExecutor {
     // events are already in this run's buffer, so the persisted trace below
     // (built from the buffer) includes them too.
     const runLog = parentLog.forRun(runId, { agent: agent.name });
+    let projectContext: ResolvedBriefContext = { documents: [], skipped: [] };
+    let attemptedAssembly: RunTrace['prompt_assembly'] | undefined;
 
     runLog.info(`Starting review with agent "${agent.name}" (${agent.provider}/${agent.model})`);
 
@@ -273,7 +275,6 @@ export class ReviewRunExecutor {
       const resolvedSkills = await this.dependencies.resolveSkills(agent.id);
       runLog.info(skillsAttachedLogMessage(resolvedSkills));
       const skills = resolvedSkills.map((skill) => skill.body);
-      let projectContext: ResolvedBriefContext = { documents: [], skipped: [] };
       try {
         projectContext = await this.dependencies.resolveProjectContext({ workspaceId, repoId: pull.repoId, agentId: agent.id });
         for (const skipped of projectContext.skipped) runLog.info(`Project context skipped: ${skipped.path} (${skipped.reason})`);
@@ -309,6 +310,7 @@ export class ReviewRunExecutor {
         correlationId: runId,
         promptAssemblyDetail: this.dependencies.promptBuilderDebug,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
+        onPromptAssembled: (assembly) => { attemptedAssembly = assembly; },
         checkCancelled: () => {
           if (this.dependencies.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
@@ -409,8 +411,14 @@ export class ReviewRunExecutor {
           error: msg,
         })
         .catch(() => undefined);
+      const failedTrace = this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, intentTrace);
+      if (attemptedAssembly) {
+        failedTrace.prompt_assembly = attemptedAssembly;
+        failedTrace.specs_read = projectContext.documents.map((document) => document.path);
+        failedTrace.specs_read_details = projectContext.documents.map((document) => ({ path: document.path, estimated_tokens: document.estimatedTokens }));
+      }
       await this.repo
-        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, intentTrace))
+        .saveRunTrace(runId, failedTrace)
         .catch(() => undefined);
       throw err;
     }

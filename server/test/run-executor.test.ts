@@ -4,6 +4,25 @@ import { RunBus } from '../src/platform/sse.js';
 import { MockLLMProvider } from '../src/adapters/mocks.js';
 
 describe('ReviewRunExecutor', () => {
+  it('preserves the assembled project context when the model request fails', async () => {
+    const provider = new MockLLMProvider('openai');
+    vi.spyOn(provider, 'completeStructured').mockRejectedValue(new Error('provider unavailable'));
+    const saved = vi.fn().mockResolvedValue(undefined);
+    const executor = new ReviewRunExecutor({
+      runBus: new RunBus(), resolveLlm: vi.fn().mockResolvedValue(provider),
+      loadDiff: vi.fn().mockResolvedValue({ raw: '', files: [] }),
+      deriveIntent: vi.fn().mockResolvedValue({ status: 'unavailable', reasonCode: 'model_unavailable', trace: { sourceCount: 0 } }),
+      resolveSkills: vi.fn().mockResolvedValue([]),
+      resolveProjectContext: vi.fn().mockResolvedValue({ documents: [{ path: 'docs/spec.md', content: '# Rule', estimatedTokens: 2, provenance: ['direct_agent'] }], skipped: [] }),
+      promptBuilderDebug: false,
+    } as never, { completeAgentRun: vi.fn().mockResolvedValue(undefined), saveRunTrace: saved } as never);
+    await executor.executeRuns('workspace', { id: 'pull', repoId: 'repo', number: 1, title: 'Title', body: null, headSha: 'sha' } as never,
+      { owner: 'acme', name: 'repo' }, [{ runId: 'run', agent: { id: 'agent', name: 'Reviewer', provider: 'openai', model: 'gpt', version: 1, systemPrompt: 'Review', repoIntel: false, strategy: 'single-pass', ciFailOn: 'critical' } as never }]);
+    const trace = saved.mock.calls[0]?.[1];
+    expect(trace.specs_read).toEqual(['docs/spec.md']);
+    expect(trace.prompt_assembly.specs).toContain('<untrusted source="spec-0">');
+    expect(trace.prompt_assembly.specs).toContain('# Rule');
+  });
   it('sends attached documents as untrusted context and stores the exact run snapshot', async () => {
     const provider = new MockLLMProvider('openai', { structured: { verdict: 'approve', summary: 'ok', score: 100, findings: [] } });
     const saved = vi.fn();
