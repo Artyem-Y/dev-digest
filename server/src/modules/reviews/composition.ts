@@ -46,7 +46,7 @@ export function createReviewService(container: Container): ReviewService {
       const projectContext = createProjectContextRepository(container);
       const clonePath = await projectContext.clonePath(workspaceId, repoId);
       if (!clonePath) throw new Error('Project context checkout unavailable');
-      return resolveReviewContext({ workspaceId, repoId, agentId, repository: projectContext, store: createTrackedDocumentStore(clonePath) });
+      return resolveReviewContext({ workspaceId, repoId, agentId, repository: projectContext, store: createTrackedDocumentStore(clonePath, container.config.projectContextRoots) });
     },
     promptBuilderDebug: container.config.promptBuilderDebug,
     deriveIntent: ({ workspaceId, prId, title, body, repo }) => intentService.derive({ workspaceId, prId, title, body, repo }),

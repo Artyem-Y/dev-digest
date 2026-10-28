@@ -383,6 +383,7 @@ export class ReviewRunExecutor {
         raw_output: outcome.raw,
         memory_pulled: [],
         specs_read: projectContext.documents.map((document) => document.path),
+        specs_read_details: projectContext.documents.map((document) => ({ path: document.path, estimated_tokens: document.estimatedTokens })),
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),

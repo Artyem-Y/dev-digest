@@ -20,7 +20,7 @@ export default async function projectContextRoutes(appBase: FastifyInstance) {
   async function store(workspaceId: string, repoId: string) {
     const clonePath = await repository.clonePath(workspaceId, repoId);
     if (!clonePath) throw new NotFoundError('Repository checkout not found');
-    return createTrackedDocumentStore(clonePath);
+    return createTrackedDocumentStore(clonePath, app.container.config.projectContextRoots);
   }
 
   app.get('/repos/:repoId/project-context/documents', { schema: { params: RepoParams } }, async (req) => {

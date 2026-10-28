@@ -29,10 +29,15 @@ d('Project Context persistence', () => {
     ]);
     checkout = await mkdtemp(join(tmpdir(), 'devdigest-project-context-route-'));
     await mkdir(join(checkout, 'docs'));
+    await mkdir(join(checkout, 'handbook'));
     await writeFile(join(checkout, 'docs', 'brief.md'), '# Brief');
     await writeFile(join(checkout, 'docs', 'skill.md'), '# Skill context');
+    await writeFile(join(checkout, 'README.md'), '# Outside configured roots');
+    await writeFile(join(checkout, 'handbook', 'custom.md'), '# Custom context');
     await execFileAsync('git', ['-C', checkout, 'init']);
-    await execFileAsync('git', ['-C', checkout, 'add', 'docs/brief.md', 'docs/skill.md']);
+    await execFileAsync('git', ['-C', checkout, 'symbolic-ref', 'HEAD', 'refs/heads/main']);
+    await execFileAsync('git', ['-C', checkout, 'add', 'docs/brief.md', 'docs/skill.md', 'README.md', 'handbook/custom.md']);
+    await execFileAsync('git', ['-C', checkout, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-m', 'fixture']);
     await pg.handle.db.insert(t.repos).values([
       { id: '10000000-0000-0000-0000-000000000011', workspaceId: '10000000-0000-0000-0000-000000000001', owner: 'one', name: 'repo', fullName: 'one/repo', clonePath: checkout },
       { id: '20000000-0000-0000-0000-000000000022', workspaceId: '20000000-0000-0000-0000-000000000002', owner: 'two', name: 'repo', fullName: 'two/repo' },
@@ -55,6 +60,7 @@ d('Project Context persistence', () => {
       { workspaceId: '20000000-0000-0000-0000-000000000002', repoId: '20000000-0000-0000-0000-000000000022', agentId: '20000000-0000-0000-0000-000000000222', path: 'docs/two.md' },
       { workspaceId: '10000000-0000-0000-0000-000000000001', repoId: '10000000-0000-0000-0000-000000000011', agentId: '10000000-0000-0000-0000-000000000112', path: 'docs/disabled-agent.md' },
       { workspaceId: '10000000-0000-0000-0000-000000000001', repoId: '10000000-0000-0000-0000-000000000011', agentId: '10000000-0000-0000-0000-000000000111', path: 'docs/moved.md' },
+      { workspaceId: '10000000-0000-0000-0000-000000000001', repoId: '10000000-0000-0000-0000-000000000011', agentId: '10000000-0000-0000-0000-000000000111', path: 'README.md' },
     ]);
     await pg.handle.db.insert(t.skillProjectDocuments).values([
       { workspaceId: '10000000-0000-0000-0000-000000000001', repoId: '10000000-0000-0000-0000-000000000011', skillId: '10000000-0000-0000-0000-000000000333', path: 'docs/skill.md' },
@@ -69,8 +75,8 @@ d('Project Context persistence', () => {
     const agentAttachments = await repository.listForAgent('10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000011', '10000000-0000-0000-0000-000000000111');
     expect(agentAttachments.map((item) => item.path)).not.toContain('docs/disabled-skill.md');
     expect(agentAttachments.map((item) => item.path)).not.toContain('docs/disabled-agent.md');
-    await repository.reorder({ workspaceId: '10000000-0000-0000-0000-000000000001', repoId: '10000000-0000-0000-0000-000000000011', owner: 'agent', ownerId: '10000000-0000-0000-0000-000000000111', paths: ['docs/one.md', 'docs/moved.md'] });
-    await expect(repository.listOwnerAttachments({ workspaceId: '10000000-0000-0000-0000-000000000001', repoId: '10000000-0000-0000-0000-000000000011', owner: 'agent', ownerId: '10000000-0000-0000-0000-000000000111' })).resolves.toEqual(['docs/one.md', 'docs/moved.md']);
+    await repository.reorder({ workspaceId: '10000000-0000-0000-0000-000000000001', repoId: '10000000-0000-0000-0000-000000000011', owner: 'agent', ownerId: '10000000-0000-0000-0000-000000000111', paths: ['docs/one.md', 'docs/moved.md', 'README.md'] });
+    await expect(repository.listOwnerAttachments({ workspaceId: '10000000-0000-0000-0000-000000000001', repoId: '10000000-0000-0000-0000-000000000011', owner: 'agent', ownerId: '10000000-0000-0000-0000-000000000111' })).resolves.toEqual(['docs/one.md', 'docs/moved.md', 'README.md']);
     await expect(repository.reorder({ workspaceId: '10000000-0000-0000-0000-000000000001', repoId: '10000000-0000-0000-0000-000000000011', owner: 'agent', ownerId: '10000000-0000-0000-0000-000000000111', paths: ['docs/one.md'] })).rejects.toThrow();
     await expect(repository.listForBrief('10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000011'))
       .resolves.toEqual(expect.arrayContaining([
@@ -86,6 +92,12 @@ d('Project Context persistence', () => {
       overrides: { auth: new MockAuthProvider(undefined, { id: '10000000-0000-0000-0000-000000000001', name: 'one' }), llm: { openai: llm } },
     });
     const endpoint = '/repos/10000000-0000-0000-0000-000000000011/project-context/agent/10000000-0000-0000-0000-000000000111/attachments';
+    const catalog = await app.inject({ method: 'GET', url: '/repos/10000000-0000-0000-0000-000000000011/project-context/documents' });
+    expect(catalog.json().map((item: { path: string }) => item.path)).toEqual(['docs/brief.md', 'docs/skill.md']);
+    expect((await app.inject({ method: 'POST', url: endpoint, payload: { path: 'README.md' } })).statusCode).toBe(422);
+    await expect(app.inject({ method: 'GET', url: endpoint }).then((response) => response.json()))
+      .resolves.toEqual(expect.arrayContaining([expect.objectContaining({ path: 'README.md', status: 'no_longer_eligible' })]));
+    expect((await app.inject({ method: 'DELETE', url: endpoint, payload: { path: 'README.md' } })).statusCode).toBe(204);
     const preview = await app.inject({ method: 'GET', url: '/repos/10000000-0000-0000-0000-000000000011/project-context/documents/docs%2Fbrief.md' });
     expect(preview.statusCode).toBe(200);
     expect(preview.json()).toMatchObject({ path: 'docs/brief.md', content: '# Brief' });
@@ -109,9 +121,21 @@ d('Project Context persistence', () => {
     expect(trace.prompt_assembly.specs).toContain('# Skill context');
     expect(trace.prompt_assembly.specs).toContain('<untrusted source="spec-0">');
     await writeFile(join(checkout, 'docs', 'brief.md'), '# Updated after run');
+    await execFileAsync('git', ['-C', checkout, 'add', 'docs/brief.md']);
+    await execFileAsync('git', ['-C', checkout, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-m', 'updated']);
     const historical = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
     expect(historical.prompt_assembly.specs).toContain('# Brief');
     expect(historical.prompt_assembly.specs).not.toContain('# Updated after run');
     await app.close();
+    const customApp = await buildApp({
+      config: loadConfig({ ...process.env, NODE_ENV: 'test', PROJECT_CONTEXT_ROOTS: 'handbook' } as NodeJS.ProcessEnv),
+      db: pg.handle.db,
+      overrides: { auth: new MockAuthProvider(undefined, { id: '10000000-0000-0000-0000-000000000001', name: 'one' }) },
+    });
+    const customCatalog = await customApp.inject({ method: 'GET', url: '/repos/10000000-0000-0000-0000-000000000011/project-context/documents' });
+    expect(customCatalog.json().map((item: { path: string }) => item.path)).toEqual(['handbook/custom.md']);
+    const oldAttachments = (await customApp.inject({ method: 'GET', url: endpoint })).json();
+    expect(oldAttachments).toEqual(expect.arrayContaining([expect.objectContaining({ path: 'docs/brief.md', status: 'no_longer_eligible' })]));
+    await customApp.close();
   });
 });

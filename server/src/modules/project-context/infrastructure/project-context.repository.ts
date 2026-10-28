@@ -9,19 +9,21 @@ export class DrizzleProjectContextRepository implements ProjectContextRepository
   constructor(private readonly db: Db) {}
 
   async listForAgent(workspaceId: string, repoId: string, agentId: string): Promise<ProjectContextAttachment[]> {
-    const [direct, inherited] = await Promise.all([
-      this.db.select({ path: t.agentProjectDocuments.path }).from(t.agentProjectDocuments)
+    // Resolve both sources from one snapshot even if links change during the read.
+    const [direct, inherited] = await this.db.transaction(async (tx) => {
+      const direct = await tx.select({ path: t.agentProjectDocuments.path }).from(t.agentProjectDocuments)
         .innerJoin(t.agents, eq(t.agentProjectDocuments.agentId, t.agents.id))
         .where(and(eq(t.agentProjectDocuments.workspaceId, workspaceId), eq(t.agentProjectDocuments.repoId, repoId), eq(t.agentProjectDocuments.agentId, agentId), eq(t.agents.workspaceId, workspaceId)))
-        .orderBy(asc(t.agentProjectDocuments.order), asc(t.agentProjectDocuments.path)),
-      this.db.select({ path: t.skillProjectDocuments.path, skillId: t.skills.id, body: t.skills.body })
+        .orderBy(asc(t.agentProjectDocuments.order), asc(t.agentProjectDocuments.path));
+      const inherited = await tx.select({ path: t.skillProjectDocuments.path, skillId: t.skills.id, body: t.skills.body })
         .from(t.skillProjectDocuments)
         .innerJoin(t.skills, eq(t.skillProjectDocuments.skillId, t.skills.id))
         .innerJoin(t.agentSkills, eq(t.agentSkills.skillId, t.skills.id))
         .innerJoin(t.agents, eq(t.agentSkills.agentId, t.agents.id))
         .where(and(eq(t.skillProjectDocuments.workspaceId, workspaceId), eq(t.skillProjectDocuments.repoId, repoId), eq(t.agentSkills.agentId, agentId), eq(t.agentSkills.enabled, true), eq(t.skills.workspaceId, workspaceId), eq(t.skills.enabled, true), eq(t.agents.workspaceId, workspaceId)))
-        .orderBy(asc(t.agentSkills.order), asc(t.skillProjectDocuments.order), asc(t.skillProjectDocuments.path)),
-    ]);
+        .orderBy(asc(t.agentSkills.order), asc(t.skillProjectDocuments.order), asc(t.skillProjectDocuments.path));
+      return [direct, inherited] as const;
+    }, { isolationLevel: 'repeatable read', accessMode: 'read only' });
     return [
       ...direct.map(({ path }) => ({ path, provenance: 'direct_agent' as const })),
       ...inherited.filter(({ body }) => !isUnsafeSkillContent(body)).map(({ path, skillId }) => ({ path, skillId, provenance: 'linked_skill' as const })),

@@ -1,6 +1,6 @@
 /** Isolated browser-test entry point; never used by the production server. */
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
@@ -22,9 +22,12 @@ if (database.hostname !== '127.0.0.1' || database.port !== env.E2E_PG_PORT) thro
 const root = await mkdtemp(join(tmpdir(), 'devdigest-context-e2e-'));
 const db = createDb(config.databaseUrl);
 const exec = promisify(execFile);
-await writeFile(join(root, 'project-spec.md'), '# Browser fixture\nReviews must use the attached project specification.\n');
+await mkdir(join(root, 'docs'));
+await writeFile(join(root, 'docs', 'project-spec.md'), '# Browser fixture\nReviews must use the attached project specification.\n');
 await exec('git', ['-C', root, 'init', '-q']);
-await exec('git', ['-C', root, 'add', 'project-spec.md']);
+await exec('git', ['-C', root, 'symbolic-ref', 'HEAD', 'refs/heads/main']);
+await exec('git', ['-C', root, 'add', 'docs/project-spec.md']);
+await exec('git', ['-C', root, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture']);
 await db.db.update(schema.repos).set({ clonePath: root }).where(eq(schema.repos.fullName, 'acme/payments-api'));
 const llm = new MockLLMProvider('openai', { structured: { verdict: 'approve', summary: 'Fixture review complete', score: 100, findings: [] } });
 const app = await buildApp({ config, db: db.db, overrides: { llm: { openrouter: llm } } });

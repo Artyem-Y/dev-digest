@@ -33,6 +33,7 @@
       "provider": "Provider",
       "memoryPulled": "Memory pulled",
       "specsRead": "Specs read",
+      "specEstimatedTokens": "{count} estimated tokens",
       "items": "{count, plural, one {# item} other {# items}}",
       "none": "none"
     },

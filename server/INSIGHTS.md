@@ -177,3 +177,13 @@ Brief source slots are presentation structure, not independent budget buckets. T
 - Implication: Do not rely on realpath of /dev/fd on macOS to identify the opened file; verify the opened descriptor and fail closed when its actual path is unavailable.
 
 On macOS realpath of /dev/fd/N returns the descriptor path rather than the opened file path. A pathname-only recheck can miss a parent-directory swap, so validate the opened vnode using a platform-appropriate mechanism before reading.
+
+<!-- insight-id: eng-server-d2226bcaba1b -->
+## eng-server-d2226bcaba1b — Project Context resolves immutable main tree blobs
+
+- Date: 2026-10-29
+- Category: invariant
+- Evidence: GitTrackedDocumentStore uses ls-tree and cat-file for main; project-context-path-policy.test.ts covers other branches, uncommitted files and worktree symlink replacements.
+- Implication: For Project Context resolve a single main tree snapshot rather than reading checkout paths; retain descriptor validation for other features that read worktree files.
+
+Supersedes eng-server-68d601c55df9 for Project Context only. Reading tracked Git blobs avoids worktree races and preserves a consistent selected branch snapshot; it does not make descriptor checks unnecessary for other worktree readers.

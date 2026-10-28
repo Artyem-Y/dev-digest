@@ -22,8 +22,13 @@ swapped for mocks in tests.
   `pnpm db:seed`. **Test:** `pnpm test` (see [Testing](#testing)).
 - **No keys required to boot:** `loadConfig` (`src/platform/config.ts`) marks
   every secret optional; keys can also be set at runtime via Settings.
-- **Project Context on macOS:** the checkout reader uses the system `lsof` to
-  validate an opened file's location. If it is unavailable, reads fail closed.
+- **Project Context roots:** `PROJECT_CONTEXT_ROOTS` is an optional comma-separated
+  list of repository-relative directory names or paths; the default is
+  `specs,docs,insights`. Tracked `.md` files are read from the local `main` Git
+  tree recursively beneath matching directories at any depth. Worktree and
+  other branch changes are not included; opening Project Context does not fetch
+  a newer `main` from GitHub. Existing attachments outside these roots remain
+  visible as unavailable and can be detached.
 - **Where keys live:** secrets are stored in `~/.devdigest/secrets.json` (mode
   `0600`, written when you enter a key in Settings) with `process.env` as a
   fallback — never in git or the database. The one read chokepoint is
