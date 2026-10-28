@@ -14,8 +14,8 @@
  *   E2E_STEP_TIMEOUT   per-command timeout in ms (default 60000)
  *
  * Specs target read-only seeded data, so nothing here triggers an LLM call or
- * needs an API key. The one explicit mutation flow (11-pr-brief) is included
- * only by scripts/e2e.sh, which supplies an isolated database and test fixture.
+ * needs an API key. Mutating flows are included only by scripts/e2e.sh, which
+ * supplies an isolated database and deterministic test fixtures.
  * Run order is the lexical order of the spec filenames.
  */
 import { execFile } from "node:child_process";
@@ -56,6 +56,7 @@ async function ab(args: string[]): Promise<string> {
 function loadFlows(): { file: string; flow: Flow }[] {
   return readdirSync(SPECS_DIR)
     .filter((f) => f.endsWith(".flow.json"))
+    .filter((f) => !process.env.E2E_FLOW || f === process.env.E2E_FLOW)
     .filter((f) => shouldRunFlow(f, process.env, BASE))
     .sort()
     .map((file) => ({

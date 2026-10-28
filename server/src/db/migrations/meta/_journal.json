@@ -99,6 +99,13 @@
       "when": 1792955486307,
       "tag": "0013_wild_northstar",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793211349728,
+      "tag": "0014_good_smiling_tiger",
+      "breakpoints": true
     }
   ]
 }

@@ -17,3 +17,5 @@ New flow specifications should state the user journey, seed-data assumptions, de
 - `09-agent-enabled-toggle.flow.json` — toggle and restore a seeded agent's enabled state
 - `10-smart-diff.flow.json` — Smart Diff grouping, findings and order switch
 - `11-pr-brief.flow.json` — hermetic-only explicit Brief generation and reload
+- `12-project-context.flow.json` — hermetic-only attachment, review run, and persisted context snapshot
+- `13-skill-context.flow.json` — hermetic-only skill attachment and persisted reload

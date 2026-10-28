@@ -41,7 +41,7 @@ export class GitTrackedDocumentStore implements TrackedDocumentStore {
       // then validate the opened descriptor's actual target before reading it.
       const handle = await open(target, constants.O_RDONLY | constants.O_NOFOLLOW);
       try {
-        const openedTarget = await realpath(`/dev/fd/${handle.fd}`).catch(() => null);
+        const openedTarget = await openedFilePath(handle.fd);
         if (!openedTarget || !isWithin(root, openedTarget) || !(await handle.stat()).isFile()) {
           return { path: normalized, reason: 'no_longer_eligible' };
         }
@@ -54,6 +54,19 @@ export class GitTrackedDocumentStore implements TrackedDocumentStore {
       return { path: normalized, reason: code === 'ENOENT' ? 'missing' : code === 'ELOOP' ? 'no_longer_eligible' : 'unreadable' };
     }
   }
+}
+
+/** Resolve the opened vnode, not the original path, so parent-directory swaps fail closed. */
+async function openedFilePath(fd: number): Promise<string | null> {
+  if (process.platform !== 'darwin') return realpath(`/proc/self/fd/${fd}`).catch(() => null);
+  try {
+    // Darwin's /dev/fd/N resolves to itself rather than the vnode path. lsof
+    // queries the open descriptor and emits NUL-delimited fields; failures are
+    // unavailable, never a reason to trust the pre-open path.
+    const { stdout } = await execFileAsync('lsof', ['-a', '-p', String(process.pid), '-d', String(fd), '-F0n'], { timeout: 5000, maxBuffer: 65536 });
+    const names = stdout.split('\0').map((field) => field.replace(/^\n/, '')).filter((field) => field.startsWith('n/'));
+    return names.length === 1 ? names[0]!.slice(1) : null;
+  } catch { return null; }
 }
 
 function isWithin(root: string, target: string): boolean {

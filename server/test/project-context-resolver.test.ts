@@ -1,8 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
 import { resolveBriefContext } from '../src/modules/project-context/application/resolve-brief-context.js';
+import { resolveReviewContext } from '../src/modules/project-context/application/resolve-review-context.js';
 import type { ProjectContextRepository, TrackedDocumentStore } from '../src/modules/project-context/application/ports.js';
 
 describe('resolveBriefContext', () => {
+  it('resolves only the selected agent attachments and reads each document once', async () => {
+    const listForAgent = vi.fn().mockResolvedValue([
+      { path: 'docs/a.md', provenance: 'direct_agent' },
+      { path: 'docs/a.md', provenance: 'linked_skill' },
+      { path: 'docs/missing.md', provenance: 'linked_skill' },
+    ]);
+    const store: TrackedDocumentStore = {
+      catalog: vi.fn().mockResolvedValue(['docs/a.md']),
+      read: vi.fn(async (path) => ({ path, content: '# Spec' })),
+    };
+    const result = await resolveReviewContext({ workspaceId: 'w', repoId: 'r', agentId: 'a', repository: { listForAgent }, store });
+    expect(listForAgent).toHaveBeenCalledWith('w', 'r', 'a');
+    expect(result.documents).toMatchObject([{ path: 'docs/a.md', content: '# Spec', provenance: ['direct_agent', 'linked_skill'] }]);
+    expect(result.skipped).toMatchObject([{ path: 'docs/missing.md', reason: 'no_longer_eligible' }]);
+    expect(store.read).toHaveBeenCalledTimes(1);
+  });
   it('resolves enabled direct and linked-skill attachments in stable deduplicated order, reading each path once', async () => {
     const repository: ProjectContextRepository = {
       listForBrief: vi.fn().mockResolvedValue([

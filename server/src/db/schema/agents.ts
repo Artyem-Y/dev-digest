@@ -73,6 +73,7 @@ export const agentProjectDocuments = pgTable(
     repoId: uuid('repo_id').notNull().references(() => repos.id, { onDelete: 'cascade' }),
     agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
     path: text('path').notNull(),
+    order: integer('order').notNull().default(0),
     createdAt: now(),
   },
   (t) => ({ uniqueAttachment: uniqueIndex('agent_project_documents_owner_path_uq').on(t.repoId, t.agentId, t.path) }),

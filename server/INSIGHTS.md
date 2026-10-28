@@ -167,3 +167,13 @@ Blast Radius is still usable without GitHub history, but an empty result is trus
 - Implication: Do not add a new factual prompt section without charging it to the canonical facts budget, or the documented 8,000-token ceiling can be exceeded despite a passing attachment budget.
 
 Brief source slots are presentation structure, not independent budget buckets. The factual content must be combined and capped before documents consume remaining capacity.
+
+<!-- insight-id: eng-server-68d601c55df9 -->
+## eng-server-68d601c55df9 — Resolve opened checkout files differently on macOS
+
+- Date: 2026-10-29
+- Category: security
+- Evidence: GitTrackedDocumentStore and project-context-path-policy.test.ts cover valid files plus final and parent symlink swaps on macOS.
+- Implication: Do not rely on realpath of /dev/fd on macOS to identify the opened file; verify the opened descriptor and fail closed when its actual path is unavailable.
+
+On macOS realpath of /dev/fd/N returns the descriptor path rather than the opened file path. A pathname-only recheck can miss a parent-directory swap, so validate the opened vnode using a platform-appropriate mechanism before reading.

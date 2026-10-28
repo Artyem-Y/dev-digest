@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
-import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -22,6 +22,17 @@ describe('Project Context path policy', () => {
     expect(isEligibleMarkdownPath('guides/.git/readme.md')).toBe(false);
     expect(isEligibleMarkdownPath('.git/notes.md')).toBe(false);
     expect(isEligibleMarkdownPath('docs/plan.txt')).toBe(false);
+  });
+
+  it('reads a tracked regular Markdown file inside the checkout', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'devdigest-project-context-valid-'));
+    try {
+      await mkdir(join(root, 'docs'));
+      await writeFile(join(root, 'docs', 'brief.md'), '# Tracked document');
+      await execFileAsync('git', ['-C', root, 'init']);
+      await execFileAsync('git', ['-C', root, 'add', 'docs/brief.md']);
+      await expect(new GitTrackedDocumentStore(root).read('docs/brief.md')).resolves.toEqual({ path: 'docs/brief.md', content: '# Tracked document' });
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 
   it('does not read a Git-tracked symlink whose real path escapes the checkout', async () => {
@@ -59,6 +70,26 @@ describe('Project Context path policy', () => {
     } finally {
       await rm(root, { recursive: true, force: true });
       await rm(outside, { force: true });
+    }
+  });
+
+  it('fail-closes if a parent directory is swapped after validation', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'devdigest-project-context-parent-'));
+    const outside = await mkdtemp(join(tmpdir(), 'devdigest-project-context-outside-'));
+    try {
+      await mkdir(join(root, 'docs'));
+      await writeFile(join(root, 'docs', 'brief.md'), 'safe');
+      await writeFile(join(outside, 'brief.md'), 'private');
+      await execFileAsync('git', ['-C', root, 'init']);
+      await execFileAsync('git', ['-C', root, 'add', 'docs/brief.md']);
+      const store = new GitTrackedDocumentStore(root, async () => {
+        await rename(join(root, 'docs'), join(root, 'original-docs'));
+        await symlink(outside, join(root, 'docs'));
+      });
+      await expect(store.read('docs/brief.md')).resolves.toEqual({ path: 'docs/brief.md', reason: 'no_longer_eligible' });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(outside, { recursive: true, force: true });
     }
   });
 });

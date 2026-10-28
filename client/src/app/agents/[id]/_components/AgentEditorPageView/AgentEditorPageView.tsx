@@ -14,7 +14,7 @@ import { useAgents, useAgent, useUpdateAgent } from "@/lib/hooks/agents";
 import { useSkills } from "@/lib/hooks/skills";
 import { ApiError } from "@/lib/api";
 
-const VALID_TABS = ["config", "skills"];
+const VALID_TABS = ["config", "skills", "context"];
 
 export function AgentEditorPageView() {
   const params = useParams<{ id: string }>();

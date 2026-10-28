@@ -11,6 +11,8 @@ import { resolveFeatureModel } from '../settings/feature-models.js';
 import { SettingsRepository } from '../settings/repository.js';
 import { GetSmartDiff } from './smart-diff/application/get-smart-diff.js';
 import { closingIssueNumber } from '../intents/application/closing-reference.js';
+import { createProjectContextRepository, createTrackedDocumentStore } from '../project-context/composition.js';
+import { resolveReviewContext } from '../project-context/application/resolve-review-context.js';
 
 /** Wires review application services and external adapters at the outer boundary. */
 export function createReviewService(container: Container): ReviewService {
@@ -39,6 +41,12 @@ export function createReviewService(container: Container): ReviewService {
       return links
         .filter(({ skill, enabled }) => skill.enabled && enabled && !isUnsafeSkillContent(skill.body))
         .map(({ skill }) => ({ name: skill.name, body: skill.body }));
+    },
+    resolveProjectContext: async ({ workspaceId, repoId, agentId }) => {
+      const projectContext = createProjectContextRepository(container);
+      const clonePath = await projectContext.clonePath(workspaceId, repoId);
+      if (!clonePath) throw new Error('Project context checkout unavailable');
+      return resolveReviewContext({ workspaceId, repoId, agentId, repository: projectContext, store: createTrackedDocumentStore(clonePath) });
     },
     promptBuilderDebug: container.config.promptBuilderDebug,
     deriveIntent: ({ workspaceId, prId, title, body, repo }) => intentService.derive({ workspaceId, prId, title, body, repo }),

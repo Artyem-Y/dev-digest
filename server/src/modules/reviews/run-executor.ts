@@ -8,6 +8,7 @@ import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import type { ReviewRepositoryRef } from './diff-loader.js';
 import type { RepoIntel } from '../repo-intel/types.js';
+import type { ResolvedBriefContext } from '../project-context/domain/types.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -52,6 +53,7 @@ export interface ReviewRunExecutorDependencies {
     repository: ReviewRepositoryRef,
   ): Promise<UnifiedDiff>;
   resolveSkills(agentId: string): Promise<ResolvedSkill[]>;
+  resolveProjectContext(input: { workspaceId: string; repoId: string; agentId: string }): Promise<ResolvedBriefContext>;
   /** Detailed prompt metadata is opt-in and supplied only by local config. */
   promptBuilderDebug: boolean;
   deriveIntent(input: { workspaceId: string; prId: string; title: string; body: string | null; repo: ReviewRepositoryRef; }): Promise<IntentDerivation>;
@@ -271,6 +273,13 @@ export class ReviewRunExecutor {
       const resolvedSkills = await this.dependencies.resolveSkills(agent.id);
       runLog.info(skillsAttachedLogMessage(resolvedSkills));
       const skills = resolvedSkills.map((skill) => skill.body);
+      let projectContext: ResolvedBriefContext = { documents: [], skipped: [] };
+      try {
+        projectContext = await this.dependencies.resolveProjectContext({ workspaceId, repoId: pull.repoId, agentId: agent.id });
+        for (const skipped of projectContext.skipped) runLog.info(`Project context skipped: ${skipped.path} (${skipped.reason})`);
+      } catch {
+        runLog.info('Project context unavailable; continuing without documents');
+      }
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
@@ -285,6 +294,7 @@ export class ReviewRunExecutor {
         // to the studio default. single-pass = whole diff in one call.
         strategy: agent.strategy ?? REVIEW_STRATEGY,
         ...(skills.length > 0 ? { skills } : {}),
+        ...(projectContext.documents.length > 0 ? { specs: projectContext.documents.map(({ path, content }) => `File: ${path}\n${content}`) } : {}),
         // T1.3 — pass the callers digest only when we built one. assemblePrompt
         // omits the section when this is empty/undefined.
         ...(callersDigest ? { callers: callersDigest } : {}),
@@ -372,7 +382,7 @@ export class ReviewRunExecutor {
         })),
         raw_output: outcome.raw,
         memory_pulled: [],
-        specs_read: [],
+        specs_read: projectContext.documents.map((document) => document.path),
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),

@@ -13,6 +13,7 @@ export async function resolveBriefContext(input: {
   repoId: string;
   repository: ProjectContextRepository;
   store: TrackedDocumentStore;
+  preserveOrder?: boolean;
 }): Promise<ResolvedBriefContext> {
   const [attachments, catalog] = await Promise.all([
     input.repository.listForBrief(input.workspaceId, input.repoId),
@@ -36,7 +37,9 @@ export async function resolveBriefContext(input: {
     grouped.set(path, current);
   }
   const readable: Array<{ path: string; provenance: AttachmentProvenance[] }> = [];
-  for (const path of [...grouped.keys()].sort((a, b) => a.localeCompare(b))) {
+  const paths = [...grouped.keys()];
+  if (!input.preserveOrder) paths.sort((a, b) => a.localeCompare(b));
+  for (const path of paths) {
     const provenance = grouped.get(path)!;
     if (!eligible.has(path)) {
       skipped.push({ path, reason: 'no_longer_eligible', provenance });

@@ -6,6 +6,8 @@ import { NotFoundError, ValidationError } from '../../platform/errors.js';
 import { catalogProjectDocuments } from './application/catalog-project-documents.js';
 import { createProjectContextRepository, createTrackedDocumentStore } from './composition.js';
 import { normalizeProjectPath } from './domain/path-policy.js';
+import { estimateProjectDocumentTokens } from './domain/token-estimator.js';
+import { resolveReviewContext } from './application/resolve-review-context.js';
 
 const RepoParams = z.object({ repoId: z.string().uuid() });
 const OwnerParams = RepoParams.extend({ owner: z.enum(['agent', 'skill']), ownerId: z.string().uuid() });
@@ -31,6 +33,11 @@ export default async function projectContextRoutes(appBase: FastifyInstance) {
     if ('reason' in read) throw new NotFoundError('Project document is unavailable', { reason: read.reason });
     return read;
   });
+  app.get('/repos/:repoId/project-context/agent/:ownerId/resolved', { schema: { params: RepoParams.extend({ ownerId: z.string().uuid() }) } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    const context = await resolveReviewContext({ workspaceId, repoId: req.params.repoId, agentId: req.params.ownerId, repository, store: await store(workspaceId, req.params.repoId) });
+    return { documents: context.documents.map(({ path, provenance, estimatedTokens }) => ({ path, provenance, estimated_tokens: estimatedTokens })), skipped: context.skipped };
+  });
   app.get('/repos/:repoId/project-context/:owner/:ownerId/attachments', { schema: { params: OwnerParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     const documentStore = await store(workspaceId, req.params.repoId);
@@ -41,7 +48,7 @@ export default async function projectContextRoutes(appBase: FastifyInstance) {
       const read = await documentStore.read(path);
       return 'reason' in read
         ? { path, status: read.reason, estimated_tokens: 0 }
-        : { path, status: 'attached' as const, estimated_tokens: Math.ceil(read.content.length / 4) };
+        : { path, status: 'attached' as const, estimated_tokens: estimateProjectDocumentTokens(read.content) };
     }));
   });
   app.post('/repos/:repoId/project-context/:owner/:ownerId/attachments', { schema: { params: OwnerParams, body: AttachmentBody } }, async (req, reply) => {
@@ -56,6 +63,13 @@ export default async function projectContextRoutes(appBase: FastifyInstance) {
     const path = normalizeProjectPath(req.body.path);
     if (!path) throw new ValidationError('Invalid document path');
     await repository.detach({ workspaceId, repoId: req.params.repoId, owner: req.params.owner, ownerId: req.params.ownerId, path });
+    reply.status(204).send();
+  });
+  app.put('/repos/:repoId/project-context/:owner/:ownerId/attachments/order', { schema: { params: OwnerParams, body: z.object({ paths: z.array(z.string().min(1).max(1024)).max(1000) }) } }, async (req, reply) => {
+    const { workspaceId } = await getContext(app.container, req);
+    if (!await repository.clonePath(workspaceId, req.params.repoId)) throw new NotFoundError('Repository checkout not found');
+    try { await repository.reorder({ workspaceId, repoId: req.params.repoId, owner: req.params.owner, ownerId: req.params.ownerId, paths: req.body.paths }); }
+    catch { throw new ValidationError('Attachment list changed; reload before reordering'); }
     reply.status(204).send();
   });
 }

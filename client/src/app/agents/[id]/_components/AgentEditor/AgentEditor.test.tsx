@@ -46,9 +46,10 @@ describe("A2 Agent Editor (smoke)", () => {
     expect(screen.getByText("Save agent")).toBeInTheDocument();
   });
 
-  it("exposes exactly Config and Skills tabs", () => {
+  it("exposes the Context tab alongside Config and Skills", () => {
     renderWithIntl(<AgentEditor agent={AGENT} tab="config" onTab={() => {}} />);
     expect(screen.getByText("Config")).toBeInTheDocument();
     expect(screen.getByText("Skills")).toBeInTheDocument();
+    expect(screen.getByText("Context")).toBeInTheDocument();
   });
 });
