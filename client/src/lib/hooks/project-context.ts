@@ -12,7 +12,7 @@ export function useProjectDocuments(repoId: string | null) {
   return useQuery({ queryKey: ["project-documents", repoId], enabled: !!repoId, queryFn: () => api.get<ContextDocument[]>(`${base(repoId!)}/documents`) });
 }
 export function useProjectDocument(repoId: string | null, path: string | null) {
-  return useQuery({ queryKey: ["project-document", repoId, path], enabled: !!repoId && !!path, queryFn: () => api.get<{ path: string; content: string }>(`${base(repoId!)}/documents/${encodeURIComponent(path!)}`) });
+  return useQuery({ queryKey: ["project-document", repoId, path], enabled: !!repoId && !!path, queryFn: () => api.get<{ path: string; content: string; used_by_agents: number }>(`${base(repoId!)}/documents/${encodeURIComponent(path!)}`) });
 }
 export function useResolvedProjectContext(repoId: string | null, agentId: string | null) {
   return useQuery({ queryKey: ["project-resolved", repoId, agentId], enabled: !!repoId && !!agentId, queryFn: () => api.get<{ documents: { path: string; provenance: string[] }[]; skipped: { path: string; provenance: string[] }[] }>(`${base(repoId!)}/agent/${agentId}/resolved`) });
@@ -24,7 +24,7 @@ export function useProjectAttachments(repoId: string | null, owner: Owner, owner
   const query = useQuery({ queryKey: key, enabled: !!repoId, queryFn: () => api.get<ContextAttachment[]>(url) });
   const change = useMutation({
     mutationFn: ({ path, attached }: { path: string; attached: boolean }) => apiFetch<void>(url, { method: attached ? "POST" : "DELETE", body: JSON.stringify({ path }) }),
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: key }); void queryClient.invalidateQueries({ queryKey: ["project-resolved", repoId] }); },
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: key }); void queryClient.invalidateQueries({ queryKey: ["project-resolved", repoId] }); void queryClient.invalidateQueries({ queryKey: ["project-document", repoId] }); },
   });
   const reorder = useMutation({ mutationFn: (paths: string[]) => api.put<void>(`${url}/order`, { paths }), onSettled: () => queryClient.invalidateQueries({ queryKey: key }) });
   return { query, change, reorder };

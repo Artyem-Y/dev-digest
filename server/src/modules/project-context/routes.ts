@@ -31,7 +31,7 @@ export default async function projectContextRoutes(appBase: FastifyInstance) {
     const { workspaceId } = await getContext(app.container, req);
     const read = await (await store(workspaceId, req.params.repoId)).read(req.params.path);
     if ('reason' in read) throw new NotFoundError('Project document is unavailable', { reason: read.reason });
-    return read;
+    return { ...read, used_by_agents: await repository.countAgentsUsingDocument(workspaceId, req.params.repoId, read.path) };
   });
   app.get('/repos/:repoId/project-context/agent/:ownerId/resolved', { schema: { params: RepoParams.extend({ ownerId: z.string().uuid() }) } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);

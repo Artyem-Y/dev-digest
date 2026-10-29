@@ -239,6 +239,7 @@ export class ReviewRunExecutor {
     const runLog = parentLog.forRun(runId, { agent: agent.name });
     let projectContext: ResolvedBriefContext = { documents: [], skipped: [] };
     let attemptedAssembly: RunTrace['prompt_assembly'] | undefined;
+    let contextLogged = false;
 
     runLog.info(`Starting review with agent "${agent.name}" (${agent.provider}/${agent.model})`);
 
@@ -310,7 +311,19 @@ export class ReviewRunExecutor {
         correlationId: runId,
         promptAssemblyDetail: this.dependencies.promptBuilderDebug,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
-        onPromptAssembled: (assembly) => { attemptedAssembly = assembly; },
+        onPromptAssembled: (assembly) => {
+          attemptedAssembly = assembly;
+          if (!contextLogged) {
+            contextLogged = true;
+            if (assembly.specs && projectContext.documents.length > 0) {
+              for (const document of projectContext.documents) {
+                runLog.info(`Project context added to prompt: ${JSON.stringify(document.path)} (${document.estimatedTokens} estimated tokens)`);
+              }
+            } else {
+              runLog.info('Project context: no documents added to prompt');
+            }
+          }
+        },
         checkCancelled: () => {
           if (this.dependencies.runBus.isCancelled(runId)) throw new RunCancelledError();
         },

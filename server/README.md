@@ -26,7 +26,8 @@ swapped for mocks in tests.
   list of repository-relative directory names or paths; the default is
   `specs,docs,insights`. Tracked `.md` files are read from the local `main` Git
   tree recursively beneath matching directories at any depth. Worktree and
-  other branch changes are not included; opening Project Context does not fetch
+  other branch changes are not included. When `insights` is configured,
+  committed `INSIGHTS.md` files at any depth are included as well; opening Project Context does not fetch
   a newer `main` from GitHub. Existing attachments outside these roots remain
   visible as unavailable and can be detached.
 - **Where keys live:** secrets are stored in `~/.devdigest/secrets.json` (mode

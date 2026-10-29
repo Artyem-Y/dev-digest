@@ -17,6 +17,7 @@ export function isEligibleMarkdownPath(path: string, roots: readonly string[] = 
   if (normalized === null || !/\.md$/i.test(normalized)) return false;
   const segments = normalized.split('/');
   if (segments.some((segment) => segment === '.git' || segment === 'node_modules')) return false;
+  if (segments.at(-1)?.toLowerCase() === 'insights.md' && roots.includes('insights')) return true;
   const directories = segments.slice(0, -1);
   return roots.some((root) => {
     const normalizedRoot = normalizeProjectPath(root);

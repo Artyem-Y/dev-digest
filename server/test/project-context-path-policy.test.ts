@@ -26,6 +26,9 @@ describe('Project Context path policy', () => {
     expect(isEligibleMarkdownPath('README.md')).toBe(false);
     expect(isEligibleMarkdownPath('packages/payments/specs/api/rules.md')).toBe(true);
     expect(isEligibleMarkdownPath('packages/payments/insights/notes.md')).toBe(true);
+    expect(isEligibleMarkdownPath('client/INSIGHTS.md')).toBe(true);
+    expect(isEligibleMarkdownPath('INSIGHTS.md')).toBe(true);
+    expect(isEligibleMarkdownPath('client/INSIGHTS.md', ['handbook'])).toBe(false);
     expect(isEligibleMarkdownPath('handbook/team/rules.md')).toBe(false);
     expect(isEligibleMarkdownPath('handbook/team/rules.md', ['handbook'])).toBe(true);
     expect(isEligibleMarkdownPath('handbook/team/rules.md', ['handbook/team'])).toBe(true);
@@ -42,11 +45,13 @@ describe('Project Context path policy', () => {
       await writeFile(join(root, 'docs', 'brief.md'), '# Tracked document');
       await writeFile(join(root, 'docs', 'guide.markdown'), '# Markdown document');
       await writeFile(join(root, 'README.md'), '# Outside configured roots');
+      await writeFile(join(root, 'INSIGHTS.md'), '# Insights');
       await execFileAsync('git', ['-C', root, 'init']);
-      await execFileAsync('git', ['-C', root, 'add', 'docs/brief.md', 'docs/guide.markdown', 'README.md']);
+      await execFileAsync('git', ['-C', root, 'add', 'docs/brief.md', 'docs/guide.markdown', 'README.md', 'INSIGHTS.md']);
       await commitMain(root);
       const store = new GitTrackedDocumentStore(root);
-      await expect(store.catalog()).resolves.toEqual(['docs/brief.md']);
+      expect(await store.catalog()).toEqual(expect.arrayContaining(['docs/brief.md', 'INSIGHTS.md']));
+      await expect(store.read('INSIGHTS.md')).resolves.toEqual({ path: 'INSIGHTS.md', content: '# Insights' });
       await expect(store.read('docs/brief.md')).resolves.toEqual({ path: 'docs/brief.md', content: '# Tracked document' });
       await expect(store.read('docs/guide.markdown')).resolves.toEqual({ path: 'docs/guide.markdown', reason: 'no_longer_eligible' });
     } finally { await rm(root, { recursive: true, force: true }); }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import messages from "../../../messages/en/project-context.json";
 
@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({ change: vi.fn(), reorder: vi.fn(), retryPrevie
 vi.mock("@/lib/repo-context", () => ({ useActiveRepo: () => ({ repoId: "repo" }) }));
 vi.mock("@/lib/hooks/project-context", () => ({
   useProjectDocuments: () => ({ data: mocks.documents, refetch: vi.fn() }),
-  useProjectDocument: (_repo: string, path: string | null) => ({ data: path && !mocks.previewError ? { content: "Document content\n\n![tracking image](https://example.com/pixel)" } : undefined, isError: mocks.previewError, refetch: mocks.retryPreview }),
+  useProjectDocument: (_repo: string, path: string | null) => ({ data: path && !mocks.previewError ? { content: "Document content\n\n![tracking image](https://example.com/pixel)", used_by_agents: 2 } : undefined, isError: mocks.previewError, refetch: mocks.retryPreview }),
   useResolvedProjectContext: () => ({ data: { documents: [], skipped: [] } }),
   useProjectAttachments: () => ({ query: { data: [{ path: "docs/a.md", status: "attached", estimated_tokens: 4 }, { path: "docs/missing.md", status: "missing", estimated_tokens: 0 }], refetch: vi.fn() }, change: { mutate: mocks.change, isPending: mocks.pendingPath !== null, variables: mocks.pendingPath ? { path: mocks.pendingPath, attached: true } : undefined }, reorder: { mutate: mocks.reorder } }),
 }));
@@ -41,6 +41,7 @@ describe("Project Context selection", () => {
   it("opens the first catalog document and allows selecting another", () => {
     render(<NextIntlClientProvider locale="en" messages={{ "project-context": messages }}><ProjectContext /></NextIntlClientProvider>);
     expect(screen.getByText("Document content")).toBeInTheDocument();
+    expect(screen.getByText("Used by 2 agents")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Preview docs/a.md" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("button", { name: "Preview docs/b.md" }));
     expect(screen.getByRole("button", { name: "Preview docs/b.md" })).toHaveAttribute("aria-pressed", "true");
@@ -75,5 +76,18 @@ describe("Project Context selection", () => {
     render(<NextIntlClientProvider locale="en" messages={{ "project-context": messages }}><ProjectContext owner="skill" ownerId="skill" /></NextIntlClientProvider>);
     expect(screen.getByRole("heading", { name: "Project context to use" })).toBeInTheDocument();
     expect(screen.getByText(/## Project specifications/)).toHaveTextContent("docs/a.md");
+    const preview = screen.getByRole("button", { name: "Preview docs/a.md" });
+    expect(preview).not.toHaveTextContent("Preview");
+    expect(screen.getAllByText("docs/").length).toBeGreaterThan(0);
+  });
+  it("shows the full directory and a distinct category for nested documents", () => {
+    mocks.documents = [{ path: "docs/specs/design.md", availability: "available", estimated_tokens: 5 }, { path: "client/INSIGHTS.md", availability: "available", estimated_tokens: 4 }];
+    render(<NextIntlClientProvider locale="en" messages={{ "project-context": messages }}><ProjectContext owner="skill" ownerId="skill" /></NextIntlClientProvider>);
+    const spec = screen.getByRole("checkbox", { name: "Attach docs/specs/design.md" }).parentElement!;
+    expect(within(spec).getByText("docs/specs/")).toBeInTheDocument();
+    expect(within(spec).getByText("specs")).toBeInTheDocument();
+    const insight = screen.getByRole("checkbox", { name: "Attach client/INSIGHTS.md" }).parentElement!;
+    expect(within(insight).getByText("client/")).toBeInTheDocument();
+    expect(within(insight).getByText("insights")).toBeInTheDocument();
   });
 });

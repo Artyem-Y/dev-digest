@@ -1,4 +1,5 @@
 {
+  "usedByAgents": "Used by {count} {count, plural, one {agent} other {agents}}",
   "title": "Project Context",
   "description": "Select tracked Markdown documents to include in reviews.",
   "agentTitle": "Project context",

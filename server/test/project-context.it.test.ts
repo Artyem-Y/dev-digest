@@ -67,6 +67,17 @@ d('Project Context persistence', () => {
       { workspaceId: '10000000-0000-0000-0000-000000000001', repoId: '10000000-0000-0000-0000-000000000011', skillId: '10000000-0000-0000-0000-000000000334', path: 'docs/disabled-skill.md' },
     ]);
     const repository = new DrizzleProjectContextRepository(pg.handle.db);
+    await expect(repository.countAgentsUsingDocument('10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000011', 'docs/skill.md')).resolves.toBe(1);
+    await expect(repository.countAgentsUsingDocument('10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000011', 'docs/disabled-skill.md')).resolves.toBe(0);
+    await repository.attach({ workspaceId: '10000000-0000-0000-0000-000000000001', repoId: '10000000-0000-0000-0000-000000000011', owner: 'agent', ownerId: '10000000-0000-0000-0000-000000000111', path: 'docs/skill.md' });
+    await expect(repository.countAgentsUsingDocument('10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000011', 'docs/skill.md')).resolves.toBe(1);
+    await repository.detach({ workspaceId: '10000000-0000-0000-0000-000000000001', repoId: '10000000-0000-0000-0000-000000000011', owner: 'agent', ownerId: '10000000-0000-0000-0000-000000000111', path: 'docs/skill.md' });
+    await expect(repository.countAgentsUsingDocument('10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000011', 'docs/one.md')).resolves.toBe(1);
+    await expect(repository.countAgentsUsingDocument('10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000011', 'docs/two.md')).resolves.toBe(0);
+    const skillOwner = { workspaceId: '10000000-0000-0000-0000-000000000001', repoId: '10000000-0000-0000-0000-000000000011', owner: 'skill' as const, ownerId: '10000000-0000-0000-0000-000000000333' };
+    await repository.attach({ ...skillOwner, path: 'docs/a.md' });
+    await expect(repository.listOwnerAttachments(skillOwner)).resolves.toEqual(['docs/skill.md', 'docs/a.md']);
+    await repository.detach({ ...skillOwner, path: 'docs/a.md' });
     await expect(repository.listForAgent('10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000011', '10000000-0000-0000-0000-000000000111'))
       .resolves.toEqual(expect.arrayContaining([
         { path: 'docs/one.md', provenance: 'direct_agent' },
