@@ -24,7 +24,7 @@ d('Smart Diff endpoint', () => {
     app = await buildApp({ config: config(), db: pg.handle.db, overrides: {} });
   });
 
-  afterAll(async () => { await app?.close(); await pg?.cleanup(); });
+  afterAll(async () => { await app?.close(); await pg?.stop(); });
 
   it('returns a contract-valid complete grouping from stored data', async () => {
     const response = await app.inject({ method: 'GET', url: `/pulls/${prId}/smart-diff` });
