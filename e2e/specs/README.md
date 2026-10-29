@@ -19,3 +19,5 @@ New flow specifications should state the user journey, seed-data assumptions, de
 - `11-pr-brief.flow.json` — hermetic-only explicit Brief generation and reload
 - `12-project-context.flow.json` — hermetic-only attachment, review run, and persisted context snapshot
 - `13-skill-context.flow.json` — hermetic-only skill attachment and persisted reload
+
+- `14-onboarding-tour.flow.json`: hermetic-only generation, reload and failed regeneration using the isolated onboarding fixture.

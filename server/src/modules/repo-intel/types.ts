@@ -170,3 +170,14 @@ export interface RepoIntel {
   ): Promise<string[]>;
   getCriticalPaths(repoId: string): Promise<string[][]>;
 }
+
+export interface OnboardingIndexSnapshot {
+  state: { lastIndexedSha: string; status: IndexStatus; filesIndexed: number; filesSkipped: number } | null;
+  files: Array<{ path: string; rank: number }>;
+  edges: Array<{ fromFile: string; toFile: string }>;
+  fileFacts: Array<{ path: string; endpoints: unknown }>;
+  edgesMayBeTruncated: boolean;
+  indexedCount: number;
+  graphAvailable: boolean;
+  hotnessAvailable: false;
+}

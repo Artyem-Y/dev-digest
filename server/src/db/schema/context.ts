@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   pgTable,
   uuid,
@@ -122,5 +123,23 @@ export const onboarding = pgTable('onboarding', {
     .primaryKey()
     .references(() => repos.id, { onDelete: 'cascade' }),
   json: jsonb('json').notNull(),
+  sourceRevision: text('source_revision'),
+  indexRevision: text('index_revision'),
   generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+
+export const onboardingAttempts = pgTable('onboarding_attempts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  repoId: uuid('repo_id').notNull().references(() => repos.id, { onDelete: 'cascade' }),
+  token: uuid('token').notNull().defaultRandom(),
+  status: text('status', { enum: ['pending', 'generated', 'partial', 'failed', 'cancelled'] }).notNull(),
+  reason: text('reason'),
+  usage: jsonb('usage').notNull(),
+  leaseUntil: timestamp('lease_until', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+}, (t) => ({
+  active: uniqueIndex('onboarding_attempts_active_repo_uq').on(t.repoId).where(sql`${t.status} = 'pending'`),
+  latest: index('onboarding_attempts_repo_created_idx').on(t.repoId, t.createdAt),
+}));

@@ -114,8 +114,11 @@ Secrets (API keys, `GITHUB_TOKEN`) are **not** part of `AppConfig` — they go
 through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with
 `process.env` as a fallback), per the **Where keys live** note at the top.
 
-Migrations are **not** applied on boot — run `pnpm db:migrate` (pgvector is
-enabled by migration `0000`). `pnpm db:seed` is idempotent demo data
+Migrations are **not** applied on boot — run `pnpm db:migrate` from `server/` after pulling schema changes, including on an existing local database (pgvector is enabled by migration `0000`). The migrator applies the original chain first, then the onboarding chain tracked in a separate migrations table; rerunning it is safe. If the API reports a missing onboarding column such as `source_revision`, apply this command to the database used by the server and restart or reload the affected request.
+
+The committed migration files and metadata are immutable. The default `db:generate` configuration still targets the original historical journal and does not include the onboarding snapshot; do not generate a new migration against that journal. Generate against a temporary copy of the latest full schema snapshot, inspect the delta, and put a new migration and its own journal in a separate chain before extending the migrator.
+
+`pnpm db:seed` is idempotent demo data
 (`acme/payments-api`, PR #482, the two built-in agents).
 
 ## Review context (non-obvious)
@@ -157,3 +160,5 @@ hermetic:
 
 A DB-backed test (one that imports `test/helpers/pg.ts`) **must** use the
 `*.it.test.ts` suffix so the split stays correct. See [`../TESTING.md`](../TESTING.md).
+
+The hermetic E2E server can seed an isolated onboarding snapshot and deterministic provider for `14-onboarding-tour.flow.json`; this fixture is available only through the test runner attestation.

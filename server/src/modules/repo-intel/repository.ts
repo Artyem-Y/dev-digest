@@ -428,6 +428,41 @@ export class RepoIntelRepository {
   // T3 — reads (facade + repo-map).
   // -------------------------------------------------------------------------
 
+  /** Capture bounded rank rows and edges with one repeatable-read index revision. */
+  async getOnboardingSnapshot(repoId: string) {
+    return this.db.transaction(async (tx) => {
+      const [state] = await tx.select().from(t.repoIndexState).where(eq(t.repoIndexState.repoId, repoId));
+      const [count] = await tx.select({ value: sql<number>`count(*)::int` }).from(t.fileRank).where(eq(t.fileRank.repoId, repoId));
+      const rows = await tx.execute<{ path: string; rank: number; graph_available: boolean }>(sql`
+        with top_files as materialized (
+          select file_path from file_rank where repo_id = ${repoId}
+          order by rank desc, file_path asc limit 5000
+        ), usable_graph as (
+          select exists (
+            select 1 from file_edges e
+            join top_files a on a.file_path = e.from_file
+            join top_files b on b.file_path = e.to_file
+            where e.repo_id = ${repoId} and e.from_file <> e.to_file
+          ) as available
+        )
+        select r.file_path as path, r.rank, g.available as graph_available from file_rank r cross join usable_graph g
+        where r.repo_id = ${repoId}
+        order by case when g.available then r.rank end desc nulls last, r.file_path asc
+        limit 5000
+      `);
+      const graphAvailable = rows[0]?.graph_available ?? false;
+      const files = [...rows].map(({ path, rank }) => ({ path, rank }));
+      const paths = files.map((f) => f.path);
+      const edges = paths.length ? await tx.select({ fromFile: t.fileEdges.fromFile, toFile: t.fileEdges.toFile })
+        .from(t.fileEdges).where(and(eq(t.fileEdges.repoId, repoId), inArray(t.fileEdges.fromFile, paths), inArray(t.fileEdges.toFile, paths)))
+        .orderBy(asc(t.fileEdges.fromFile), asc(t.fileEdges.toFile)).limit(5000) : [];
+      const fileFacts = paths.length ? await tx.select({ path: t.fileFacts.filePath, endpoints: t.fileFacts.endpoints }).from(t.fileFacts)
+        .where(and(eq(t.fileFacts.repoId, repoId), inArray(t.fileFacts.filePath, paths)))
+        .orderBy(asc(t.fileFacts.filePath)).limit(5000) : [];
+      return { state: state ?? null, files, edges, fileFacts, edgesMayBeTruncated: edges.length === 5000, indexedCount: count?.value ?? 0, graphAvailable, hotnessAvailable: false as const };
+    }, { isolationLevel: 'repeatable read', accessMode: 'read only' });
+  }
+
   /** All import edges for a repo (rank graph build + critical-paths). */
   async getEdges(repoId: string): Promise<IndexerEdgeRow[]> {
     return this.db
