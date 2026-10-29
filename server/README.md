@@ -25,7 +25,8 @@ swapped for mocks in tests.
 - **Project Context roots:** `PROJECT_CONTEXT_ROOTS` is an optional comma-separated
   list of repository-relative directory names or paths; the default is
   `specs,docs,insights`. Tracked `.md` files are read from the local `main` Git
-  tree recursively beneath matching directories at any depth. Worktree and
+  tree recursively beneath single-name roots at any depth; multi-segment roots
+  are anchored at the repository root. Worktree and
   other branch changes are not included. When `insights` is configured,
   committed `INSIGHTS.md` files at any depth are included as well; opening Project Context does not fetch
   a newer `main` from GitHub. Existing attachments outside these roots remain

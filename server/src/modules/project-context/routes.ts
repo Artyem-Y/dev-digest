@@ -6,7 +6,7 @@ import { NotFoundError, ValidationError } from '../../platform/errors.js';
 import { catalogProjectDocuments } from './application/catalog-project-documents.js';
 import { createProjectContextRepository, createTrackedDocumentStore } from './composition.js';
 import { normalizeProjectPath } from './domain/path-policy.js';
-import { estimateProjectDocumentTokens } from './domain/token-estimator.js';
+import { listAttachments } from './application/list-attachments.js';
 import { resolveReviewContext } from './application/resolve-review-context.js';
 
 const RepoParams = z.object({ repoId: z.string().uuid() });
@@ -41,15 +41,8 @@ export default async function projectContextRoutes(appBase: FastifyInstance) {
   app.get('/repos/:repoId/project-context/:owner/:ownerId/attachments', { schema: { params: OwnerParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     const documentStore = await store(workspaceId, req.params.repoId);
-    const catalog = new Set(await documentStore.catalog());
     const paths = await repository.listOwnerAttachments({ workspaceId, repoId: req.params.repoId, owner: req.params.owner, ownerId: req.params.ownerId });
-    return Promise.all(paths.map(async (path) => {
-      if (!catalog.has(path)) return { path, status: 'no_longer_eligible' as const, estimated_tokens: 0 };
-      const read = await documentStore.read(path);
-      return 'reason' in read
-        ? { path, status: read.reason, estimated_tokens: 0 }
-        : { path, status: 'attached' as const, estimated_tokens: estimateProjectDocumentTokens(read.content) };
-    }));
+    return listAttachments(paths, documentStore);
   });
   app.post('/repos/:repoId/project-context/:owner/:ownerId/attachments', { schema: { params: OwnerParams, body: AttachmentBody } }, async (req, reply) => {
     const { workspaceId } = await getContext(app.container, req);

@@ -41,6 +41,10 @@ tells an implementer **how** to make the change. Do not implement the plan.
    default and wait for answers when the answer changes the plan.
 4. Give separate, clearly labelled recommendations for safer, simpler, cheaper,
    or more usable alternatives. The user decides whether to accept them.
+   For repository document readers, resolve the source policy before planning:
+   branch or revision, configured roots, unavailable checkout behavior, and
+   synchronization semantics. Record explicit decisions and unresolved gaps;
+   ask when an answer changes the implementation.
 5. Before writing, ask the user to choose an execution mode and wait for the
    answer:
    - `multi-agent (parallel)` for independent work;

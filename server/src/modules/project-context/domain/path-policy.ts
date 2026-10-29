@@ -23,6 +23,7 @@ export function isEligibleMarkdownPath(path: string, roots: readonly string[] = 
     const normalizedRoot = normalizeProjectPath(root);
     if (!normalizedRoot) return false;
     const parts = normalizedRoot.split('/');
+    if (parts.length > 1) return parts.every((part, index) => directories[index] === part);
     return directories.some((_, index) => parts.every((part, offset) => directories[index + offset] === part));
   });
 }

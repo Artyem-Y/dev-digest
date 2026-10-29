@@ -62,6 +62,11 @@ the dependent work has been combined for final handoff.
 
 ## Verification boundary
 
+For UI changes with a supplied design, inspect the rendered interface against
+that design before handoff: populated lists, long paths, preview, loading,
+error, and empty states when applicable. Record the browser/viewport and
+evidence; mark unavailable states or an unrun visual comparison as unverified.
+
 As a leaf implementer, run only the focused check assigned to your task and
 record its receipt. The plan-designated integration owner runs each affected
 package's typecheck, broader suite, and `git diff --check` after dependent work

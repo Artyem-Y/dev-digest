@@ -4,8 +4,9 @@ import { mkdtemp, mkdir, rename, rm, symlink, writeFile } from 'node:fs/promises
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { Readable } from 'node:stream';
 import { isEligibleMarkdownPath, normalizeProjectPath } from '../src/modules/project-context/domain/path-policy.js';
-import { GitTrackedDocumentStore } from '../src/modules/project-context/infrastructure/git-tracked-document-store.js';
+import { GitTrackedDocumentStore, readTreeEntries } from '../src/modules/project-context/infrastructure/git-tracked-document-store.js';
 
 const execFileAsync = promisify(execFile);
 async function commitMain(root: string) {
@@ -32,10 +33,25 @@ describe('Project Context path policy', () => {
     expect(isEligibleMarkdownPath('handbook/team/rules.md')).toBe(false);
     expect(isEligibleMarkdownPath('handbook/team/rules.md', ['handbook'])).toBe(true);
     expect(isEligibleMarkdownPath('handbook/team/rules.md', ['handbook/team'])).toBe(true);
+    expect(isEligibleMarkdownPath('other/handbook/team/rules.md', ['handbook/team'])).toBe(false);
     expect(isEligibleMarkdownPath('guides/node_modules/readme.md')).toBe(false);
     expect(isEligibleMarkdownPath('guides/.git/readme.md')).toBe(false);
     expect(isEligibleMarkdownPath('.git/notes.md')).toBe(false);
     expect(isEligibleMarkdownPath('docs/plan.txt')).toBe(false);
+  });
+
+  it('filters tree listings larger than the former 16 MiB buffer while preserving chunk boundaries', async () => {
+    const object = 'a'.repeat(40);
+    const ignored = `100644 blob ${object}\tother/file.txt\0`.repeat(1024);
+    const wanted = Buffer.from(`100644 blob ${object}\tdocs/привет.md\0`);
+    async function* chunks() {
+      for (let i = 0; i < 300; i++) yield Buffer.from(ignored);
+      yield wanted.subarray(0, wanted.length - 5);
+      yield wanted.subarray(wanted.length - 5);
+    }
+    expect(ignored.length * 300).toBeGreaterThan(16 * 1024 * 1024);
+    const entries = await readTreeEntries(Readable.from(chunks()));
+    expect([...entries.keys()]).toEqual(['docs/привет.md']);
   });
 
   it('reads a tracked regular Markdown file inside the checkout', async () => {

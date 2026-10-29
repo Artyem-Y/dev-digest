@@ -137,6 +137,20 @@ d('Project Context persistence', () => {
     const historical = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
     expect(historical.prompt_assembly.specs).toContain('# Brief');
     expect(historical.prompt_assembly.specs).not.toContain('# Updated after run');
+    const { stdout: mainCommit } = await execFileAsync('git', ['-C', checkout, 'rev-parse', 'refs/heads/main']);
+    await execFileAsync('git', ['-C', checkout, 'update-ref', '-d', 'refs/heads/main']);
+    const retry = await app.inject({ method: 'POST', url: `/pulls/${pull!.id}/review`, payload: { agentId: '10000000-0000-0000-0000-000000000111' } });
+    expect(retry.statusCode).toBe(200);
+    const laterRuns = await waitForPrRuns(pg.handle.db, pull!.id, { expected: 2 });
+    const failedContextRun = laterRuns.find((item) => item.id !== runId)!;
+    expect(failedContextRun.status).toBe('done');
+    await vi.waitFor(async () => expect((await app.inject({ method: 'GET', url: `/runs/${failedContextRun.id}/trace` })).statusCode).toBe(200));
+    const failedContextTrace = (await app.inject({ method: 'GET', url: `/runs/${failedContextRun.id}/trace` })).json();
+    expect(failedContextTrace.specs_read).toEqual([]);
+    expect(JSON.stringify(failedContextTrace.log)).toContain('docs/brief.md');
+    expect(JSON.stringify(failedContextTrace.log)).toContain('docs/skill.md');
+    expect(JSON.stringify(failedContextTrace.log)).toContain('unreadable');
+    await execFileAsync('git', ['-C', checkout, 'update-ref', 'refs/heads/main', mainCommit.trim()]);
     await app.close();
     const customApp = await buildApp({
       config: loadConfig({ ...process.env, NODE_ENV: 'test', PROJECT_CONTEXT_ROOTS: 'handbook' } as NodeJS.ProcessEnv),

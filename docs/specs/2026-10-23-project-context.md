@@ -81,7 +81,9 @@ without turning DevDigest into a repository editor.
 - **AC-1 — eligible discovery:** WHEN a user opens Project Context for an
   available repository, the system SHALL recursively list committed `.md`
   files from `main` beneath the configured repository directory names or paths, defaulting
-  to `specs`, `docs`, and `insights`, and SHALL exclude untracked files,
+  to `specs`, `docs`, and `insights`; single-name roots match at any depth and
+  multi-segment roots are anchored at the repository root. The system SHALL
+  exclude untracked files,
   generated dependencies, Git metadata, and paths outside those roots;
   **observable:** nested matches appear while a root-level `README.md` does not.
 - **AC-2 — read-only viewing:** WHEN a user selects an eligible document, the

@@ -278,7 +278,7 @@ export class ReviewRunExecutor {
       const skills = resolvedSkills.map((skill) => skill.body);
       try {
         projectContext = await this.dependencies.resolveProjectContext({ workspaceId, repoId: pull.repoId, agentId: agent.id });
-        for (const skipped of projectContext.skipped) runLog.info(`Project context skipped: ${skipped.path} (${skipped.reason})`);
+        for (const skipped of projectContext.skipped) runLog.info(`Project context skipped: ${JSON.stringify(skipped.path)} (${skipped.reason})`);
       } catch {
         runLog.info('Project context unavailable; continuing without documents');
       }
