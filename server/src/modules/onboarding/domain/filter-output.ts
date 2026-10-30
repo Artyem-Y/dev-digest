@@ -8,14 +8,14 @@ export interface GroundedSection { id: SectionId; items: GroundedItem[]; narrati
 const safePath = (v: string) => /^(?!\/)(?!.*(?:^|\/)\.\.?($|\/))[A-Za-z0-9_./@+-]+$/.test(v);
 export const safeOnboardingFact = (f: OnboardingFact) => {
   if (f.kind === 'path') return safePath(f.value);
-  if (f.kind === 'command') return /^(?:(?:cd [A-Za-z0-9_-]+ && )?npm run [A-Za-z0-9:_-]+|make [A-Za-z0-9_][A-Za-z0-9_.-]*)$/.test(f.value);
+  if (f.kind === 'command') return /^(?:(?:cd [A-Za-z0-9_-]+ && )?npm run [A-Za-z0-9:_-]+|make [A-Za-z0-9_][A-Za-z0-9_.-]*|\.\/scripts\/[A-Za-z0-9_-]+\.sh)$/.test(f.value);
   if (f.kind === 'critical_path') { const paths = f.value.split(' -> '); return paths.length >= 2 && paths.length <= 4 && paths.every(safePath); }
   if (f.kind === 'stack') return f.value === 'Node.js (package.json)' || f.value === 'Go (go.mod)';
   if (f.kind === 'dependency') return /^(?:@[A-Za-z0-9._-]+\/)?[A-Za-z0-9._-]+$/.test(f.value) || f.value.split(' -> ').length === 2 && f.value.split(' -> ').every(safePath);
   if (f.kind === 'route') return /^[A-Z]+ \/[A-Za-z0-9_/:{}.*-]* \([A-Za-z0-9_./@+-]+\)$/.test(f.value);
   if (f.kind === 'documentation') return f.value.length <= 300 && /^[A-Za-z][A-Za-z0-9 ,():+/-]*\.$/.test(f.value);
   if (f.kind === 'architecture_edge') return /^[A-Za-z0-9_@/ .()+-]{1,60} -> [A-Za-z0-9_@/ .()+-]{1,60}$/.test(f.value);
-  return /^TODO at [A-Za-z0-9_./@+-]+:[1-9][0-9]*$/.test(f.value);
+  return /^TODO at [A-Za-z0-9_./@+-]+:[1-9][0-9]*: [A-Za-z0-9 ,.:;()'/_-]{1,180}$/.test(f.value) && !/\b(?:secret|password|token|api[ _-]?key|credential)\b/i.test(f.value);
 };
 
 /** Accept model-written sentences only when their complete text follows a fact-specific grammar. */

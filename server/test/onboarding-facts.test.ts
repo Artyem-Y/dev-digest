@@ -42,7 +42,7 @@ it('builds a partial skeleton from supported scripts and preserves the captured 
   const result = await collectOnboardingFacts({ getOnboardingSnapshot: async () => ({ state: { lastIndexedSha: 'abc', status: 'partial', filesIndexed: 1, filesSkipped: 0 }, files: [{ path: 'src/a.ts', rank: 1 }], edges: [], fileFacts: [], edgesMayBeTruncated: false, indexedCount: 1, graphAvailable: false, hotnessAvailable: false }) }, { revision: 'abc', available: async () => true, read: async (path) => path === 'package.json' ? JSON.stringify({ scripts: { test: 'vitest' } }) : '// TODO improve' }, 'repo');
   expect(result.sourceRevision).toBe('abc');
   expect(result.ranked).toBe(false);
-  expect(result.facts).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'observation', value: 'TODO at src/a.ts:1' })]));
+  expect(result.facts).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'observation', value: 'TODO at src/a.ts:1: improve' })]));
   const sections = buildOnboardingSkeleton(result.facts);
   expect(sections.map((s) => s.id)).toEqual(['architecture', 'critical_paths', 'local_run', 'reading_path', 'first_tasks']);
   expect(sections[2].items).toEqual([{ kind: 'command', text: 'npm run test', fact_ids: ['script:test'] }]);
@@ -53,6 +53,29 @@ it('captures the text and source location of a TODO comment instead of a bare lo
   const snapshot = { state: { lastIndexedSha: 'rev', status: 'full', filesIndexed: 1, filesSkipped: 0 }, files: [{ path: 'src/a.ts', rank: 1 }], edges: [], fileFacts: [], edgesMayBeTruncated: false, indexedCount: 1, graphAvailable: false, hotnessAvailable: false };
   const result = await collectOnboardingFacts({ getOnboardingSnapshot: async () => snapshot }, { revision: 'rev', available: async () => true, read: async (path) => path === 'src/a.ts' ? '// TODO: add coverage for invalid paths' : null }, 'repo');
   expect(result.facts).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'observation', value: 'TODO at src/a.ts:1: add coverage for invalid paths' })]));
+});
+
+it('does not expose secret-related TODO text or TODO embedded in code strings', async () => {
+  const { collectOnboardingFacts } = await import('../src/modules/onboarding/application/collect-facts.js');
+  const snapshot = { state: { lastIndexedSha: 'rev', status: 'full', filesIndexed: 1, filesSkipped: 0 }, files: [{ path: 'src/a.ts', rank: 1 }], edges: [], fileFacts: [], edgesMayBeTruncated: false, indexedCount: 1, graphAvailable: false, hotnessAvailable: false };
+  const result = await collectOnboardingFacts({ getOnboardingSnapshot: async () => snapshot }, { revision: 'rev', available: async () => true, read: async (path) => path === 'src/a.ts' ? 'const text = "// TODO pretend";\n// TODO: rotate secret token' : null }, 'repo');
+  expect(result.facts.some((fact) => fact.kind === 'observation')).toBe(false);
+});
+
+it('includes a documented local startup script only when it exists at the indexed revision', async () => {
+  const { collectOnboardingFacts } = await import('../src/modules/onboarding/application/collect-facts.js');
+  const snapshot = { state: { lastIndexedSha: 'rev', status: 'full', filesIndexed: 1, filesSkipped: 0 }, files: [{ path: 'src/a.ts', rank: 1 }], edges: [], fileFacts: [], edgesMayBeTruncated: false, indexedCount: 1, graphAvailable: false, hotnessAvailable: false };
+  const source = (exists: boolean) => ({ revision: 'rev', available: async () => true, read: async (path: string) => path === 'README.md' ? '## Quick start\n```sh\n./scripts/dev.sh\n```' : path === 'scripts/dev.sh' && exists ? '#!/bin/sh\n' : null });
+  const present = await collectOnboardingFacts({ getOnboardingSnapshot: async () => snapshot }, source(true), 'repo');
+  const missing = await collectOnboardingFacts({ getOnboardingSnapshot: async () => snapshot }, source(false), 'repo');
+  expect(present.facts).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'command', value: './scripts/dev.sh' })]));
+  expect(missing.facts.some((fact) => fact.value === './scripts/dev.sh')).toBe(false);
+});
+
+it('uses a documented quick-start command rather than unrelated package scripts', async () => {
+  const { buildOnboardingSkeleton } = await import('../src/modules/onboarding/domain/skeleton.js');
+  const sections = buildOnboardingSkeleton([{ id: 'startup:1', kind: 'command', value: './scripts/dev.sh' }, { id: 'script:test', kind: 'command', value: 'npm run test' }]);
+  expect(sections[2].items.map((item) => item.text)).toEqual(['./scripts/dev.sh']);
 });
 
 it('finds scripts in indexed package directories and includes their working directory', async () => {
@@ -129,6 +152,13 @@ it('does not repeat a chain that is entirely contained in a longer chain', async
   expect(paths).toEqual([['a', 'b', 'c']]);
 });
 
+it('prioritizes indexed route entry files for critical chains while remaining deterministic', async () => {
+  const { buildCriticalPathFacts } = await import('../src/modules/onboarding/domain/facts.js');
+  const files = [{ path: 'shared.ts', rank: 10 }, { path: 'unrelated.ts', rank: 9 }, { path: 'route.ts', rank: 1 }];
+  const edges = [{ fromFile: 'unrelated.ts', toFile: 'shared.ts' }, { fromFile: 'route.ts', toFile: 'shared.ts' }];
+  expect(buildCriticalPathFacts(files, edges, ['route.ts'])[0]).toEqual(['route.ts', 'shared.ts']);
+});
+
 it('provides an explicitly exploratory first task from the highest ranked available path', async () => {
   const { buildOnboardingSkeleton } = await import('../src/modules/onboarding/domain/skeleton.js');
   const sections = buildOnboardingSkeleton([{ id: 'second', kind: 'path', value: 'second.ts' }, { id: 'first', kind: 'path', value: 'first.ts' }], [{ path: 'first.ts', rank: 3 }, { path: 'second.ts', rank: 1 }]);
@@ -139,4 +169,10 @@ it('creates an actionable exploratory task from a real dependency chain', async 
   const { buildOnboardingSkeleton } = await import('../src/modules/onboarding/domain/skeleton.js');
   const sections = buildOnboardingSkeleton([{ id: 'critical:1', kind: 'critical_path', value: 'src/app.ts -> src/db.ts' }, { id: 'path:1', kind: 'path', value: 'src/app.ts' }], [{ path: 'src/app.ts', rank: 2 }]);
   expect(sections[4].items).toContainEqual({ kind: 'suggestion', text: 'Suggestion: trace how src/app.ts uses src/db.ts and identify the relevant tests.', fact_ids: ['critical:1'] });
+});
+
+it('explains a reading item using captured import evidence', async () => {
+  const { buildOnboardingSkeleton } = await import('../src/modules/onboarding/domain/skeleton.js');
+  const sections = buildOnboardingSkeleton([{ id: 'path:1', kind: 'path', value: 'src/core.ts' }, { id: 'dependency:1', kind: 'dependency', value: 'src/app.ts -> src/core.ts' }], [{ path: 'src/core.ts', rank: 1 }]);
+  expect(sections[3].items[0]).toMatchObject({ text: 'src/core.ts', description: 'Imported by at least 1 indexed file.', fact_ids: ['path:1', 'dependency:1'] });
 });

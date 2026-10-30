@@ -35,9 +35,10 @@ export function selectOnboardingFacts(input: FactInput) {
 }
 
 /** Follow highest-ranked imports with lexical tie-breaking; never fabricate a rank or edge. */
-export function buildCriticalPathFacts(files: Array<{ path: string; rank: number }>, edges: OnboardingEdge[]): string[][] {
+export function buildCriticalPathFacts(files: Array<{ path: string; rank: number }>, edges: OnboardingEdge[], entryPaths: string[] = []): string[][] {
   const rank = new Map(files.map((file) => [file.path, file.rank]));
-  const ordered = [...files].sort((a, b) => b.rank - a.rank || compare(a.path, b.path));
+  const entries = new Set(entryPaths);
+  const ordered = [...files].sort((a, b) => Number(entries.has(b.path)) - Number(entries.has(a.path)) || b.rank - a.rank || compare(a.path, b.path));
   const adjacency = new Map<string, string[]>();
   for (const edge of edges) {
     if (!rank.has(edge.fromFile) || !rank.has(edge.toFile) || edge.fromFile === edge.toFile) continue;

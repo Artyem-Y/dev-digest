@@ -11,6 +11,7 @@ export const OnboardingFactId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/
 export const OnboardingTourItem = z.object({
   kind: z.enum(['observation', 'path', 'command', 'route', 'dependency', 'suggestion']),
   text: z.string().min(1),
+  description: z.string().min(1).optional(),
   fact_ids: z.array(OnboardingFactId).min(1),
 });
 export type OnboardingTourItem = z.infer<typeof OnboardingTourItem>;

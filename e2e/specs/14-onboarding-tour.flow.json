@@ -113,7 +113,7 @@
       "cmd": [
         "wait",
         "--text",
-        "Suggestion: explore src/main.ts"
+        "Suggestion: trace how src/main.ts uses src/lib.ts and identify the relevant tests."
       ],
       "label": "grounded suggestion appears"
     },

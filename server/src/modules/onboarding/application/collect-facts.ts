@@ -14,9 +14,10 @@ export async function collectOnboardingFacts(index: OnboardingIndexPort, source:
     facts.push({ id: id('dependency', value), kind: 'dependency', value });
   }
   if (snapshot?.graphAvailable) {
-    for (const chain of buildCriticalPathFacts(snapshot.files, snapshot.edges)) {
+    const entries = snapshot.fileFacts.filter((file) => Array.isArray(file.endpoints) && file.endpoints.length > 0).map((file) => file.path);
+    for (const [index, chain] of buildCriticalPathFacts(snapshot.files, snapshot.edges, entries).entries()) {
       const value = chain.join(' -> ');
-      facts.push({ id: id('critical', value), kind: 'critical_path', value });
+      facts.push({ id: `critical:${String(index).padStart(3, '0')}:${createHash('sha256').update(value).digest('hex').slice(0, 24)}`, kind: 'critical_path', value });
     }
   }
   for (const file of snapshot?.fileFacts ?? []) {
@@ -36,8 +37,11 @@ export async function collectOnboardingFacts(index: OnboardingIndexPort, source:
       if (content === null) continue;
       const lines = content.split('\n');
       for (let line = 0; line < lines.length; line++) {
-        if (/\bTODO\b/.test(lines[line]!)) {
-          const value = `TODO at ${file.path}:${line + 1}`;
+        const match = /^\s*(?:\/\/|#|\*)\s*TODO\s*:?\s*([^\r\n]{1,180})/i.exec(lines[line]!);
+        if (match && !/\b(?:secret|password|token|api[ _-]?key|credential)\b/i.test(match[1]!)) {
+          const description = match[1]!.trim().replace(/\s*\*\/\s*$/, '');
+          if (!description || !/^[A-Za-z0-9 ,.:;()'/_-]+$/.test(description)) continue;
+          const value = `TODO at ${file.path}:${line + 1}: ${description}`;
           facts.push({ id: id('todo', value), kind: 'observation', value });
           break;
         }
@@ -60,6 +64,9 @@ export async function collectOnboardingFacts(index: OnboardingIndexPort, source:
       const documentation = await source.read(path);
       if (!documentation) continue;
       if (!dir) {
+        const startup = /(?:^|\n)#{1,3}\s+(?:quick start|getting started|local (?:setup|development)|setup)[^\n]*\n([\s\S]*?)(?=\n#{1,3}\s|$)/i.exec(documentation)?.[1];
+        const script = startup && /```(?:sh|bash|shell)\s*\n\s*(\.\/scripts\/[A-Za-z0-9_-]+\.sh)\s*\n\s*```/i.exec(startup)?.[1];
+        if (script && await source.read(script.slice(2)) !== null) facts.push({ id: id('startup', `${path}:${script}`), kind: 'command', value: script });
         const block = /(?:^|\n)#{1,3}\s+architecture[^\n]*\n[\s\S]*?```mermaid\s*\n([\s\S]*?)```/i.exec(documentation)?.[1];
         if (block && block.length <= 16000) {
           const nodes = new Map<string, string>();

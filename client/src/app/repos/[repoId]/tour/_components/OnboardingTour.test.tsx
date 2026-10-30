@@ -67,7 +67,7 @@ it('renders the empty state and distinct populated section layouts', () => {
     { id: 'architecture', items: [{ kind: 'dependency', text: 'src/app.ts -> src/db.ts', fact_ids: ['edge'] }], unavailable_reason: null },
     { id: 'critical_paths', items: [{ kind: 'dependency', text: 'src/app.ts -> src/db.ts', fact_ids: ['edge'] }], unavailable_reason: null },
     { id: 'local_run', items: [{ kind: 'command', text: 'npm run test', fact_ids: ['c'] }, { kind: 'command', text: 'npm run dev', fact_ids: ['d'] }], unavailable_reason: null },
-    { id: 'reading_path', items: [{ kind: 'path', text: 'src/app.ts', fact_ids: ['p'] }, { kind: 'path', text: 'src/db.ts', fact_ids: ['q'] }], unavailable_reason: null },
+    { id: 'reading_path', items: [{ kind: 'path', text: 'src/app.ts', description: 'Imported by at least 1 indexed file.', fact_ids: ['p', 'edge'] }, { kind: 'path', text: 'src/db.ts', fact_ids: ['q'] }], unavailable_reason: null },
     { id: 'first_tasks', items: [{ kind: 'suggestion', text: 'Suggestion: explore src/app.ts', fact_ids: ['p'] }], unavailable_reason: null },
   ];
   mocks.query.mockReturnValue({ isLoading: false, data: { tour: { sections: populated, status: 'partial', source_revision: 'a'.repeat(40), freshness: 'current', generated_at: '2026-10-29T12:00:00Z', limitations: [], counts: { indexed_files: 2, omitted_files: 0 }, usage: { call_count: 1, input_tokens: 1, output_tokens: 2, cost_usd: 0 } }, attempt: null } });
@@ -75,6 +75,7 @@ it('renders the empty state and distinct populated section layouts', () => {
   expect(screen.getByRole('img', { name: /architecture dependencies/i })).toBeInTheDocument();
   expect(screen.getByRole('list', { name: /local commands/i }).children).toHaveLength(2);
   expect(screen.getByRole('list', { name: /reading path/i }).children).toHaveLength(2);
+  expect(screen.getByText('Imported by at least 1 indexed file.')).toBeVisible();
   expect(screen.getByText('Suggestion: explore src/app.ts')).toBeVisible();
 });
 

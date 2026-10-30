@@ -84,9 +84,9 @@ export class GenerateTour {
           const grounded = filterOnboardingOutput(generated.output, facts);
           sections = sections.map((fallback, i) => {
             const model = grounded[i];
-            const items = fallback.id === 'reading_path' || fallback.id === 'critical_paths' || fallback.id === 'architecture' || fallback.id === 'first_tasks' ? fallback.items : model?.items.length ? model.items : fallback.items;
+            const items = fallback.items;
             const documented = fallback.id === 'architecture' ? facts.filter((fact) => fact.kind === 'documentation').slice(0, 3).map((fact) => ({ text: fact.value, fact_ids: [fact.id] })) : [];
-            const narrative = fallback.id === 'reading_path' || fallback.id === 'first_tasks' ? [] : [...documented, ...(model?.narrative ?? []).filter((sentence) => !documented.some((item) => item.text === sentence.text))];
+            const narrative = fallback.id === 'reading_path' || fallback.id === 'first_tasks' || fallback.id === 'local_run' ? [] : [...documented, ...(model?.narrative ?? []).filter((sentence) => !documented.some((item) => item.text === sentence.text))];
             return { ...fallback, items, narrative, unavailable_reason: items.length || narrative.length ? null : fallback.unavailable_reason };
           }) as OnboardingTourSections;
         }
