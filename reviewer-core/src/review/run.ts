@@ -91,6 +91,8 @@ export interface ReviewInput {
   promptAssemblyDetail?: boolean;
   /** Progress sink. */
   onEvent?: (e: ReviewEvent) => void;
+  /** Receives the actual prompt assembly immediately before a provider call. */
+  onPromptAssembled?: (assembly: PromptAssembly) => void;
   /**
    * Cancellation checkpoint, called before each (expensive) chunk LLM call.
    * Supply a function that THROWS to abort mid-run (the caller owns the error
@@ -200,6 +202,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     );
     const a = assemblePrompt({ ...promptParts, diff: chunk.diffText });
     if (mode === 'single-pass') assembly = a.assembly;
+    input.onPromptAssembled?.(a.assembly);
     emitPromptAssembly(a, partials.length + 1);
     const res = await input.llm.completeStructured<Review>({
       model: input.model,

@@ -35,6 +35,10 @@ do not infer that no issue exists.
    `api-contract-reviewer`, persistence skills, or test skills.
 3. Trace each changed path through its caller, contract, persistence, and test
    boundaries where applicable.
+   For UI work with a supplied design, compare rendered evidence against the
+   design for applicable list, long-path, preview, loading, error, and empty
+   states. Record unobserved states as not reviewed; do not treat component
+   tests alone as visual evidence.
 4. Check, when in scope: package ownership; client API/hook boundaries; server
    route/service/repository/adapter direction; DI composition; reviewer-core
    purity; e2e ownership; vendored shared-contract symmetry; forward-only

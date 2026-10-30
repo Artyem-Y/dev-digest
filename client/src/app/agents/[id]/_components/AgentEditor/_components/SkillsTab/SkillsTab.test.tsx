@@ -42,6 +42,6 @@ describe("SkillsTab", () => {
 
     const toggle = screen.getByRole("switch", { name: "Enable Unsafe instruction" });
     expect(toggle).toBeDisabled();
-    expect(toggle.closest("label")).toHaveStyle({ borderColor: "var(--crit)" });
+    expect(toggle.closest("label")).toHaveStyle({ background: "var(--crit-bg)" });
   });
 });

@@ -44,6 +44,7 @@ export function TraceBody({ trace, findings }: { trace: RunTraceResponse; findin
                 trace.specs_read.map((sp, i) => (
                   <span key={i} className="mono" style={s.spec}>
                     {sp}
+                    {trace.specs_read_details?.find((document) => document.path === sp) && ` · ${t("trace.config.specEstimatedTokens", { count: trace.specs_read_details.find((document) => document.path === sp)!.estimated_tokens })}`}
                   </span>
                 ))
               )}

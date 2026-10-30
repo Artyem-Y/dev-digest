@@ -6,6 +6,6 @@ export function createProjectContextRepository(container: Container) {
   return new DrizzleProjectContextRepository(container.db);
 }
 
-export function createTrackedDocumentStore(checkoutPath: string) {
-  return new GitTrackedDocumentStore(checkoutPath);
+export function createTrackedDocumentStore(checkoutPath: string, roots?: readonly string[]) {
+  return new GitTrackedDocumentStore(checkoutPath, roots);
 }

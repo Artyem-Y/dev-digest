@@ -7,6 +7,7 @@ import type { Skill } from "@devdigest/shared";
 const create = vi.fn();
 const update = vi.fn();
 const remove = vi.fn();
+vi.mock("@/components/project-context/ProjectContext", () => ({ ProjectContext: ({ ownerId }: { ownerId: string }) => <div>Context for {ownerId}</div> }));
 
 vi.mock("@/lib/hooks/skills", () => ({
   useSkills: () => ({ data: [
@@ -41,6 +42,13 @@ function renderLab() {
 }
 
 describe("SkillsLab", () => {
+  it("opens the selected skill's context without leaving the skills list", () => {
+    renderLab();
+    fireEvent.click(screen.getByRole("tab", { name: "Context" }));
+    expect(screen.getByText("Context for skill-1")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Unsafe instruction" }));
+    expect(screen.getByText("Context for unsafe-skill")).toBeInTheDocument();
+  });
   it("filters manual skills and previews their versioned text safely", () => {
     renderLab();
 

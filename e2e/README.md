@@ -104,10 +104,27 @@ a CI artifact by `.github/workflows/e2e-web.yml`).
 | `09-agent-enabled-toggle` | seeded agent enablement can be toggled and restored |
 | `10-smart-diff` | five role groups, lockfile, inline finding and order switch |
 | `11-pr-brief` | hermetic-only explicit Brief generation, focus navigation, and persisted reload |
+| `12-project-context` | hermetic-only attachment, deterministic review and persisted prompt snapshot |
+| `13-skill-context` | hermetic-only skill attachment and reload |
 
-`11-pr-brief` is intentionally excluded from ordinary `npm test`: it mutates the
-seeded PR cache and requires the isolated database and double-gated deterministic
-Brief fixture supplied by `./scripts/e2e.sh` / `npm run e2e:hermetic`. The runner
+`11-pr-brief`, `12-project-context`, and `13-skill-context` are excluded from ordinary `npm test`: they mutate the
+seeded database and require the isolated database and deterministic Brief and
+review fixtures supplied by `./scripts/e2e.sh` / `npm run e2e:hermetic`. The runner
 also requires that script's exact test, fixture, base-port, and invocation
 attestation; `E2E_HERMETIC=1` by itself cannot enable the flow. It must never run
 against a developer stack.
+
+To run one hermetic flow while debugging, set `E2E_FLOW` to its full filename,
+for example `E2E_FLOW=12-project-context.flow.json ./scripts/e2e.sh`.
+
+
+### Onboarding Tour flow
+
+`E2E_FLOW=14-onboarding-tour.flow.json ./scripts/e2e.sh` runs the mutating tour
+journey only on the isolated stack. The fixture uses a temporary Git checkout,
+seeded index, and deterministic provider; its first request succeeds and the
+second fails so the flow can verify the retained result. No live model is used.
+The runner requires its hermetic attestation and the onboarding fixture flag.
+The flow replaces the page clipboard with an in-memory capture and asserts the
+exact command and share URL passed to it; it does not test operating-system
+clipboard permissions.

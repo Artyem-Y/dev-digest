@@ -17,7 +17,7 @@ d('PR Brief cache route', () => {
     const [pull] = await pg.handle.db.insert(t.pullRequests).values({ workspaceId, repoId: repo!.id, number: 1, title: 'Brief', author: 'a', branch: 'b', base: 'main', headSha: 'sha' }).returning();
     pullId = pull!.id;
     await pg.handle.db.insert(t.prBrief).values({
-      prId: pullId, headSha: 'sha', sources: [],
+      prId: pullId,
       json: { summary: 'saved', head_sha: 'sha', risks: { risks: [] }, review_focus: [], intent: { intent: '', in_scope: [], out_of_scope: [] }, blast: { changed_symbols: [], downstream: [], summary: '', degraded: true, reason: 'no_data', prior_prs: null }, history: { history: [] } },
     });
   });

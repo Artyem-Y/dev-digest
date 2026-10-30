@@ -129,7 +129,7 @@ cd ../client && pnpm install && pnpm dev               # web on :3000
 
 ## Useful scripts
 
-`server/`: `dev` · `build` · `db:migrate` · `db:seed` · `db:generate` · `test` · `typecheck`
+`server/`: `dev` · `build` · `db:migrate` · `db:seed` · `test` · `typecheck`. Migration generation requires the immutable-history procedure in [server/README.md](server/README.md).
 (unit/integration split: `pnpm exec vitest run --exclude '**/*.it.test.ts'` / `pnpm exec vitest run .it.test`)
 `client/`: `dev` · `build` · `start` · `test` · `typecheck`
 
@@ -158,7 +158,7 @@ Postgres); everything else is hermetic. The browser e2e flows live in
 ## Troubleshooting
 
 - **`relation ... does not exist` / API errors on first run** — migrations weren't
-  applied. The server does **not** migrate on boot: run `cd server && pnpm db:migrate`.
+  applied. The server does **not** migrate on boot: run `cd server && pnpm db:migrate` against its configured database. This applies both the original and onboarding migration chains, including missing onboarding columns.
 - **Port 5432 already in use** — another Postgres is running. Stop it, or change the
   host port in `docker-compose.yml`.
 - **`vector` type errors** — the pgvector extension is enabled by migration `0000`;

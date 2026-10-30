@@ -10,9 +10,20 @@ export function normalizeProjectPath(input: string): string | null {
   return value;
 }
 
-export function isEligibleMarkdownPath(path: string): boolean {
+export const DEFAULT_PROJECT_CONTEXT_ROOTS = ['specs', 'docs', 'insights'] as const;
+
+export function isEligibleMarkdownPath(path: string, roots: readonly string[] = DEFAULT_PROJECT_CONTEXT_ROOTS): boolean {
   const normalized = normalizeProjectPath(path);
-  return normalized !== null
-    && /\.md(?:own)?$/i.test(normalized)
-    && !normalized.split('/').some((segment) => segment === '.git' || segment === 'node_modules');
+  if (normalized === null || !/\.md$/i.test(normalized)) return false;
+  const segments = normalized.split('/');
+  if (segments.some((segment) => segment === '.git' || segment === 'node_modules')) return false;
+  if (segments.at(-1)?.toLowerCase() === 'insights.md' && roots.includes('insights')) return true;
+  const directories = segments.slice(0, -1);
+  return roots.some((root) => {
+    const normalizedRoot = normalizeProjectPath(root);
+    if (!normalizedRoot) return false;
+    const parts = normalizedRoot.split('/');
+    if (parts.length > 1) return parts.every((part, index) => directories[index] === part);
+    return directories.some((_, index) => parts.every((part, offset) => directories[index + offset] === part));
+  });
 }

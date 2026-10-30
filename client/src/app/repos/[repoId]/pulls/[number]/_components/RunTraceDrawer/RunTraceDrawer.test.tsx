@@ -57,4 +57,19 @@ describe("A5 Run Trace drawer (smoke)", () => {
     // LiveLogStream renders its filter input
     expect(screen.getByPlaceholderText("Filter log…")).toBeInTheDocument();
   });
+
+  it("shows the saved project context snapshot and the paths read", () => {
+    TRACE.specs_read = ["docs/spec.md"];
+    TRACE.specs_read_details = [{ path: "docs/spec.md", estimated_tokens: 7 }];
+    TRACE.prompt_assembly.specs = '<untrusted source="spec-0">\nFile: docs/spec.md\n# Spec\n</untrusted>';
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText(/docs\/spec.md.*7 estimated tokens/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Prompt assembly"));
+    expect(screen.getByText("Project context attached specs")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Project context attached specs"));
+    expect(screen.getByText(/File: docs\/spec.md/)).toBeInTheDocument();
+    TRACE.specs_read = [];
+    TRACE.specs_read_details = undefined;
+    TRACE.prompt_assembly.specs = null;
+  });
 });

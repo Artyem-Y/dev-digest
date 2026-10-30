@@ -94,6 +94,7 @@ export class AnthropicProvider implements LLMProvider {
     const messages: Anthropic.MessageParam[] = [...rest];
     let tokensIn = 0;
     let tokensOut = 0;
+    let usageAvailable = true;
     let lastRaw = '';
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
@@ -113,10 +114,12 @@ export class AnthropicProvider implements LLMProvider {
               },
             ],
             tool_choice: { type: 'tool', name: toolName },
-          }),
+          }, req.maxRetries === 0 ? { maxRetries: 0 } : undefined),
           req.timeoutMs ?? DEFAULT_TIMEOUT,
         ),
+        req.maxRetries === 0 ? { retries: 0 } : {},
       );
+      usageAvailable &&= res.usage != null;
       tokensIn += res.usage.input_tokens;
       tokensOut += res.usage.output_tokens;
 
@@ -133,6 +136,7 @@ export class AnthropicProvider implements LLMProvider {
           tokensIn,
           tokensOut,
           costUsd: estimateCost(req.model, tokensIn, tokensOut),
+          reportedUsage: { inputTokens: usageAvailable ? tokensIn : null, outputTokens: usageAvailable ? tokensOut : null, costUsd: usageAvailable ? estimateCost(req.model, tokensIn, tokensOut) : null },
           raw: lastRaw,
           attempts: attempt,
         };

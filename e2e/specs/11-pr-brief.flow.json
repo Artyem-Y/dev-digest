@@ -15,6 +15,7 @@
     { "cmd": ["wait", "--url", "tab=diff"], "label": "Files changed becomes active" },
     { "cmd": ["wait", "--text", "src/config.ts"], "label": "target changed file is visible" },
     { "cmd": ["find", "role", "button", "click", "--name", "Overview"], "label": "return to the PR Overview" },
+    { "cmd": ["wait", "--url", "tab=overview"], "label": "Overview navigation settles before reload" },
     { "cmd": ["reload"], "label": "reload the persisted Brief cache" },
     { "cmd": ["wait", "--text", "Public API rate limiting is wired through the new middleware."], "label": "persisted Brief reloads without another POST" }
   ]
