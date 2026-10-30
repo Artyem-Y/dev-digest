@@ -1,0 +1,4 @@
+Analyze this repository's external dependencies and internal TypeScript import relationships. Produce an evidence-backed dependency report with package classifications, resolved-version duplicates, unavailable installed-size measurements, Mermaid graphs, and P0–P3 recommendations. Do not install packages or access the network.
+
+Read and follow `public-report-contract.md` in the repository root. It defines
+the required output format but does not identify any expected findings.

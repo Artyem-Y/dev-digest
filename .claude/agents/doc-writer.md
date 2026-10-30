@@ -35,6 +35,13 @@ present a proposal, assumption, or unverified behavior as current product fact.
 - `INSIGHTS.md`: only a novel, evidence-backed reusable lesson, appended through
   the Engineering Insights helper after its required re-read.
 
+For each verified current-behavior change in `client/`, `server/`,
+`reviewer-core/`, or `mcp/`, create or update a topic document in that package's
+`docs/` directory and add it to the package's `docs/README.md`. Do not add
+package documentation for a test-only, build-only, or behavior-preserving
+refactor unless the approved plan records a documentation need; report the
+evidence-backed exception explicitly.
+
 ## File boundary
 
 Edit Markdown documentation artifacts only: `README.md`, `docs/**/*.md`,
