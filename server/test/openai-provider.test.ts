@@ -36,3 +36,19 @@ describe('OpenAIProvider structured requests', () => {
     expect(calls[0]).not.toHaveProperty('temperature');
   });
 });
+
+it('disables both SDK and transport retries and leaves absent usage unknown', async () => {
+  const provider = new OpenAIProvider('test-key');
+  let calls = 0;
+  let options: unknown;
+  (provider as unknown as { client: unknown }).client = { chat: { completions: { create: async (_request: unknown, opts: unknown) => {
+    calls++; options = opts; return { choices: [{ message: { content: '{"ok":true}' } }] };
+  } } } };
+  const result = await provider.completeStructured({ model: 'gpt-4', schema: Result, schemaName: 'Result', messages: [], maxRetries: 0 });
+  expect(calls).toBe(1);
+  expect(options).toEqual({ maxRetries: 0 });
+  expect(result.reportedUsage).toEqual({ inputTokens: null, outputTokens: null, costUsd: null });
+  (provider as unknown as { client: unknown }).client = { chat: { completions: { create: async () => { calls++; throw Object.assign(new Error('busy'), { status: 503 }); } } } };
+  await expect(provider.completeStructured({ model: 'gpt-4', schema: Result, schemaName: 'Result', messages: [], maxRetries: 0 })).rejects.toThrow();
+  expect(calls).toBe(2);
+});

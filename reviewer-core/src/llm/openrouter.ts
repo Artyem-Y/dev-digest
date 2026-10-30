@@ -63,6 +63,8 @@ export class OpenRouterProvider implements LLMProvider {
     let tokensIn = 0;
     let tokensOut = 0;
     let costFromApi: number | null = null;
+    let inputAvailable = true;
+    let outputAvailable = true;
     let lastRaw = '';
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
@@ -81,7 +83,7 @@ export class OpenRouterProvider implements LLMProvider {
         // OpenRouter usage accounting — ask it to return the REAL generation
         // cost (USD) in `usage.cost`, instead of estimating from a price book.
         ...(this.id === 'openrouter' ? { usage: { include: true } } : {}),
-      });
+      }, req.maxRetries === 0 ? { maxRetries: 0, timeout: req.timeoutMs } : undefined);
 
       // OpenRouter can return HTTP 200 with no `choices` (an upstream provider
       // error / moderation / free-tier limit in the body) — surface it.
@@ -91,6 +93,8 @@ export class OpenRouterProvider implements LLMProvider {
         throw new Error(`OpenRouter returned no choices for ${req.schemaName}${errMsg ? `: ${errMsg}` : ''}`);
       }
       lastRaw = choice.message?.content ?? '';
+      inputAvailable &&= typeof res.usage?.prompt_tokens === 'number';
+      outputAvailable &&= typeof res.usage?.completion_tokens === 'number';
       tokensIn += res.usage?.prompt_tokens ?? 0;
       tokensOut += res.usage?.completion_tokens ?? 0;
       // `usage.cost` is an OpenRouter extension (USD), absent from the OpenAI SDK type.
@@ -105,6 +109,7 @@ export class OpenRouterProvider implements LLMProvider {
           tokensIn,
           tokensOut,
           costUsd: costFromApi ?? this.estimateCost?.(req.model, tokensIn, tokensOut) ?? null,
+          reportedUsage: { inputTokens: inputAvailable ? tokensIn : null, outputTokens: outputAvailable ? tokensOut : null, costUsd: costFromApi ?? (inputAvailable && outputAvailable ? this.estimateCost?.(req.model, tokensIn, tokensOut) ?? null : null) },
           raw: lastRaw,
           attempts: attempt,
         };

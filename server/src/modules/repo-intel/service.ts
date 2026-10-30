@@ -682,6 +682,11 @@ export class RepoIntelService implements RepoIntel {
    * For each of the top roots, greedily follow the highest-ranked import target
    * up to BFS_DEPTH hops. Pure read over `file_edges` + `file_rank`.
    */
+  async getOnboardingSnapshot(repoId: string) {
+    if (!this.enabled) return null;
+    return this.repo.getOnboardingSnapshot(repoId);
+  }
+
   async getCriticalPaths(repoId: string): Promise<string[][]> {
     if (!this.enabled) return [];
     const edges = await this.repo.getEdges(repoId);

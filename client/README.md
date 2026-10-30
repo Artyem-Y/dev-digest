@@ -47,3 +47,5 @@ mocked, so they need neither the API nor a browser. The real browser journeys
 (client + API + seeded DB) are covered by the deterministic agent-browser suite
 in [`../e2e`](../e2e/README.md) and the `e2e-web.yml` workflow. See
 [`../TESTING.md`](../TESTING.md).
+
+The repository-scoped Onboarding Tour is at `/repos/:repoId/tour`; generating or regenerating it requires an explicit action.

@@ -116,3 +116,15 @@ against a developer stack.
 
 To run one hermetic flow while debugging, set `E2E_FLOW` to its full filename,
 for example `E2E_FLOW=12-project-context.flow.json ./scripts/e2e.sh`.
+
+
+### Onboarding Tour flow
+
+`E2E_FLOW=14-onboarding-tour.flow.json ./scripts/e2e.sh` runs the mutating tour
+journey only on the isolated stack. The fixture uses a temporary Git checkout,
+seeded index, and deterministic provider; its first request succeeds and the
+second fails so the flow can verify the retained result. No live model is used.
+The runner requires its hermetic attestation and the onboarding fixture flag.
+The flow replaces the page clipboard with an in-memory capture and asserts the
+exact command and share URL passed to it; it does not test operating-system
+clipboard permissions.

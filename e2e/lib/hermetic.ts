@@ -19,5 +19,6 @@ export function isAttestedHermeticBriefRun(env: NodeJS.ProcessEnv, baseUrl: stri
 }
 
 export function shouldRunFlow(file: string, env: NodeJS.ProcessEnv, baseUrl: string): boolean {
+  if (file === '14-onboarding-tour.flow.json') return isAttestedHermeticBriefRun(env, baseUrl) && env.DEVDIGEST_E2E_ONBOARDING_FIXTURE === '1';
   return !['11-pr-brief.flow.json', '12-project-context.flow.json', '13-skill-context.flow.json'].includes(file) || isAttestedHermeticBriefRun(env, baseUrl);
 }

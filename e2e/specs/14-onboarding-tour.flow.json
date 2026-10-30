@@ -1,0 +1,353 @@
+{
+  "name": "Generate and revisit an isolated onboarding tour",
+  "description": "Hermetic-only fixture: explicit generation, grounded sections, persisted reload and failed regeneration without a live provider.",
+  "steps": [
+    {
+      "cmd": [
+        "open",
+        "{BASE}/"
+      ],
+      "label": "open isolated seeded workspace"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls"
+      ],
+      "label": "wait for repository"
+    },
+    {
+      "cmd": [
+        "find",
+        "text",
+        "Onboarding Tour",
+        "click"
+      ],
+      "label": "open tour from workspace navigation"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/tour"
+      ],
+      "label": "open repository tour"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Generate a tour to explore this repository."
+      ],
+      "label": "empty state appears without generation"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Generate tour"
+      ],
+      "label": "explicitly start generation"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Generating tour"
+      ],
+      "label": "pending state appears"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "npm run test"
+      ],
+      "label": "generated command appears"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Architecture overview"
+      ],
+      "label": "Architecture overview section visible"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Critical paths"
+      ],
+      "label": "Critical paths section visible"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "How to run locally"
+      ],
+      "label": "How to run locally section visible"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Guided reading path"
+      ],
+      "label": "Guided reading path section visible"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "First tasks"
+      ],
+      "label": "First tasks section visible"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Suggestion: trace how src/main.ts uses src/lib.ts and identify the relevant tests."
+      ],
+      "label": "grounded suggestion appears"
+    },
+    {
+      "cmd": [
+        "screenshot",
+        "test-results/14-onboarding-tour-populated.png"
+      ],
+      "label": "capture populated tour for visual review"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Narrative requests: 1"
+      ],
+      "label": "one provider request recorded"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Cost: 0.001"
+      ],
+      "label": "available provider cost displayed"
+    },
+    {
+      "cmd": [
+        "scrollintoview",
+        "#tour-local_run"
+      ],
+      "label": "bring local commands into view"
+    },
+    {
+      "cmd": [
+        "focus",
+        "#tour-local_run > button"
+      ],
+      "label": "focus local commands disclosure"
+    },
+    {
+      "cmd": [
+        "press",
+        "Enter"
+      ],
+      "label": "collapse local commands with keyboard"
+    },
+    {
+      "cmd": [
+        "wait",
+        "#tour-local_run > button[aria-expanded=\"false\"]"
+      ],
+      "label": "collapsed state is exposed"
+    },
+    {
+      "cmd": [
+        "press",
+        "Enter"
+      ],
+      "label": "expand local commands with keyboard"
+    },
+    {
+      "cmd": [
+        "wait",
+        "#tour-local_run > button[aria-expanded=\"true\"]"
+      ],
+      "label": "expanded state is exposed"
+    },
+    {
+      "cmd": [
+        "eval",
+        "Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (value) => { window.__onboardingClipboard = value; } } })"
+      ],
+      "label": "install hermetic clipboard capture"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Copy command: npm run test"
+      ],
+      "label": "copy exact command"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Copied"
+      ],
+      "label": "clipboard success is reported"
+    },
+    {
+      "cmd": [
+        "eval",
+        "window.__onboardingClipboard"
+      ],
+      "assert": {
+        "stdoutIncludes": "npm run test"
+      },
+      "label": "clipboard contains exact command"
+    },
+    {
+      "cmd": [
+        "scrollintoview",
+        "[data-testid=tour-share]"
+      ],
+      "label": "bring share action into view"
+    },
+    {
+      "cmd": [
+        "click",
+        "[data-testid=tour-share]"
+      ],
+      "label": "copy workspace-scoped tour URL"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Copied"
+      ],
+      "label": "share clipboard success is reported"
+    },
+    {
+      "cmd": [
+        "get",
+        "url"
+      ],
+      "assert": {
+        "stdoutIncludes": "/tour"
+      },
+      "label": "browser remains on tour page"
+    },
+    {
+      "cmd": [
+        "eval",
+        "window.__onboardingClipboard === window.location.href"
+      ],
+      "assert": {
+        "stdoutIncludes": "true"
+      },
+      "label": "clipboard contains tour link"
+    },
+    {
+      "cmd": [
+        "scrollintoview",
+        "#tour-reading_path"
+      ],
+      "label": "bring reading path into view"
+    },
+    {
+      "cmd": [
+        "click",
+        "#tour-reading_path button[aria-label^=\"Open file\"]"
+      ],
+      "label": "open captured source file"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "TODO inspect the application entry"
+      ],
+      "label": "authorized source blob is shown"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Close file"
+      ],
+      "label": "close source preview"
+    },
+    {
+      "cmd": [
+        "reload"
+      ],
+      "label": "reload persisted tour"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Narrative requests: 1"
+      ],
+      "label": "reload preserves the original request count"
+    },
+    {
+      "cmd": [
+        "scrollintoview",
+        "[data-testid=tour-generate]"
+      ],
+      "label": "bring regeneration action into view"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Regenerate"
+      ],
+      "label": "start second fixture attempt"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "The latest attempt could not complete"
+      ],
+      "label": "failed regeneration is reported"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "npm run test"
+      ],
+      "label": "previous tour remains visible"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Regenerate"
+      ],
+      "label": "retry remains available"
+    }
+  ]
+}

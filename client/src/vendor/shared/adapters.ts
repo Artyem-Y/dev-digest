@@ -71,6 +71,7 @@ export interface StructuredResult<T> {
   costUsd: number | null;
   raw: string;
   attempts: number;
+  reportedUsage?: { inputTokens: number | null; outputTokens: number | null; costUsd: number | null };
 }
 
 export interface LLMProvider {

@@ -17,3 +17,13 @@ Each entry contains a stable ID, date, category, evidence, implication, and conc
 - Implication: Keep hermetic Next build output separate from the developer server when running both stacks concurrently.
 
 Separate ports and databases do not isolate Next build artifacts. Two dev servers writing the same output directory can corrupt each other and yield misleading 500 responses.
+
+<!-- insight-id: eng-e2e-ac36b82ef62b -->
+## eng-e2e-ac36b82ef62b — Scroll nested main before clicking offscreen controls
+
+- Date: 2026-10-29
+- Category: testing
+- Evidence: The onboarding browser flow reported a successful Share link click after scrolling main, but a capture listener observed the click on HTML; explicit scrollintoview on the button delivered the event to Share link and the rerun passed.
+- Implication: Before clicking an offscreen control inside AppFrame main, scroll the target into view and assert the resulting action rather than trusting the click command exit.
+
+Agent-browser can report a successful coordinate click even when the target in the nested scrolling main remains outside the viewport and HTML receives the event.
