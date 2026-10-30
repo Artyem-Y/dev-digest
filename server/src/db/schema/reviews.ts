@@ -65,9 +65,4 @@ export const prBrief = pgTable('pr_brief', {
     .primaryKey()
     .references(() => pullRequests.id, { onDelete: 'cascade' }),
   json: jsonb('json').notNull(),
-  /** Captured at generation start; json keeps the transport copy for validation. */
-  headSha: text('head_sha'),
-  /** Safe compact source-selection metadata only; never prompt/document content. */
-  sources: jsonb('sources').$type<unknown[]>(),
-  telemetry: jsonb('telemetry').$type<unknown>(),
 });

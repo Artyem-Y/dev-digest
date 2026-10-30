@@ -31,6 +31,8 @@ swapped for mocks in tests.
   committed `INSIGHTS.md` files at any depth are included as well; opening Project Context does not fetch
   a newer `main` from GitHub. Existing attachments outside these roots remain
   visible as unavailable and can be detached.
+  `POST /repos/:id/project-context/reindex` rescans the local `main` snapshot
+  and returns its catalog and scan time; it does not fetch or persist an index.
 - **Where keys live:** secrets are stored in `~/.devdigest/secrets.json` (mode
   `0600`, written when you enter a key in Settings) with `process.env` as a
   fallback — never in git or the database. The one read chokepoint is
@@ -114,9 +116,9 @@ Secrets (API keys, `GITHUB_TOKEN`) are **not** part of `AppConfig` — they go
 through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with
 `process.env` as a fallback), per the **Where keys live** note at the top.
 
-Migrations are **not** applied on boot — run `pnpm db:migrate` from `server/` after pulling schema changes, including on an existing local database (pgvector is enabled by migration `0000`). The migrator applies the original chain first, then the onboarding chain tracked in a separate migrations table; rerunning it is safe. If the API reports a missing onboarding column such as `source_revision`, apply this command to the database used by the server and restart or reload the affected request.
+Migrations are **not** applied on boot — run `pnpm db:migrate` from `server/` after pulling schema changes, including on an existing local database (pgvector is enabled by migration `0000`). Onboarding migration `0016` is part of the common chain and supports databases that previously applied the separate onboarding migration. Rerunning migrations is safe.
 
-The committed migration files and metadata are immutable. The default `db:generate` configuration still targets the original historical journal and does not include the onboarding snapshot; do not generate a new migration against that journal. Generate against a temporary copy of the latest full schema snapshot, inspect the delta, and put a new migration and its own journal in a separate chain before extending the migrator.
+The committed migration files and metadata are immutable. Generate new schema changes with `pnpm db:generate` and review the resulting migration.
 
 `pnpm db:seed` is idempotent demo data
 (`acme/payments-api`, PR #482, the two built-in agents).

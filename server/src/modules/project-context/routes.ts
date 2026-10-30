@@ -3,7 +3,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { getContext } from '../_shared/context.js';
 import { NotFoundError, ValidationError } from '../../platform/errors.js';
-import { catalogProjectDocuments } from './application/catalog-project-documents.js';
+import { ContextService } from './application/context-service.js';
 import { createProjectContextRepository, createTrackedDocumentStore } from './composition.js';
 import { normalizeProjectPath } from './domain/path-policy.js';
 import { listAttachments } from './application/list-attachments.js';
@@ -25,11 +25,16 @@ export default async function projectContextRoutes(appBase: FastifyInstance) {
 
   app.get('/repos/:repoId/project-context/documents', { schema: { params: RepoParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
-    return catalogProjectDocuments(await store(workspaceId, req.params.repoId));
+    return new ContextService(await store(workspaceId, req.params.repoId)).listDocs();
+  });
+  app.post('/repos/:repoId/project-context/reindex', { schema: { params: RepoParams } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return new ContextService(await store(workspaceId, req.params.repoId)).reindex();
   });
   app.get('/repos/:repoId/project-context/documents/:path', { schema: { params: RepoParams.extend({ path: z.string() }) } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
-    const read = await (await store(workspaceId, req.params.repoId)).read(req.params.path);
+    const [read] = await new ContextService(await store(workspaceId, req.params.repoId)).readDocsByPaths([req.params.path]);
+    if (!read) throw new NotFoundError('Project document is unavailable');
     if ('reason' in read) throw new NotFoundError('Project document is unavailable', { reason: read.reason });
     return { ...read, used_by_agents: await repository.countAgentsUsingDocument(workspaceId, req.params.repoId, read.path) };
   });

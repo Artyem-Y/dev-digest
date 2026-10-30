@@ -1,5 +1,5 @@
 {
-  "id": "43ed1529-fcc8-48ee-86ec-e4eaa29a1eed",
+  "id": "3d660f03-9860-41ce-bc6c-d6ad2208bac5",
   "prevId": "26d44abb-edae-4108-97b7-d413ab6f5709",
   "version": "7",
   "dialect": "postgresql",
@@ -830,24 +830,6 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
-        },
-        "head_sha": {
-          "name": "head_sha",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "sources": {
-          "name": "sources",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "telemetry": {
-          "name": "telemetry",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},
@@ -2120,18 +2102,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "source_revision": {
-          "name": "source_revision",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "index_revision": {
-          "name": "index_revision",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "generated_at": {
           "name": "generated_at",
           "type": "timestamp with time zone",
@@ -2145,128 +2115,6 @@
         "onboarding_repo_id_repos_id_fk": {
           "name": "onboarding_repo_id_repos_id_fk",
           "tableFrom": "onboarding",
-          "tableTo": "repos",
-          "columnsFrom": [
-            "repo_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.onboarding_attempts": {
-      "name": "onboarding_attempts",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "repo_id": {
-          "name": "repo_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "token": {
-          "name": "token",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "usage": {
-          "name": "usage",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "lease_until": {
-          "name": "lease_until",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "finished_at": {
-          "name": "finished_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "onboarding_attempts_active_repo_uq": {
-          "name": "onboarding_attempts_active_repo_uq",
-          "columns": [
-            {
-              "expression": "repo_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"onboarding_attempts\".\"status\" = 'pending'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "onboarding_attempts_repo_created_idx": {
-          "name": "onboarding_attempts_repo_created_idx",
-          "columns": [
-            {
-              "expression": "repo_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "onboarding_attempts_repo_id_repos_id_fk": {
-          "name": "onboarding_attempts_repo_id_repos_id_fk",
-          "tableFrom": "onboarding_attempts",
           "tableTo": "repos",
           "columnsFrom": [
             "repo_id"

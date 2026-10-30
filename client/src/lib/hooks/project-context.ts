@@ -11,11 +11,23 @@ const base = (repoId: string) => `/repos/${repoId}/project-context`;
 export function useProjectDocuments(repoId: string | null) {
   return useQuery({ queryKey: ["project-documents", repoId], enabled: !!repoId, queryFn: () => api.get<ContextDocument[]>(`${base(repoId!)}/documents`) });
 }
+export function useReindexProjectDocuments(repoId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<{ documents: ContextDocument[]; scanned_at: string; source: 'local_main' }>(`${base(repoId!)}/reindex`),
+    onSuccess: (result) => {
+      queryClient.setQueryData(['project-documents', repoId], result.documents);
+      void queryClient.invalidateQueries({ queryKey: ['project-document', repoId] });
+      void queryClient.invalidateQueries({ queryKey: ['project-attachments', repoId] });
+      void queryClient.invalidateQueries({ queryKey: ['project-resolved', repoId] });
+    },
+  });
+}
 export function useProjectDocument(repoId: string | null, path: string | null) {
   return useQuery({ queryKey: ["project-document", repoId, path], enabled: !!repoId && !!path, queryFn: () => api.get<{ path: string; content: string; used_by_agents: number }>(`${base(repoId!)}/documents/${encodeURIComponent(path!)}`) });
 }
 export function useResolvedProjectContext(repoId: string | null, agentId: string | null) {
-  return useQuery({ queryKey: ["project-resolved", repoId, agentId], enabled: !!repoId && !!agentId, queryFn: () => api.get<{ documents: { path: string; provenance: string[] }[]; skipped: { path: string; provenance: string[] }[] }>(`${base(repoId!)}/agent/${agentId}/resolved`) });
+  return useQuery({ queryKey: ["project-resolved", repoId, agentId], enabled: !!repoId && !!agentId, queryFn: () => api.get<{ documents: { path: string; provenance: string[]; estimated_tokens: number }[]; skipped: { path: string; provenance: string[] }[] }>(`${base(repoId!)}/agent/${agentId}/resolved`) });
 }
 export function useProjectAttachments(repoId: string | null, owner: Owner, ownerId: string) {
   const queryClient = useQueryClient();

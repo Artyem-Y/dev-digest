@@ -3,6 +3,9 @@ import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { fileURLToPath } from 'node:url';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { dockerAvailable, startPg, type PgFixture } from './helpers/pg.js';
@@ -84,13 +87,24 @@ describe.skipIf(!hasDocker)('onboarding persistence', () => {
 
 
 describe.skipIf(!hasDocker)('onboarding migration upgrade', () => {
-  it('preserves old rows after upgrading and repeated application', async () => {
+  it.each([false, true])('preserves rows when upgrading (legacy onboarding applied: %s)', async (legacyApplied) => {
     const container = await new PostgreSqlContainer('pgvector/pgvector:pg16').start();
     const url = container.getConnectionUri();
     const client = postgres(url, { max: 1 });
+    const migrations = await mkdtemp(join(tmpdir(), 'devdigest-onboarding-upgrade-'));
     try {
       await client`CREATE EXTENSION IF NOT EXISTS vector`;
-      await migrate(drizzle(client), { migrationsFolder: fileURLToPath(new URL('../src/db/migrations', import.meta.url)) });
+      const source = fileURLToPath(new URL('../src/db/migrations', import.meta.url));
+      const journal = JSON.parse(await readFile(join(source, 'meta/_journal.json'), 'utf8'));
+      journal.entries = journal.entries.filter((entry: { idx: number }) => entry.idx < 16);
+      await mkdir(join(migrations, 'meta'));
+      await writeFile(join(migrations, 'meta/_journal.json'), JSON.stringify(journal));
+      for (const entry of journal.entries) await cp(join(source, `${entry.tag}.sql`), join(migrations, `${entry.tag}.sql`));
+      await migrate(drizzle(client), { migrationsFolder: migrations });
+      if (legacyApplied) {
+        const legacy = await readFile(fileURLToPath(new URL('./fixtures/migrations/legacy-onboarding.sql', import.meta.url)), 'utf8');
+        for (const statement of legacy.split('--> statement-breakpoint')) await client.unsafe(statement);
+      }
       const [ws] = await client`INSERT INTO workspaces (name) VALUES ('legacy') RETURNING id`;
       const [repo] = await client`INSERT INTO repos (workspace_id, owner, name, full_name) VALUES (${ws!.id}, 'a', 'legacy', 'a/legacy') RETURNING id`;
       await client`INSERT INTO onboarding (repo_id, json) VALUES (${repo!.id}, ${JSON.stringify({ legacy: true })}::jsonb)`;
@@ -98,11 +112,12 @@ describe.skipIf(!hasDocker)('onboarding migration upgrade', () => {
       await runMigrations(url);
       const rows = await client`SELECT json, source_revision, index_revision FROM onboarding WHERE repo_id = ${repo!.id}`;
       expect(rows[0]).toMatchObject({ json: { legacy: true }, source_revision: null, index_revision: null });
-      const applied = await client`SELECT count(*)::int AS count FROM drizzle.__drizzle_onboarding_migrations`;
-      expect(applied[0]?.count).toBe(1);
+      const applied = await client`SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations`;
+      expect(applied[0]?.count).toBe(17);
     } finally {
       await client.end();
       await container.stop();
+      await rm(migrations, { recursive: true, force: true });
     }
   }, 120000);
 });

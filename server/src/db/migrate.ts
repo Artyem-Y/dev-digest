@@ -28,10 +28,6 @@ export async function runMigrations(databaseUrl: string): Promise<void> {
     }
     const db = drizzle(sql);
     await migrate(db, { migrationsFolder: MIGRATIONS_DIR });
-    await migrate(db, {
-      migrationsFolder: join(__dirname, 'onboarding-migrations'),
-      migrationsTable: '__drizzle_onboarding_migrations',
-    });
   } finally {
     await sql.end({ timeout: 5 });
   }

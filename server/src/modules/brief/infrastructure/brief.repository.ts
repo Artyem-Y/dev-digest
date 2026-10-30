@@ -33,15 +33,17 @@ export class DrizzleBriefRepository implements BriefReadPort {
   }
 
   async getCache(workspaceId: string, prId: string): Promise<BriefCacheRecord | undefined> {
-    const [row] = await this.db.select({ json: t.prBrief.json, sources: t.prBrief.sources }).from(t.prBrief)
+    const [row] = await this.db.select({ json: t.prBrief.json }).from(t.prBrief)
       .innerJoin(t.pullRequests, eq(t.pullRequests.id, t.prBrief.prId))
       .where(and(eq(t.prBrief.prId, prId), eq(t.pullRequests.workspaceId, workspaceId)));
     if (!row) return undefined;
     // Legacy cache data remains readable for migration compatibility, but never
     // masquerades as current transport; regeneration replaces it with Brief.
-    const current = Brief.safeParse(row.json);
-    if (!current.success) { StoredPrBrief.safeParse(row.json); return undefined; }
-    const sources = Array.isArray(row.sources) ? row.sources.map((source) => BriefSourceStatus.safeParse(source)).filter((result) => result.success).map((result) => result.data) : [];
+    const envelope = row.json && typeof row.json === 'object' && !Array.isArray(row.json) ? row.json as Record<string, unknown> : {};
+    const payload = 'brief' in envelope ? envelope.brief : row.json;
+    const current = Brief.safeParse(payload);
+    if (!current.success) { StoredPrBrief.safeParse(payload); return undefined; }
+    const sources = Array.isArray(envelope.sources) ? envelope.sources.map((source) => BriefSourceStatus.safeParse(source)).filter((result) => result.success).map((result) => result.data) : [];
     return { brief: current.data, sources };
   }
 
@@ -50,8 +52,9 @@ export class DrizzleBriefRepository implements BriefReadPort {
       const [owned] = await tx.select({ id: t.pullRequests.id }).from(t.pullRequests)
         .where(and(eq(t.pullRequests.id, prId), eq(t.pullRequests.workspaceId, workspaceId)));
       if (!owned) throw new Error('Brief cache replacement outside workspace');
-      await tx.insert(t.prBrief).values({ prId, json: record.brief, headSha: record.brief.head_sha, sources: record.sources, telemetry: record.telemetry })
-        .onConflictDoUpdate({ target: t.prBrief.prId, set: { json: record.brief, headSha: record.brief.head_sha, sources: record.sources, telemetry: record.telemetry } });
+      const json = { brief: record.brief, sources: record.sources, telemetry: record.telemetry ?? null };
+      await tx.insert(t.prBrief).values({ prId, json })
+        .onConflictDoUpdate({ target: t.prBrief.prId, set: { json } });
     });
   }
 }

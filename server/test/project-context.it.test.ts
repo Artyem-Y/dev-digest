@@ -105,6 +105,11 @@ d('Project Context persistence', () => {
     const endpoint = '/repos/10000000-0000-0000-0000-000000000011/project-context/agent/10000000-0000-0000-0000-000000000111/attachments';
     const catalog = await app.inject({ method: 'GET', url: '/repos/10000000-0000-0000-0000-000000000011/project-context/documents' });
     expect(catalog.json().map((item: { path: string }) => item.path)).toEqual(['docs/brief.md', 'docs/skill.md']);
+    const rescan = await app.inject({ method: 'POST', url: '/repos/10000000-0000-0000-0000-000000000011/project-context/reindex' });
+    expect(rescan.statusCode).toBe(200);
+    expect(rescan.json()).toMatchObject({ source: 'local_main', documents: catalog.json() });
+    expect(Number.isNaN(Date.parse(rescan.json().scanned_at))).toBe(false);
+    expect((await app.inject({ method: 'POST', url: '/repos/20000000-0000-0000-0000-000000000022/project-context/reindex' })).statusCode).toBe(404);
     expect((await app.inject({ method: 'POST', url: endpoint, payload: { path: 'README.md' } })).statusCode).toBe(422);
     await expect(app.inject({ method: 'GET', url: endpoint }).then((response) => response.json()))
       .resolves.toEqual(expect.arrayContaining([expect.objectContaining({ path: 'README.md', status: 'no_longer_eligible' })]));
