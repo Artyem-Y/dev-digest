@@ -6,13 +6,14 @@ import { Icon } from "@devdigest/ui";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useActiveRepo } from "@/lib/repo-context";
-import { useProjectAttachments, useProjectDocument, useProjectDocuments, useResolvedProjectContext } from "@/lib/hooks/project-context";
+import { useProjectAttachments, useProjectDocument, useProjectDocuments, useReindexProjectDocuments, useResolvedProjectContext } from "@/lib/hooks/project-context";
 import styles from "./ProjectContext.module.css";
 
 export function ProjectContext({ owner, ownerId }: { owner?: "agent" | "skill"; ownerId?: string }) {
   const t = useTranslations("project-context");
   const { repoId } = useActiveRepo();
   const catalog = useProjectDocuments(repoId);
+  const reindex = useReindexProjectDocuments(repoId);
   const attachments = useProjectAttachments(owner && ownerId ? repoId : null, owner ?? "agent", ownerId ?? "");
   const resolved = useResolvedProjectContext(repoId, owner === "agent" ? ownerId ?? null : null);
   const [search, setSearch] = React.useState("");
@@ -24,6 +25,8 @@ export function ProjectContext({ owner, ownerId }: { owner?: "agent" | "skill"; 
   const rows = owner ? attachments.query.data ?? [] : [];
   const paths = new Set(rows.map((row) => row.path));
   const total = new Set([...(catalog.data ?? []).map((item) => item.path), ...paths]).size;
+  const resolvedTokens = resolved.data?.documents.reduce((sum, document) => sum + document.estimated_tokens, 0);
+  const tokenTotal = rows.reduce((sum, row) => sum + row.estimated_tokens, 0);
   const documents = (catalog.data ?? []).filter((document) => document.path.toLowerCase().includes(search.toLowerCase()));
   const reorder = (from: number, to: number) => {
     if (from < 0 || to < 0 || to >= rows.length || from === to) return;
@@ -40,8 +43,9 @@ export function ProjectContext({ owner, ownerId }: { owner?: "agent" | "skill"; 
       ...documents.filter((document) => !paths.has(document.path)).map((document) => ({ ...document, attached: false, status: "available" })),
     ].filter((item) => item.path.toLowerCase().includes(search.toLowerCase()));
     return <section className={styles.selector}>
-      <div className={styles.selectorHeader}><div className={styles.titleLine}><h2>{t(owner === "skill" ? "skillTitle" : "agentTitle")}</h2><span className={styles.selectorCount}>{t("attached", { count: rows.length, total })}</span></div><label className={styles.search}><span className={styles.srOnly}>{t("search")}</span><input placeholder={t("filter")} value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>
+      <div className={styles.selectorHeader}><div className={styles.titleLine}><h2>{t(owner === "skill" ? "skillTitle" : "agentTitle")}</h2><span className={styles.selectorCount}>{owner === "skill" ? t("skillAttached", { count: rows.length }) : t("attached", { count: rows.length, total })}</span></div><label className={styles.search}><span className={styles.srOnly}>{t("search")}</span><input placeholder={t("filter")} value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>
       <p className={styles.selectorDescription}>{t(owner === "skill" ? "skillDescription" : "agentDescription")}</p>
+      {owner === "agent" && (resolvedTokens ?? tokenTotal) > 8000 && <p className={styles.warning} role="status">{t("tokenWarning", { limit: 8000 })}</p>}
       {failed && <p className={styles.alert} role="alert">{t("error")} <button type="button" onClick={() => { void catalog.refetch(); void attachments.query.refetch(); }}>{t("retry")}</button></p>}
       {(attachments.change.isError || attachments.reorder.isError) && <p className={styles.alert} role="alert">{t("error")}</p>}
       {owner === "agent" && resolved.data && <p className={styles.inherited}>{t("inherited")}: {[...resolved.data.documents, ...resolved.data.skipped].filter((item) => item.provenance.includes("linked_skill")).map((item) => item.path).join(", ") || "—"}</p>}
@@ -62,24 +66,24 @@ export function ProjectContext({ owner, ownerId }: { owner?: "agent" | "skill"; 
         </div>{selected === item.path && <section className={styles.selectorPreview} aria-label={t("preview", { path: item.path })}><div className={styles.previewHeader}><Icon.FileText size={16} /><span>{selected}</span><button type="button" className={styles.closePreview} onClick={() => setSelection(null)} aria-label={t("closePreview")}>×</button></div><div className={styles.previewBody}>{preview.isError ? <p role="alert">{t("error")} <button type="button" onClick={() => { void preview.refetch(); }}>{t("retry")}</button></p> : preview.isLoading ? <p>{t("loading")}</p> : <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml components={{ img: () => null }}>{preview.data?.content ?? ""}</ReactMarkdown>}</div></section>}</React.Fragment>;
       })}</div>
       {owner === "skill" && rows.length > 0 && <div className={styles.serialization}><span>{t("serializesAs")}</span><pre>{`## Project specifications\n${rows.map((row) => `- ${row.path}`).join("\n")}`}</pre></div>}
-      <div className={styles.selectorFooter}><span>{t("tokens", { count: rows.reduce((sum, row) => sum + row.estimated_tokens, 0) })}</span><span>{t("untrustedNote")}</span></div>
+      <div className={styles.selectorFooter}><span>{t("tokens", { count: tokenTotal })}</span><span>{t("untrustedNote")}</span></div>
     </section>;
   }
-  if (!owner && !catalog.isLoading && !failed && catalog.data?.length === 0) return <section className={styles.emptyState}><div className={styles.emptyIcon}><Icon.Folder size={24} /></div><h1>{t("emptyTitle")}</h1><p>{t("emptyDescription")}</p></section>;
+  if (!owner && !catalog.isLoading && !failed && !reindex.isError && catalog.data?.length === 0) return <section className={styles.emptyState}><div className={styles.emptyIcon}><Icon.Folder size={24} /></div><h1>{t("emptyTitle")}</h1><p>{t("emptyDescription")}</p><button type="button" className={styles.refresh} disabled={reindex.isPending} onClick={() => reindex.mutate()}>{t("refreshDocuments")}</button></section>;
   return <section className={`${styles.root} ${styles.catalog}`}>
-    {failed && <p className={styles.alert} role="alert">{t("error")} <button type="button" onClick={() => { void catalog.refetch(); }}>{t("retry")}</button></p>}
+    {(failed || reindex.isError) && <p className={styles.alert} role="alert">{t("error")} <button type="button" onClick={() => { reindex.reset(); void catalog.refetch(); }}>{t("retry")}</button></p>}
     <div className={styles.workspace}>
       <div className={styles.sidebar}>
-        <div className={styles.sidebarHeader}><span className={styles.eyebrow}>{t("title")}</span><label className={styles.search}><span className={styles.srOnly}>{t("search")}</span><input placeholder={t("search")} value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>
+        <div className={styles.sidebarHeader}><span className={styles.eyebrow}>{t("title")}</span><label className={styles.search}><span className={styles.srOnly}>{t("search")}</span><input placeholder={t("search")} value={search} onChange={(event) => setSearch(event.target.value)} /></label><button type="button" className={styles.refresh} aria-label={t("refreshDocuments")} title={t("refreshHelp")} disabled={reindex.isPending} onClick={() => reindex.mutate()}><Icon.RefreshCw size={15} /></button></div>
         <div className={styles.list}>
         {catalog.isLoading && <p>{t("loading")}</p>}
         {!catalog.isLoading && !failed && catalog.data?.length === 0 && <p>{t("empty")}</p>}
         {documents.map((document) => <div key={document.path} className={`${styles.row} ${selected === document.path ? styles.selected : ""}`}>
           <button className={styles.document} type="button" aria-label={t("preview", { path: document.path })} aria-pressed={selected === document.path} onClick={() => setSelected(document.path)}><Icon.FileText className={styles.fileIcon} size={13} /><span className={styles.path}>{document.path}</span></button>
         </div>)}
-        </div>
+        </div>{catalog.dataUpdatedAt > 0 && <div className={styles.footer}>{t("documentSummary", { count: catalog.data?.length ?? 0, time: new Date(catalog.dataUpdatedAt).toLocaleTimeString() })}</div>}
       </div>
-      <div className={styles.preview}>{!selected ? <div className={styles.placeholder}><Icon.FileText size={24} /><p>{t("previewHint")}</p></div> : <><div className={styles.previewHeader}><Icon.FileText size={16} /><span>{selected}</span><span className={styles.previewBadge}>{t("previewLabel")}</span>{preview.data?.used_by_agents != null && <span className={styles.usedBy}>{t("usedByAgents", { count: preview.data.used_by_agents })}</span>}</div><div className={styles.previewBody}>{preview.isError ? <p role="alert">{t("error")} <button type="button" onClick={() => { void preview.refetch(); }}>{t("retry")}</button></p> : preview.isLoading ? <p>{t("loading")}</p> : <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml components={{ img: () => null }}>{preview.data?.content ?? ""}</ReactMarkdown>}</div></>}</div>
+      <div className={styles.preview}>{!selected ? <div className={styles.placeholder}><Icon.FileText size={24} /><p>{t("previewHint")}</p></div> : <><div className={styles.previewHeader}><Icon.FileText size={16} /><span>{selected}</span><span className={styles.previewBadge}>{t("previewLabel")}</span><button type="button" className={styles.editDisabled} disabled title={t("readOnly")}>{t("editLabel")}</button>{preview.data?.used_by_agents != null && <span className={styles.usedBy}>{t("usedByAgents", { count: preview.data.used_by_agents })}</span>}</div><div className={styles.previewBody}>{preview.isError ? <p role="alert">{t("error")} <button type="button" onClick={() => { void preview.refetch(); }}>{t("retry")}</button></p> : preview.isLoading ? <p>{t("loading")}</p> : <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml components={{ img: () => null }}>{preview.data?.content ?? ""}</ReactMarkdown>}</div></>}</div>
     </div>
   </section>;
 }

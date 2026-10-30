@@ -31,6 +31,8 @@ swapped for mocks in tests.
   committed `INSIGHTS.md` files at any depth are included as well; opening Project Context does not fetch
   a newer `main` from GitHub. Existing attachments outside these roots remain
   visible as unavailable and can be detached.
+  `POST /repos/:id/project-context/reindex` rescans the local `main` snapshot
+  and returns its catalog and scan time; it does not fetch or persist an index.
 - **Where keys live:** secrets are stored in `~/.devdigest/secrets.json` (mode
   `0600`, written when you enter a key in Settings) with `process.env` as a
   fallback — never in git or the database. The one read chokepoint is

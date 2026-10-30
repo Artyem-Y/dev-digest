@@ -3,16 +3,17 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { NextIntlClientProvider } from "next-intl";
 import messages from "../../../messages/en/project-context.json";
 
-const mocks = vi.hoisted(() => ({ change: vi.fn(), reorder: vi.fn(), retryPreview: vi.fn(), previewError: false, pendingPath: null as string | null, documents: [{ path: "docs/a.md", availability: "available", estimated_tokens: 4 }, { path: "docs/b.md", availability: "available", estimated_tokens: 5 }] }));
+const mocks = vi.hoisted(() => ({ change: vi.fn(), reorder: vi.fn(), retryPreview: vi.fn(), refreshCatalog: vi.fn(), previewError: false, pendingPath: null as string | null, resolvedTokens: 0, documents: [{ path: "docs/a.md", availability: "available", estimated_tokens: 4 }, { path: "docs/b.md", availability: "available", estimated_tokens: 5 }] }));
 vi.mock("@/lib/repo-context", () => ({ useActiveRepo: () => ({ repoId: "repo" }) }));
 vi.mock("@/lib/hooks/project-context", () => ({
-  useProjectDocuments: () => ({ data: mocks.documents, refetch: vi.fn() }),
+  useProjectDocuments: () => ({ data: mocks.documents, dataUpdatedAt: 1700000000000, refetch: mocks.refreshCatalog }),
+  useReindexProjectDocuments: () => ({ mutate: mocks.refreshCatalog, reset: vi.fn() }),
   useProjectDocument: (_repo: string, path: string | null) => ({ data: path && !mocks.previewError ? { content: "Document content\n\n![tracking image](https://example.com/pixel)", used_by_agents: 2 } : undefined, isError: mocks.previewError, refetch: mocks.retryPreview }),
-  useResolvedProjectContext: () => ({ data: { documents: [], skipped: [] } }),
+  useResolvedProjectContext: () => ({ data: { documents: mocks.resolvedTokens ? [{ path: "docs/a.md", provenance: ["linked_skill"], estimated_tokens: mocks.resolvedTokens }] : [], skipped: [] } }),
   useProjectAttachments: () => ({ query: { data: [{ path: "docs/a.md", status: "attached", estimated_tokens: 4 }, { path: "docs/missing.md", status: "missing", estimated_tokens: 0 }], refetch: vi.fn() }, change: { mutate: mocks.change, isPending: mocks.pendingPath !== null, variables: mocks.pendingPath ? { path: mocks.pendingPath, attached: true } : undefined }, reorder: { mutate: mocks.reorder } }),
 }));
 import { ProjectContext } from "./ProjectContext";
-afterEach(() => { cleanup(); vi.clearAllMocks(); mocks.previewError = false; mocks.pendingPath = null; mocks.documents = [{ path: "docs/a.md", availability: "available", estimated_tokens: 4 }, { path: "docs/b.md", availability: "available", estimated_tokens: 5 }]; });
+afterEach(() => { cleanup(); vi.clearAllMocks(); mocks.previewError = false; mocks.pendingPath = null; mocks.resolvedTokens = 0; mocks.documents = [{ path: "docs/a.md", availability: "available", estimated_tokens: 4 }, { path: "docs/b.md", availability: "available", estimated_tokens: 5 }]; });
 
 describe("Project Context selection", () => {
   it("keeps other skill document checkboxes enabled while one attachment is saving", () => {
@@ -42,6 +43,10 @@ describe("Project Context selection", () => {
     render(<NextIntlClientProvider locale="en" messages={{ "project-context": messages }}><ProjectContext /></NextIntlClientProvider>);
     expect(screen.getByText("Document content")).toBeInTheDocument();
     expect(screen.getByText("Used by 2 agents")).toBeInTheDocument();
+    expect(screen.getByText(/2 documents · refreshed/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh local documents" }));
+    expect(mocks.refreshCatalog).toHaveBeenCalledOnce();
     expect(screen.getByRole("button", { name: "Preview docs/a.md" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("button", { name: "Preview docs/b.md" }));
     expect(screen.getByRole("button", { name: "Preview docs/b.md" })).toHaveAttribute("aria-pressed", "true");
@@ -75,10 +80,16 @@ describe("Project Context selection", () => {
   it("shows the skill context heading and selected paths", () => {
     render(<NextIntlClientProvider locale="en" messages={{ "project-context": messages }}><ProjectContext owner="skill" ownerId="skill" /></NextIntlClientProvider>);
     expect(screen.getByRole("heading", { name: "Project context to use" })).toBeInTheDocument();
+    expect(screen.getByText("2 attached")).toBeInTheDocument();
     expect(screen.getByText(/## Project specifications/)).toHaveTextContent("docs/a.md");
     const preview = screen.getByRole("button", { name: "Preview docs/a.md" });
     expect(preview).not.toHaveTextContent("Preview");
     expect(screen.getAllByText("docs/").length).toBeGreaterThan(0);
+  });
+  it("warns the agent when resolved context including inherited documents exceeds 8000 tokens", () => {
+    mocks.resolvedTokens = 8001;
+    render(<NextIntlClientProvider locale="en" messages={{ "project-context": messages }}><ProjectContext owner="agent" ownerId="agent" /></NextIntlClientProvider>);
+    expect(screen.getByRole("status")).toHaveTextContent(/8,?000 estimated tokens/);
   });
   it("shows the full directory and a distinct category for nested documents", () => {
     mocks.documents = [{ path: "docs/specs/design.md", availability: "available", estimated_tokens: 5 }, { path: "client/INSIGHTS.md", availability: "available", estimated_tokens: 4 }];

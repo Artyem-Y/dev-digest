@@ -27,6 +27,9 @@
 .previewHeader { display: flex; align-items: center; gap: 9px; min-height: 48px; padding: 0 20px; border-bottom: 1px solid var(--border); color: var(--text-primary); font-family: var(--font-mono, monospace); font-size: 12px; overflow-wrap: anywhere; }
 .previewHeader svg { flex-shrink: 0; color: var(--text-muted); }
 .previewBadge { padding: 4px 8px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-secondary); font-family: inherit; font-size: 11px; }
+.editDisabled { border: 0; background: transparent; color: var(--text-muted); font-size: 11px; cursor: not-allowed; }
+.refresh { margin-top: 10px; padding: 5px; border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; }
+.refresh:disabled { opacity: .5; cursor: default; }
 .usedBy { margin-left: auto; color: var(--text-muted); font: 12px var(--font-sans, sans-serif); }
 .previewBody { padding: 24px 28px; overflow-wrap: anywhere; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
 .previewBody h1, .previewBody h2, .previewBody h3 { color: var(--text-primary); }
