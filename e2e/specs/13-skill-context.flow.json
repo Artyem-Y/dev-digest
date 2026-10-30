@@ -1,0 +1,20 @@
+{
+  "name": "Attach Project Context to a skill",
+  "description": "Hermetic-only fixture: select a seeded linked skill, preview and attach its tracked document, and verify persistence after reload.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/skills"], "label": "open Skills Lab" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "wait for skills to load" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Behavioral Test Coverage"], "label": "select the seeded linked skill" },
+    { "cmd": ["find", "role", "tab", "click", "--name", "Context"], "label": "open Context in the skill editor" },
+    { "cmd": ["wait", "--text", "project-spec.md"], "label": "tracked document appears" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Preview docs/project-spec.md"], "label": "preview the document" },
+    { "cmd": ["wait", "--text", "Reviews must use the attached project specification."], "label": "document text is visible" },
+    { "cmd": ["check", "input[aria-label='Attach docs/project-spec.md']"], "label": "attach the document to the skill" },
+    { "cmd": ["wait", "--text", "1 of 1 attached"], "label": "skill attachment count updates" },
+    { "cmd": ["reload"], "label": "reload the skill editor" },
+    { "cmd": ["wait", "--text", "Behavioral Test Coverage"], "label": "skills list reloads" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Behavioral Test Coverage"], "label": "reselect the skill" },
+    { "cmd": ["find", "role", "tab", "click", "--name", "Context"], "label": "return to the skill Context tab" },
+    { "cmd": ["wait", "--text", "1 of 1 attached"], "label": "skill attachment survives reload" }
+  ]
+}

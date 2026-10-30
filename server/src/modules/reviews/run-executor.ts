@@ -8,6 +8,7 @@ import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import type { ReviewRepositoryRef } from './diff-loader.js';
 import type { RepoIntel } from '../repo-intel/types.js';
+import type { ResolvedBriefContext } from '../project-context/domain/types.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -52,6 +53,7 @@ export interface ReviewRunExecutorDependencies {
     repository: ReviewRepositoryRef,
   ): Promise<UnifiedDiff>;
   resolveSkills(agentId: string): Promise<ResolvedSkill[]>;
+  resolveProjectContext(input: { workspaceId: string; repoId: string; agentId: string }): Promise<ResolvedBriefContext>;
   /** Detailed prompt metadata is opt-in and supplied only by local config. */
   promptBuilderDebug: boolean;
   deriveIntent(input: { workspaceId: string; prId: string; title: string; body: string | null; repo: ReviewRepositoryRef; }): Promise<IntentDerivation>;
@@ -235,6 +237,9 @@ export class ReviewRunExecutor {
     // events are already in this run's buffer, so the persisted trace below
     // (built from the buffer) includes them too.
     const runLog = parentLog.forRun(runId, { agent: agent.name });
+    let projectContext: ResolvedBriefContext = { documents: [], skipped: [] };
+    let attemptedAssembly: RunTrace['prompt_assembly'] | undefined;
+    let contextLogged = false;
 
     runLog.info(`Starting review with agent "${agent.name}" (${agent.provider}/${agent.model})`);
 
@@ -271,6 +276,12 @@ export class ReviewRunExecutor {
       const resolvedSkills = await this.dependencies.resolveSkills(agent.id);
       runLog.info(skillsAttachedLogMessage(resolvedSkills));
       const skills = resolvedSkills.map((skill) => skill.body);
+      try {
+        projectContext = await this.dependencies.resolveProjectContext({ workspaceId, repoId: pull.repoId, agentId: agent.id });
+        for (const skipped of projectContext.skipped) runLog.info(`Project context skipped: ${JSON.stringify(skipped.path)} (${skipped.reason})`);
+      } catch {
+        runLog.info('Project context unavailable; continuing without documents');
+      }
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
@@ -285,6 +296,7 @@ export class ReviewRunExecutor {
         // to the studio default. single-pass = whole diff in one call.
         strategy: agent.strategy ?? REVIEW_STRATEGY,
         ...(skills.length > 0 ? { skills } : {}),
+        ...(projectContext.documents.length > 0 ? { specs: projectContext.documents.map(({ path, content }) => `File: ${path}\n${content}`) } : {}),
         // T1.3 — pass the callers digest only when we built one. assemblePrompt
         // omits the section when this is empty/undefined.
         ...(callersDigest ? { callers: callersDigest } : {}),
@@ -299,6 +311,19 @@ export class ReviewRunExecutor {
         correlationId: runId,
         promptAssemblyDetail: this.dependencies.promptBuilderDebug,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
+        onPromptAssembled: (assembly) => {
+          attemptedAssembly = assembly;
+          if (!contextLogged) {
+            contextLogged = true;
+            if (assembly.specs && projectContext.documents.length > 0) {
+              for (const document of projectContext.documents) {
+                runLog.info(`Project context added to prompt: ${JSON.stringify(document.path)} (${document.estimatedTokens} estimated tokens)`);
+              }
+            } else {
+              runLog.info('Project context: no documents added to prompt');
+            }
+          }
+        },
         checkCancelled: () => {
           if (this.dependencies.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
@@ -372,7 +397,8 @@ export class ReviewRunExecutor {
         })),
         raw_output: outcome.raw,
         memory_pulled: [],
-        specs_read: [],
+        specs_read: projectContext.documents.map((document) => document.path),
+        specs_read_details: projectContext.documents.map((document) => ({ path: document.path, estimated_tokens: document.estimatedTokens })),
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
@@ -398,8 +424,14 @@ export class ReviewRunExecutor {
           error: msg,
         })
         .catch(() => undefined);
+      const failedTrace = this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, intentTrace);
+      if (attemptedAssembly) {
+        failedTrace.prompt_assembly = attemptedAssembly;
+        failedTrace.specs_read = projectContext.documents.map((document) => document.path);
+        failedTrace.specs_read_details = projectContext.documents.map((document) => ({ path: document.path, estimated_tokens: document.estimatedTokens }));
+      }
       await this.repo
-        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, intentTrace))
+        .saveRunTrace(runId, failedTrace)
         .catch(() => undefined);
       throw err;
     }

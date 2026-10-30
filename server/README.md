@@ -22,6 +22,17 @@ swapped for mocks in tests.
   `pnpm db:seed`. **Test:** `pnpm test` (see [Testing](#testing)).
 - **No keys required to boot:** `loadConfig` (`src/platform/config.ts`) marks
   every secret optional; keys can also be set at runtime via Settings.
+- **Project Context roots:** `PROJECT_CONTEXT_ROOTS` is an optional comma-separated
+  list of repository-relative directory names or paths; the default is
+  `specs,docs,insights`. Tracked `.md` files are read from the local `main` Git
+  tree recursively beneath single-name roots at any depth; multi-segment roots
+  are anchored at the repository root. Worktree and
+  other branch changes are not included. When `insights` is configured,
+  committed `INSIGHTS.md` files at any depth are included as well; opening Project Context does not fetch
+  a newer `main` from GitHub. Existing attachments outside these roots remain
+  visible as unavailable and can be detached.
+  `POST /repos/:id/project-context/reindex` rescans the local `main` snapshot
+  and returns its catalog and scan time; it does not fetch or persist an index.
 - **Where keys live:** secrets are stored in `~/.devdigest/secrets.json` (mode
   `0600`, written when you enter a key in Settings) with `process.env` as a
   fallback — never in git or the database. The one read chokepoint is

@@ -90,18 +90,9 @@ d('MCP-facing API projections', () => {
       score: 65,
       severity_counts: { critical: 1, warning: 0, suggestion: 20 },
       findings_truncated: true,
-      findings: [
-        {
-          severity: 'CRITICAL',
-          category: 'security',
-          file: 'src/auth.ts',
-          start_line: 12,
-          end_line: 12,
-        },
-      ],
     });
     expect(response.json().findings).toHaveLength(20);
-    expect(response.json().findings[0].severity).toBe('CRITICAL');
+    expect(response.json().findings[0]).toMatchObject({ severity: 'CRITICAL', category: 'security', file: 'src/auth.ts', start_line: 12, end_line: 12 });
     await app.close();
   });
 

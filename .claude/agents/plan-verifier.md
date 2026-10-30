@@ -51,6 +51,10 @@ evidenced**.
    contract copies, reviewer-core server typecheck, immutable migration history,
    and the required test layer.
 6. Do not infer success from changed files, a self-report, or an unrun command.
+7. When model behavior is an acceptance criterion, record deterministic E2E
+   and a real-model run as separate evidence rows. The former verifies the
+   system path; only an observed real-model result can evidence the requested
+   model behavior. Mark any missing run or result not evidenced.
 
 ## Required result
 

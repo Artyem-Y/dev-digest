@@ -99,6 +99,7 @@ export const RunTrace = z.object({
   raw_output: z.string(),
   memory_pulled: z.array(MemoryPulled),
   specs_read: z.array(z.string()),
+  specs_read_details: z.array(z.object({ path: z.string(), estimated_tokens: z.number().int().nonnegative() })).optional(),
   intent: IntentTraceMetadata.nullish(),
   log: z.array(RunLogLine),
 });

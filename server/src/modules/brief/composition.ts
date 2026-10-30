@@ -20,7 +20,7 @@ export function createBriefServices(container: Container) {
       resolve: async ({ workspaceId, repoId }: { workspaceId: string; repoId: string }) => {
         const checkoutPath = await contextRepository.clonePath(workspaceId, repoId);
         if (!checkoutPath) return { documents: [], skipped: [] };
-        return resolveBriefContext({ workspaceId, repoId, repository: contextRepository, store: createTrackedDocumentStore(checkoutPath) });
+        return resolveBriefContext({ workspaceId, repoId, repository: contextRepository, store: createTrackedDocumentStore(checkoutPath, container.config.projectContextRoots) });
       },
     },
     featureModels: { resolve: (workspaceId: string) => resolveFeatureModel(new SettingsRepository(container.db), workspaceId, 'risk_brief') },

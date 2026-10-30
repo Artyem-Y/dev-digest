@@ -16,5 +16,8 @@ test('Brief flow needs the complete script attestation, not E2E_HERMETIC alone',
   assert.equal(isAttestedHermeticBriefRun({ ...attested, E2E_HERMETIC_WEB_PORT: '3000' }, 'http://localhost:3000'), false);
   assert.equal(isAttestedHermeticBriefRun(attested, 'http://localhost:3100'), true);
   assert.equal(shouldRunFlow('11-pr-brief.flow.json', { E2E_HERMETIC: '1' }, 'http://localhost:3000'), false);
+  assert.equal(shouldRunFlow('12-project-context.flow.json', { E2E_HERMETIC: '1' }, 'http://localhost:3000'), false);
+  assert.equal(shouldRunFlow('12-project-context.flow.json', attested, 'http://localhost:3100'), true);
+  assert.equal(shouldRunFlow('13-skill-context.flow.json', { E2E_HERMETIC: '1' }, 'http://localhost:3000'), false);
   assert.equal(shouldRunFlow('10-smart-diff.flow.json', {}, 'http://localhost:3000'), true);
 });

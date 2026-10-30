@@ -3,9 +3,11 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { getContext } from '../_shared/context.js';
 import { NotFoundError, ValidationError } from '../../platform/errors.js';
-import { catalogProjectDocuments } from './application/catalog-project-documents.js';
+import { ContextService } from './application/context-service.js';
 import { createProjectContextRepository, createTrackedDocumentStore } from './composition.js';
 import { normalizeProjectPath } from './domain/path-policy.js';
+import { listAttachments } from './application/list-attachments.js';
+import { resolveReviewContext } from './application/resolve-review-context.js';
 
 const RepoParams = z.object({ repoId: z.string().uuid() });
 const OwnerParams = RepoParams.extend({ owner: z.enum(['agent', 'skill']), ownerId: z.string().uuid() });
@@ -18,31 +20,34 @@ export default async function projectContextRoutes(appBase: FastifyInstance) {
   async function store(workspaceId: string, repoId: string) {
     const clonePath = await repository.clonePath(workspaceId, repoId);
     if (!clonePath) throw new NotFoundError('Repository checkout not found');
-    return createTrackedDocumentStore(clonePath);
+    return createTrackedDocumentStore(clonePath, app.container.config.projectContextRoots);
   }
 
   app.get('/repos/:repoId/project-context/documents', { schema: { params: RepoParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
-    return catalogProjectDocuments(await store(workspaceId, req.params.repoId));
+    return new ContextService(await store(workspaceId, req.params.repoId)).listDocs();
+  });
+  app.post('/repos/:repoId/project-context/reindex', { schema: { params: RepoParams } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return new ContextService(await store(workspaceId, req.params.repoId)).reindex();
   });
   app.get('/repos/:repoId/project-context/documents/:path', { schema: { params: RepoParams.extend({ path: z.string() }) } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
-    const read = await (await store(workspaceId, req.params.repoId)).read(req.params.path);
+    const [read] = await new ContextService(await store(workspaceId, req.params.repoId)).readDocsByPaths([req.params.path]);
+    if (!read) throw new NotFoundError('Project document is unavailable');
     if ('reason' in read) throw new NotFoundError('Project document is unavailable', { reason: read.reason });
-    return read;
+    return { ...read, used_by_agents: await repository.countAgentsUsingDocument(workspaceId, req.params.repoId, read.path) };
+  });
+  app.get('/repos/:repoId/project-context/agent/:ownerId/resolved', { schema: { params: RepoParams.extend({ ownerId: z.string().uuid() }) } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    const context = await resolveReviewContext({ workspaceId, repoId: req.params.repoId, agentId: req.params.ownerId, repository, store: await store(workspaceId, req.params.repoId) });
+    return { documents: context.documents.map(({ path, provenance, estimatedTokens }) => ({ path, provenance, estimated_tokens: estimatedTokens })), skipped: context.skipped };
   });
   app.get('/repos/:repoId/project-context/:owner/:ownerId/attachments', { schema: { params: OwnerParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     const documentStore = await store(workspaceId, req.params.repoId);
-    const catalog = new Set(await documentStore.catalog());
     const paths = await repository.listOwnerAttachments({ workspaceId, repoId: req.params.repoId, owner: req.params.owner, ownerId: req.params.ownerId });
-    return Promise.all(paths.map(async (path) => {
-      if (!catalog.has(path)) return { path, status: 'no_longer_eligible' as const, estimated_tokens: 0 };
-      const read = await documentStore.read(path);
-      return 'reason' in read
-        ? { path, status: read.reason, estimated_tokens: 0 }
-        : { path, status: 'attached' as const, estimated_tokens: Math.ceil(read.content.length / 4) };
-    }));
+    return listAttachments(paths, documentStore);
   });
   app.post('/repos/:repoId/project-context/:owner/:ownerId/attachments', { schema: { params: OwnerParams, body: AttachmentBody } }, async (req, reply) => {
     const { workspaceId } = await getContext(app.container, req);
@@ -56,6 +61,13 @@ export default async function projectContextRoutes(appBase: FastifyInstance) {
     const path = normalizeProjectPath(req.body.path);
     if (!path) throw new ValidationError('Invalid document path');
     await repository.detach({ workspaceId, repoId: req.params.repoId, owner: req.params.owner, ownerId: req.params.ownerId, path });
+    reply.status(204).send();
+  });
+  app.put('/repos/:repoId/project-context/:owner/:ownerId/attachments/order', { schema: { params: OwnerParams, body: z.object({ paths: z.array(z.string().min(1).max(1024)).max(1000) }) } }, async (req, reply) => {
+    const { workspaceId } = await getContext(app.container, req);
+    if (!await repository.clonePath(workspaceId, req.params.repoId)) throw new NotFoundError('Repository checkout not found');
+    try { await repository.reorder({ workspaceId, repoId: req.params.repoId, owner: req.params.owner, ownerId: req.params.ownerId, paths: req.body.paths }); }
+    catch { throw new ValidationError('Attachment list changed; reload before reordering'); }
     reply.status(204).send();
   });
 }

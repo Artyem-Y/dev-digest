@@ -43,6 +43,7 @@ export const skillProjectDocuments = pgTable(
     repoId: uuid('repo_id').notNull().references(() => repos.id, { onDelete: 'cascade' }),
     skillId: uuid('skill_id').notNull().references(() => skills.id, { onDelete: 'cascade' }),
     path: text('path').notNull(),
+    order: integer('order').notNull().default(0),
     createdAt: now(),
   },
   (t) => ({ uniqueAttachment: uniqueIndex('skill_project_documents_owner_path_uq').on(t.repoId, t.skillId, t.path) }),

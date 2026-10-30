@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { z } from 'zod';
 import { homedir } from 'node:os';
 import { join, isAbsolute, resolve } from 'node:path';
+import { DEFAULT_PROJECT_CONTEXT_ROOTS, normalizeProjectPath } from '../modules/project-context/domain/path-policy.js';
 
 /**
  * Central, zod-validated environment config. Loaded once at startup.
@@ -31,6 +32,7 @@ const EnvSchema = z.object({
   API_PORT: z.coerce.number().int().default(3001),
   WEB_PORT: z.coerce.number().int().default(3000),
   DEVDIGEST_CLONE_DIR: z.string().optional(),
+  PROJECT_CONTEXT_ROOTS: z.string().optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   // `.env` (and .env.example) ship `LOG_LEVEL=` empty; an empty string is not a
   // valid enum member, so coerce '' → undefined to fall through to the default.
@@ -63,10 +65,16 @@ export type AppConfig = {
   repoIntelEnabled: boolean;
   /** Per-section prompt metadata; enabled only in local development. */
   promptBuilderDebug: boolean;
+  /** Repository-relative directory names or paths searched recursively for project documents. */
+  projectContextRoots: string[];
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = EnvSchema.parse(env);
+  const roots = parsed.PROJECT_CONTEXT_ROOTS === undefined ? [...DEFAULT_PROJECT_CONTEXT_ROOTS] : parsed.PROJECT_CONTEXT_ROOTS.split(',').map((root) => root.trim());
+  if (roots.some((root) => !root || normalizeProjectPath(root) !== root || root.split('/').some((part) => part.startsWith('.')))) {
+    throw new Error('PROJECT_CONTEXT_ROOTS must contain comma-separated repository-relative directory paths');
+  }
   const cloneDirRaw =
     parsed.DEVDIGEST_CLONE_DIR ?? join(homedir(), '.devdigest', 'workspace');
   const cloneDir = isAbsolute(cloneDirRaw) ? cloneDirRaw : resolve(process.cwd(), cloneDirRaw);
@@ -82,5 +90,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
     promptBuilderDebug: parsed.NODE_ENV === 'development' && parsed.PROMPT_BUILDER_DEBUG === 'true',
+    projectContextRoots: [...new Set(roots)],
   };
 }

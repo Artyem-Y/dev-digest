@@ -10,6 +10,12 @@ Supersedes: none
   first release view-only; skip and record a missing attachment; do not create
   document versions; show how many agents use a skill; inherit skill attachments
   to its linked agents; label the footer `tokens total`.
+- User revision, 2026-10-29: recursively discover `.md` files under configurable
+  repository directories, defaulting to `specs`, `docs`, and `insights`; keep
+  manual selection; show per-document token estimates in the run trace; verify
+  the feature against a real reviewer and a PR that violates an attached rule.
+- User clarification, 2026-10-29: discover and read only committed documents
+  from the repository's `main` branch, not another branch or uncommitted files.
 - `DevDigest Design (standalone).html`, Project Context and Project Context
   empty-state artboards: supports the Project Context surface and its
   first-run state.
@@ -57,25 +63,29 @@ without turning DevDigest into a repository editor.
   sections.
 - Changing an agent's configured skills or an existing skill-agent link as a
   side effect of attaching project context.
+- Automatically selecting documents from the PR content.
 
 ## User stories
 
 | ID | Story | Acceptance criteria |
 |---|---|---|
-| US-1 | As a repository user, I want to find the Markdown documents that DevDigest can use as project context so that I can ground reviews in project-specific requirements. | AC-1, AC-2, AC-3 |
+| US-1 | As a repository user, I want to find the Markdown documents that DevDigest can use as project context so that I can ground reviews in project-specific requirements. | AC-1, AC-2, AC-3, AC-15 |
 | US-2 | As a skill author, I want to attach relevant project documents to a skill and see its agent usage and token total so that every agent using that skill receives the same context knowingly. | AC-4, AC-5, AC-6, AC-7 |
 | US-3 | As an agent editor, I want to attach an additional document directly to one agent so that I can provide context without changing its linked skills or other agents. | AC-4, AC-5, AC-7 |
-| US-4 | As a reviewer, I want the chosen, current document text to be included in the review prompt so that my findings use the intended project context. | AC-8, AC-9, AC-10 |
-| US-5 | As a user investigating a completed review, I want to open the exact attached context in Prompt Assembly so that I can audit what the agent received. | AC-11, AC-12 |
+| US-4 | As a reviewer, I want the chosen, current document text to be included in the review prompt so that my findings use the intended project context. | AC-8, AC-9, AC-10, AC-17, AC-18 |
+| US-5 | As a user investigating a completed review, I want to open the exact attached context in Prompt Assembly so that I can audit what the agent received. | AC-11, AC-12, AC-16 |
 | US-6 | As a user, I want a missing attachment to be visible rather than silently changing the review so that I can repair the configuration. | AC-13, AC-14 |
 
 ## Acceptance criteria (EARS)
 
 - **AC-1 — eligible discovery:** WHEN a user opens Project Context for an
-  available repository, the system SHALL list every Git-tracked file whose name
-  has a Markdown extension and SHALL list no untracked, generated-dependency,
-  hidden Git-metadata, or arbitrary filesystem file; **observable:** every
-  selectable path belongs to the repository's tracked Markdown set.
+  available repository, the system SHALL recursively list committed `.md`
+  files from `main` beneath the configured repository directory names or paths, defaulting
+  to `specs`, `docs`, and `insights`; single-name roots match at any depth and
+  multi-segment roots are anchored at the repository root. The system SHALL
+  exclude untracked files,
+  generated dependencies, Git metadata, and paths outside those roots;
+  **observable:** nested matches appear while a root-level `README.md` does not.
 - **AC-2 — read-only viewing:** WHEN a user selects an eligible document, the
   system SHALL display its current text and path without offering a content
   editing or filesystem-mutating action; **observable:** the document can be
@@ -85,10 +95,11 @@ without turning DevDigest into a repository editor.
   show that the content is unavailable and preserve the user's existing
   attachments; **observable:** the UI has an error/retry state and no
   attachment is removed by the failed read.
-- **AC-4 — owner-scoped attachment:** WHEN a user attaches or detaches an
-  eligible document on an agent or skill tab, the system SHALL change only that
-  owner’s attachment set; **observable:** an agent attachment affects no other
-  agent, and a skill attachment affects no unrelated skill.
+- **AC-4 — owner-scoped attachment:** WHEN a user manually attaches or detaches
+  an eligible document in the Context section of an agent or skill editor, the
+  system SHALL change only that owner’s attachment set; **observable:** the
+  section provides checkboxes, document paths and types, search and preview,
+  and an attachment affects no unrelated agent or skill.
 - **AC-5 — inheritance:** WHEN an enabled skill with attached documents is
   used by an agent, the system SHALL resolve those skill documents into that
   agent's project context in addition to the agent's direct attachments;
@@ -107,10 +118,10 @@ without turning DevDigest into a repository editor.
   content receives the same displayed estimate regardless of the agent's model
   provider.
 - **AC-9 — current-text resolution:** WHEN an eligible agent review starts,
-  the system SHALL read the current repository text of every resolved
+  the system SHALL read the committed `main` text of every resolved
   attachment before prompt assembly; **observable:** a repository edit made
-  before the run appears in that run's attached context without requiring an
-  attachment version.
+  and committed to `main` before the run appears in that run's attached context
+  without requiring an attachment version.
 - **AC-10 — safe prompt inclusion:** WHEN resolved project-context text is
   added to a review prompt, the system SHALL treat it as untrusted data and
   SHALL not allow its contents to change the agent's trusted instructions;
@@ -136,6 +147,22 @@ without turning DevDigest into a repository editor.
   as requiring user attention and SHALL let the user detach it; **observable:**
   the user can identify the path and remove the broken attachment without
   editing project files.
+- **AC-15 — changed roots:** WHEN configured roots change, the system SHALL
+  retain existing attachment paths that are no longer eligible and mark them
+  unavailable; **observable:** they are skipped during review and can be
+  detached without modifying repository files.
+- **AC-16 — trace estimates:** WHEN a run reads an attached document, the system
+  SHALL record its path and estimated token count in the run trace; **observable:**
+  the trace shows the actual paths read and their per-document estimates, while
+  older traces without estimates remain readable.
+- **AC-17 — no selection model call:** WHEN a review resolves Project Context,
+  the system SHALL use only manually configured paths without an additional
+  LLM request for document selection or inclusion; **observable:** resolving
+  attachments causes no separate provider call.
+- **AC-18 — real review acceptance:** WHEN a real reviewer runs on a PR that
+  directly imports `db/` from `api/` with an attached document forbidding that
+  dependency, the review SHALL identify the violation and cite that document;
+  **observable:** the completed review identifies the file and invariant.
 
 ## Edge cases
 
@@ -149,6 +176,7 @@ without turning DevDigest into a repository editor.
 | All resolved attachments are unavailable | Run without Project Context, record every omission, and show no false attached-context snapshot. | AC-11, AC-13 |
 | Attachment target is outside the eligible catalog | Reject it and do not read the path. | AC-1, AC-4, AC-10 |
 | Concurrent attachment changes | A run uses one internally consistent resolved attachment set and records that set in its own trace. | AC-4, AC-12 |
+| Previously attached path falls outside changed roots | Retain it as unavailable, skip it during review, and permit detachment. | AC-13, AC-14, AC-15 |
 
 ## Non-functional requirements
 
@@ -199,7 +227,7 @@ sequenceDiagram
 | Participants | Direction and contract shape | Failure behavior |
 |---|---|---|
 | Client ↔ Server | Repository-scoped eligible document: `path`, current readable content when requested, availability, and estimated tokens. Attachment: `owner kind`, `owner identity`, `path`, and display/availability state. | Surface readable error state; preserve persisted attachments. |
-| Server ↔ repository checkout | Server requests only the eligible Git-tracked Markdown catalog and current content for an eligible relative path. | Missing, unreadable, or ineligible paths are not passed to prompt assembly; a run records a skip reason. |
+| Server ↔ repository checkout | Server requests only eligible `.md` paths and contents from a single committed `main` snapshot. | Missing, unreadable, or ineligible paths are not passed to prompt assembly; a run records a skip reason. |
 | Server → review engine | Ordered, de-duplicated current document text resolved from direct agent attachments and enabled linked-skill attachments, marked as untrusted project context. | Omit unavailable entries; do not replace them with stale or fabricated content. |
 | Review engine → run trace → Client | Snapshot of the full added project-context text, resolved paths, and skipped-path reasons. | A trace has no attached-spec section when none resolved; it still exposes skip information when omissions occurred. |
 | Skill ↔ Agent | A skill exposes its current number of linked agents and contributes its attachments only to agents with an enabled link. | Detached/disabled links no longer contribute future-run context; historical traces remain unchanged. |
@@ -208,8 +236,8 @@ sequenceDiagram
 
 ### Eligible project document
 
-- `path`: repository-relative tracked Markdown path.
-- `content`: current full text when viewing or resolving for a run; absent when
+- `path`: repository-relative `.md` path committed on `main` below a configured root.
+- `content`: committed `main` text when viewing or resolving for a run; absent when
   unavailable.
 - `availability`: available, missing, unreadable, or no-longer-eligible.
 - `estimated tokens`: non-negative canonical estimate of the current content;

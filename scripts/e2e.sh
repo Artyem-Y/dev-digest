@@ -131,7 +131,7 @@ log "seeding demo data (isolated db)"
 # tsx directly (not `pnpm start`, which needs a build; not `tsx watch`, to avoid
 # a mid-suite watcher restart).
 log "starting API on :$API_PORT"
-(cd server && env NODE_ENV=test DEVDIGEST_E2E_BRIEF_FIXTURE=1 E2E_HERMETIC=1 E2E_HERMETIC_RUNNER=scripts-e2e-sh-v1 E2E_HERMETIC_WEB_PORT="$WEB_PORT" pnpm exec tsx src/server.ts) &
+(cd server && env NODE_ENV=test DEVDIGEST_E2E_BRIEF_FIXTURE=1 E2E_HERMETIC=1 E2E_HERMETIC_RUNNER=scripts-e2e-sh-v1 E2E_HERMETIC_WEB_PORT="$WEB_PORT" E2E_PG_PORT="$PG_PORT" pnpm exec tsx test/e2e-project-context-server.ts) &
 SERVER_PID=$!
 log "waiting for API /health"
 api_up=0
