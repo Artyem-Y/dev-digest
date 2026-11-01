@@ -128,3 +128,5 @@ The runner requires its hermetic attestation and the onboarding fixture flag.
 The flow replaces the page clipboard with an in-memory capture and asserts the
 exact command and share URL passed to it; it does not test operating-system
 clipboard permissions.
+
+`E2E_FLOW=15-eval-pipeline.flow.json ./scripts/e2e.sh` exercises eval case creation and comparison with a seeded input and a deterministic provider on the isolated stack. It is fixture data and does not establish live model sensitivity.

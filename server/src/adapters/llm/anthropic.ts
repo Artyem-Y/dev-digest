@@ -98,9 +98,8 @@ export class AnthropicProvider implements LLMProvider {
     let lastRaw = '';
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
-      const res = await withRetry(() =>
-        withTimeout(
-          this.client.messages.create({
+      const res = await withRetry(() => {
+        const request = this.client.messages.create({
             model: req.model,
             system: system || undefined,
             messages,
@@ -114,9 +113,9 @@ export class AnthropicProvider implements LLMProvider {
               },
             ],
             tool_choice: { type: 'tool', name: toolName },
-          }, req.maxRetries === 0 ? { maxRetries: 0 } : undefined),
-          req.timeoutMs ?? DEFAULT_TIMEOUT,
-        ),
+          }, { ...(req.maxRetries === 0 ? { maxRetries: 0 } : {}), ...(req.nativeTimeout ? { timeout: req.timeoutMs ?? DEFAULT_TIMEOUT } : {}) });
+        return req.nativeTimeout ? request : withTimeout(request, req.timeoutMs ?? DEFAULT_TIMEOUT);
+      },
         req.maxRetries === 0 ? { retries: 0 } : {},
       );
       usageAvailable &&= res.usage != null;

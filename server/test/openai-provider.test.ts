@@ -52,3 +52,13 @@ it('disables both SDK and transport retries and leaves absent usage unknown', as
   await expect(provider.completeStructured({ model: 'gpt-4', schema: Result, schemaName: 'Result', messages: [], maxRetries: 0 })).rejects.toThrow();
   expect(calls).toBe(2);
 });
+
+it('passes eval timeout to the SDK and disables retries', async () => {
+  const provider = new OpenAIProvider('test-key');
+  let options: unknown;
+  (provider as unknown as { client: unknown }).client = { chat: { completions: { create: async (_request: unknown, opts: unknown) => {
+    options = opts; return { choices: [{ message: { content: '{"ok":true}' } }] };
+  } } } };
+  await provider.completeStructured({ model: 'gpt-4', schema: Result, schemaName: 'Result', messages: [], maxRetries: 0, nativeTimeout: true, timeoutMs: 120_000 });
+  expect(options).toEqual({ maxRetries: 0, timeout: 120_000 });
+});

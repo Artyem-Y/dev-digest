@@ -166,8 +166,7 @@ export class AgentsService {
     if (!(await this.dependencies.repository.skillsBelongToWorkspace(workspaceId, skillIds))) {
       throw new ValidationError('Every linked skill must belong to this workspace');
     }
-    await this.dependencies.repository.setSkills(agentId, skillIds);
-    await this.dependencies.repository.snapshotSkillsChange(workspaceId, agentId);
+    if (!await this.dependencies.repository.changeSkills(workspaceId, agentId, { kind: 'set', ids: skillIds })) return undefined;
     return this.skillLinks(agentId);
   }
 
@@ -183,18 +182,14 @@ export class AgentsService {
     if (!(await this.dependencies.repository.skillsBelongToWorkspace(workspaceId, [skillId]))) {
       throw new ValidationError('The skill must belong to this workspace');
     }
-    const existing = await this.dependencies.repository.linkedSkills(agentId);
-    const resolvedOrder = order ?? existing.length;
-    await this.dependencies.repository.linkSkill(agentId, skillId, resolvedOrder);
-    await this.dependencies.repository.snapshotSkillsChange(workspaceId, agentId);
+    if (!await this.dependencies.repository.changeSkills(workspaceId, agentId, { kind: 'link', id: skillId, order })) return undefined;
     return this.skillLinks(agentId);
   }
 
   async setSkillEnabled(workspaceId: string, agentId: string, skillId: string, enabled: boolean): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.dependencies.repository.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    await this.dependencies.repository.setSkillEnabled(agentId, skillId, enabled);
-    await this.dependencies.repository.snapshotSkillsChange(workspaceId, agentId);
+    if (!await this.dependencies.repository.changeSkills(workspaceId, agentId, { kind: 'enabled', id: skillId, enabled })) return undefined;
     return this.skillLinks(agentId);
   }
 

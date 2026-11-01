@@ -34,4 +34,8 @@ UX recommendations should state their priority, status, and user impact.
 - Status lifecycle: `draft` → `approved` → `implemented`
 - Language: English
 
+## Specifications
+
+- [Eval Pipeline](2026-10-31-eval-pipeline.md) — draft cross-module requirements for agent evaluation and run comparison.
+
 Link a replacement specification through its `Supersedes:` header.

@@ -61,6 +61,8 @@ export interface StructuredRequest<T> {
   maxTokens?: number;
   timeoutMs?: number;
   maxRetries?: number;
+  /** Use the SDK's aborting timeout instead of a detached promise timeout. */
+  nativeTimeout?: boolean;
 }
 
 export interface StructuredResult<T> {
@@ -189,6 +191,7 @@ export interface GitClient {
   clone(repo: RepoRef, url: string, opts?: CloneOptions): Promise<{ path: string }>;
   fetchPullHead(repo: RepoRef, n: number): Promise<void>;
   currentHead(repo: RepoRef): Promise<string>;
+  resolveRevision(repo: RepoRef, ref: string): Promise<string>;
   diff(repo: RepoRef, base: string, head: string): Promise<UnifiedDiff>;
   blame(repo: RepoRef, path: string): Promise<BlameLine[]>;
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;

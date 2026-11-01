@@ -91,6 +91,10 @@ export class SimpleGitClient implements GitClient {
     return (await this.git(repo).revparse(['HEAD'])).trim();
   }
 
+  async resolveRevision(repo: RepoRef, ref: string): Promise<string> {
+    return (await this.git(repo).revparse(['--verify', `${ref}^{commit}`])).trim();
+  }
+
   async diff(repo: RepoRef, base: string, head: string): Promise<UnifiedDiff> {
     const raw = await this.git(repo).diff([`${base}...${head}`]);
     return parseUnifiedDiff(raw);

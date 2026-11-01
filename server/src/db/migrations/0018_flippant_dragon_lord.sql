@@ -1,0 +1,1 @@
+ALTER TABLE "eval_case_sources" ALTER COLUMN "finding_id" DROP NOT NULL;

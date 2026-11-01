@@ -150,35 +150,42 @@ export class AgentsRepository {
     id: string,
     patch: UpdateAgent,
   ): Promise<AgentRow | undefined> {
-    const existing = await this.getById(workspaceId, id);
-    if (!existing) return undefined;
+    return this.db.transaction(async (tx) => {
+      const [existing] = await tx.select().from(t.agents)
+        .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, id))).for('update');
+      if (!existing) return undefined;
+      const configChanged = isConfigChange(existing, patch);
+      const nextVersion = configChanged ? existing.version + 1 : existing.version;
+      const [row] = await tx
+        .update(t.agents)
+        .set({
+          ...(patch.name !== undefined ? { name: patch.name } : {}),
+          ...(patch.description !== undefined ? { description: patch.description } : {}),
+          ...(patch.provider !== undefined ? { provider: patch.provider } : {}),
+          ...(patch.model !== undefined ? { model: patch.model } : {}),
+          ...(patch.systemPrompt !== undefined ? { systemPrompt: patch.systemPrompt } : {}),
+          ...(patch.outputSchema !== undefined
+            ? { outputSchema: patch.outputSchema as object }
+            : {}),
+          ...(patch.strategy !== undefined ? { strategy: patch.strategy } : {}),
+          ...(patch.ciFailOn !== undefined ? { ciFailOn: patch.ciFailOn } : {}),
+          ...(patch.repoIntel !== undefined ? { repoIntel: patch.repoIntel } : {}),
+          ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+          ...(configChanged ? { version: nextVersion } : {}),
+        })
+        .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, id)))
+        .returning();
 
-    // A config-affecting change (anything except just toggling enabled) bumps version.
-    const configChanged = isConfigChange(existing, patch);
-    const nextVersion = configChanged ? existing.version + 1 : existing.version;
-
-    const [row] = await this.db
-      .update(t.agents)
-      .set({
-        ...(patch.name !== undefined ? { name: patch.name } : {}),
-        ...(patch.description !== undefined ? { description: patch.description } : {}),
-        ...(patch.provider !== undefined ? { provider: patch.provider } : {}),
-        ...(patch.model !== undefined ? { model: patch.model } : {}),
-        ...(patch.systemPrompt !== undefined ? { systemPrompt: patch.systemPrompt } : {}),
-        ...(patch.outputSchema !== undefined
-          ? { outputSchema: patch.outputSchema as object }
-          : {}),
-        ...(patch.strategy !== undefined ? { strategy: patch.strategy } : {}),
-        ...(patch.ciFailOn !== undefined ? { ciFailOn: patch.ciFailOn } : {}),
-        ...(patch.repoIntel !== undefined ? { repoIntel: patch.repoIntel } : {}),
-        ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
-        ...(configChanged ? { version: nextVersion } : {}),
-      })
-      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, id)))
-      .returning();
-
-    if (configChanged && row) await this.snapshotVersion(row, nextVersion);
-    return row;
+      if (configChanged && row) {
+        const links = await tx.select({ id: t.agentSkills.skillId }).from(t.agentSkills)
+          .where(eq(t.agentSkills.agentId, id)).orderBy(asc(t.agentSkills.order));
+        await tx.insert(t.agentVersions).values({ agentId: row.id, version: nextVersion, configJson: {
+          provider: row.provider, model: row.model, system_prompt: row.systemPrompt, output_schema: row.outputSchema,
+          strategy: row.strategy, ci_fail_on: row.ciFailOn, repo_intel: row.repoIntel, skills: links.map((link) => link.id),
+        } });
+      }
+      return row;
+    });
   }
 
   private async snapshotVersion(row: AgentRow, version: number): Promise<void> {
@@ -240,6 +247,31 @@ export class AgentsRepository {
     return links.map((l) => l.skill.id);
   }
 
+  /** Serialize skill link changes with agent configuration updates and promotion. */
+  async changeSkills(workspaceId: string, agentId: string, change: { kind: 'set'; ids: string[] } | { kind: 'link'; id: string; order?: number } | { kind: 'enabled'; id: string; enabled: boolean }): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      const [agent] = await tx.select().from(t.agents).where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, agentId))).for('update');
+      if (!agent) return false;
+      if (change.kind === 'set') {
+        const old = await tx.select({ id: t.agentSkills.skillId, enabled: t.agentSkills.enabled }).from(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
+        const enabled = new Map(old.map((link) => [link.id, link.enabled]));
+        await tx.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
+        if (change.ids.length) await tx.insert(t.agentSkills).values(change.ids.map((id, order) => ({ agentId, skillId: id, order, enabled: enabled.get(id) ?? true })));
+      } else if (change.kind === 'link') {
+        const current = await tx.select({ id: t.agentSkills.skillId }).from(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
+        const order = change.order ?? current.length;
+        await tx.insert(t.agentSkills).values({ agentId, skillId: change.id, order, enabled: true }).onConflictDoUpdate({ target: [t.agentSkills.agentId, t.agentSkills.skillId], set: { order } });
+      } else {
+        await tx.update(t.agentSkills).set({ enabled: change.enabled }).where(and(eq(t.agentSkills.agentId, agentId), eq(t.agentSkills.skillId, change.id)));
+      }
+      const links = await tx.select({ id: t.agentSkills.skillId }).from(t.agentSkills).where(eq(t.agentSkills.agentId, agentId)).orderBy(asc(t.agentSkills.order));
+      const version = agent.version + 1;
+      await tx.update(t.agents).set({ version }).where(eq(t.agents.id, agentId));
+      await tx.insert(t.agentVersions).values({ agentId, version, configJson: { provider: agent.provider, model: agent.model, system_prompt: agent.systemPrompt, output_schema: agent.outputSchema, strategy: agent.strategy, ci_fail_on: agent.ciFailOn, repo_intel: agent.repoIntel, skills: links.map((link) => link.id) } });
+      return true;
+    });
+  }
+
   async skillsBelongToWorkspace(workspaceId: string, skillIds: string[]): Promise<boolean> {
     if (skillIds.length === 0) return true;
     const rows = await this.db
@@ -249,55 +281,4 @@ export class AgentsRepository {
     return rows.length === skillIds.length;
   }
 
-  /** Link a skill to an agent at a given order (idempotent: upserts order). */
-  async linkSkill(agentId: string, skillId: string, order: number): Promise<void> {
-    await this.db
-      .insert(t.agentSkills)
-      .values({ agentId, skillId, order, enabled: true })
-      .onConflictDoUpdate({
-        target: [t.agentSkills.agentId, t.agentSkills.skillId],
-        set: { order },
-      });
-  }
-
-  async unlinkSkill(agentId: string, skillId: string): Promise<void> {
-    await this.db
-      .delete(t.agentSkills)
-      .where(and(eq(t.agentSkills.agentId, agentId), eq(t.agentSkills.skillId, skillId)));
-  }
-
-  /**
-   * Replace the full set of linked skills for an agent with `skillIds`, assigning
-   * order = index. Used by the "Skills" editor tab (attach/reorder). Skills not in
-   * the list are unlinked.
-   */
-  async setSkills(agentId: string, skillIds: string[]): Promise<void> {
-    await this.db.transaction(async (tx) => {
-      const existing = await tx.select({ skillId: t.agentSkills.skillId, enabled: t.agentSkills.enabled })
-        .from(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
-      const enabledBySkill = new Map(existing.map((link) => [link.skillId, link.enabled]));
-      await tx.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
-      if (skillIds.length === 0) return;
-      await tx.insert(t.agentSkills).values(skillIds.map((skillId, i) => ({
-        agentId,
-        skillId,
-        order: i,
-        enabled: enabledBySkill.get(skillId) ?? true,
-      })));
-    });
-  }
-
-  async setSkillEnabled(agentId: string, skillId: string, enabled: boolean): Promise<void> {
-    await this.db.update(t.agentSkills).set({ enabled }).where(and(eq(t.agentSkills.agentId, agentId), eq(t.agentSkills.skillId, skillId)));
-  }
-
-  async snapshotSkillsChange(workspaceId: string, agentId: string): Promise<void> {
-    const agent = await this.getById(workspaceId, agentId);
-    if (!agent) return;
-    const nextVersion = agent.version + 1;
-    const [updated] = await this.db.update(t.agents).set({ version: nextVersion })
-      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, agentId)))
-      .returning();
-    if (updated) await this.snapshotVersion(updated, nextVersion);
-  }
 }

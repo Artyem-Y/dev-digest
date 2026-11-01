@@ -40,6 +40,10 @@ export class ReviewRepository {
     return pullRepo.getPrFiles(this.db, prId);
   }
 
+  async saveEvalReviewInput(workspaceId: string, runId: string, input: { diffHash: string; revisions?: { base: string; head: string } }): Promise<void> {
+    await this.db.insert(t.evalReviewInputs).values({ workspaceId, runId, input });
+  }
+
   // ---- reviews + findings -------------------------------------------------
 
   insertReview(values: {

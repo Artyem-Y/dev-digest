@@ -8,6 +8,7 @@ export function Topbar({ ctx, crumb = [] }: { ctx: ShellContext; crumb?: Crumb[]
   const Link = ctx.Link ?? DefaultLink;
   return (
     <header
+      className="dd-shell-topbar"
       style={{
         height: 52,
         flexShrink: 0,
@@ -46,6 +47,7 @@ export function Topbar({ ctx, crumb = [] }: { ctx: ShellContext; crumb?: Crumb[]
         })}
       </div>
       <button
+        className="dd-shell-search"
         onClick={ctx.onOpenCommandPalette}
         style={{
           marginLeft: "auto",
