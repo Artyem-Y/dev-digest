@@ -41,6 +41,11 @@ export function useStartEval() {
   return useMutation({ mutationFn: (agentId: string) => api.post<EvalPipelineRun>(`/agents/${agentId}/eval-runs`),
     onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ["eval-runs"] }); } });
 }
+export function useStartAllEvals() {
+  const queryClient = useQueryClient();
+  return useMutation({ mutationFn: () => api.post<Array<{ agent_id: string; run: EvalPipelineRun | null; error: string | null }>>("/eval-runs/batch", {}),
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ["eval-runs"] }); } });
+}
 export function useStartEvalCase() {
   const queryClient = useQueryClient();
   return useMutation({ mutationFn: ({ agentId, caseId }: { agentId: string; caseId: string }) => api.post<EvalPipelineRun>(`/agents/${agentId}/eval-cases/${caseId}/runs`),

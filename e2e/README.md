@@ -129,4 +129,4 @@ The flow replaces the page clipboard with an in-memory capture and asserts the
 exact command and share URL passed to it; it does not test operating-system
 clipboard permissions.
 
-`E2E_FLOW=15-eval-pipeline.flow.json ./scripts/e2e.sh` exercises eval case creation and comparison with a seeded input and a deterministic provider on the isolated stack. It is fixture data and does not establish live model sensitivity.
+`E2E_FLOW=15-eval-pipeline.flow.json ./scripts/e2e.sh` exercises eval case creation, a long synthetic file path, editing, comparison and promotion with a seeded input and a deterministic provider on the isolated stack. It saves screenshots of the finding, case list, long path, populated dashboard, comparison and mobile dashboard. It is fixture data and does not establish live model sensitivity.

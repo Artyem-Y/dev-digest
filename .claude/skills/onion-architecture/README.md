@@ -1,6 +1,6 @@
 # Onion Architecture for DevDigest Backend
 
-Version: 1.0.0
+Version: 1.3.0
 
 This skill applies the Onion dependency rule to DevDigest's Fastify,
 TypeScript, Zod, Drizzle, PostgreSQL, background-job, SSE, and external-adapter
@@ -20,11 +20,29 @@ does not require an interface around every helper. A port is justified when a
 use case needs an external capability that should be isolated, varied, or faked
 in a test.
 
+## Rules
+
+`SKILL.md` contains the short routing guide and invariants. Read the matching
+detail only when needed:
+
+- [Layer map and placement](rules/layers.md)
+- [Dependency direction](rules/dependency-rule.md)
+- [Cross-module schema ownership](rules/module-schema-ownership.md)
+- [Domain layer](rules/domain-layer.md)
+- [Application layer](rules/application-layer.md)
+- [Infrastructure and outbound adapters](rules/infrastructure-layer.md)
+- [Presentation and inbound adapters](rules/presentation-layer.md)
+- [Validation by boundary](rules/validation-stack.md)
+- [Composition and dependency injection](rules/di-container.md)
+- [Tenant scoping in persistence operations](rules/tenant-scoping.md)
+- [External effects around database transactions](rules/transactional-effects.md)
+
 ## Source register
 
 Sources were reviewed on 2026-10-01. The first two sources define the
 architectural principle; framework and database documentation maps it to the
-actual DevDigest stack.
+actual DevDigest stack. See [references.md](references.md) for the full research
+bibliography from the upstream skill.
 
 | Source | Used for |
 |---|---|
@@ -38,6 +56,11 @@ actual DevDigest stack.
 | [Drizzle Transactions](https://orm.drizzle.team/docs/transactions) | Infrastructure implementation of atomic persistence work. |
 | [PostgreSQL: Data Consistency Checks](https://www.postgresql.org/docs/current/applevel-consistency.html) | Limits of application-level consistency checks under concurrent access. |
 | [PostgreSQL: Transaction Isolation](https://www.postgresql.org/docs/current/transaction-iso.html) | Transaction isolation and the need to bound atomic work around integrity requirements. |
+| [Upstream DevDigest Onion Architecture skill at commit `222b41e`](https://github.com/ai-agentic-engineering-neo/dev-digest/tree/222b41eaab1829dda3ea8ad3b4085c14e305fa40/.claude/skills/onion-architecture) | Additional layer maps, validation ownership, adapter boundaries, transaction guidance, DI/testing patterns, and rule-navigation structure; adapted to this repository's current module composition and port conventions. |
+
+## Evals
+
+Primary regression cases, neutral fixtures, and separate expected findings live in [`evals/`](evals/). See [`evals/EVALS.md`](evals/EVALS.md) for case descriptions and the with-skill/baseline comparison command. The shared executable harness lives in the repository's top-level `evals/` package.
 
 ## Local conventions preserved
 
@@ -47,3 +70,9 @@ actual DevDigest stack.
   responsibility for their specialised concerns.
 - `src/platform/container.ts` is the composition boundary; tests use container
   overrides and mocks rather than real external services whenever possible.
+- The upstream branch passes the full `Container` to application services,
+  extends platform `AppError` from domain code, and requires exactly three steps
+  per route. Those branch-specific rules are not copied here: current module
+  composition passes narrow dependencies, domain stays independent of platform
+  error mapping, and protocol-specific route branching remains acceptable while
+  business policy stays in the use case.

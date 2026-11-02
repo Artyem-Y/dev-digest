@@ -105,6 +105,10 @@
       "label": "decision is saved"
     },
     {
+      "cmd": ["screenshot", "test-results/15-eval-finding.png"],
+      "label": "capture finding action"
+    },
+    {
       "cmd": [
         "focus",
         "div[data-eval-target=first] button:nth-of-type(3)"
@@ -271,6 +275,10 @@
       "label": "both cases listed"
     },
     {
+      "cmd": ["screenshot", "test-results/15-eval-agent-tab.png"],
+      "label": "capture populated eval cases"
+    },
+    {
       "cmd": [
         "find",
         "role",
@@ -293,7 +301,7 @@
       "cmd": [
         "fill",
         "dialog textarea",
-        "diff --git a/manual/example.ts b/manual/example.ts\n--- a/manual/example.ts\n+++ b/manual/example.ts\n@@ -0,0 +1 @@\n+export const example = 1;\n"
+        "diff --git a/manual/this-is-a-deliberately-long-directory-name-for-checking-layout-with-unbroken-file-name-abcdefghijklmnopqrstuvwxyz/example.ts b/manual/this-is-a-deliberately-long-directory-name-for-checking-layout-with-unbroken-file-name-abcdefghijklmnopqrstuvwxyz/example.ts\n--- a/manual/this-is-a-deliberately-long-directory-name-for-checking-layout-with-unbroken-file-name-abcdefghijklmnopqrstuvwxyz/example.ts\n+++ b/manual/this-is-a-deliberately-long-directory-name-for-checking-layout-with-unbroken-file-name-abcdefghijklmnopqrstuvwxyz/example.ts\n@@ -0,0 +1 @@\n+export const example = 1;\n"
       ],
       "label": "enter manual diff"
     },
@@ -301,9 +309,13 @@
       "cmd": [
         "fill",
         "dialog label:nth-of-type(3) input",
-        "manual/example.ts"
+        "manual/this-is-a-deliberately-long-directory-name-for-checking-layout-with-unbroken-file-name-abcdefghijklmnopqrstuvwxyz/example.ts"
       ],
       "label": "enter manual file"
+    },
+    {
+      "cmd": ["screenshot", "test-results/15-eval-case-editor.png"],
+      "label": "capture case editor"
     },
     {
       "cmd": ["eval", "[...document.querySelectorAll('dialog button')].find(b => b.textContent.trim() === 'Save case').focus()"],
@@ -334,7 +346,11 @@
       "label": "open manual case"
     },
     {
-      "cmd": ["eval", "[...document.querySelectorAll('details[open] button')].find(b => b.textContent.trim() === 'Edit case').focus()"],
+      "cmd": ["screenshot", "test-results/15-eval-long-path.png"],
+      "label": "capture long case path"
+    },
+    {
+      "cmd": ["eval", "[...document.querySelector('details[open]').closest('article').querySelectorAll('button')].find(b => b.textContent.trim() === 'Edit case').focus()"],
       "label": "focus manual case editor"
     },
     {
@@ -524,6 +540,10 @@
         "Run history"
       ],
       "label": "load history"
+    },
+    {
+      "cmd": ["screenshot", "test-results/15-eval-dashboard-populated.png"],
+      "label": "capture populated dashboard"
     },
     {
       "cmd": [

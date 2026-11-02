@@ -13,7 +13,7 @@ import { originalFragment } from './original-input.js';
 // Fallback runs cannot establish the identity of the code and injected providers.
 export const EVAL_ENGINE_VERSION = 'unavailable';
 export class SuiteAdmissionError extends Error {
-  constructor(public readonly code: 'not_found' | 'empty' | 'active' | 'limit' | 'fixture_unavailable') { super(code); }
+  constructor(public readonly code: 'not_found' | 'empty' | 'active' | 'limit' | 'fixture_unavailable' | 'capacity') { super(code); }
 }
 export class PromotionError extends Error {
   constructor(public readonly code: 'not_found' | 'stale_agent' | 'snapshot_unavailable' | 'skills_changed') { super(code); }
@@ -43,6 +43,9 @@ export function admittedCase(id: string, snapshot: unknown): EvalCaseSnapshot {
 
 export class SuiteRepository {
   constructor(private readonly db: Db, private readonly engineVersion = EVAL_ENGINE_VERSION) {}
+  async agentIds(workspaceId: string) {
+    return (await this.db.select({ id: t.agents.id }).from(t.agents).where(eq(t.agents.workspaceId, workspaceId)).orderBy(t.agents.id).limit(101)).map((row) => row.id);
+  }
   async admit(workspaceId: string, agentId: string, caseId?: string) {
     return this.db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${workspaceId}:${agentId}`}, 0))`);
@@ -71,7 +74,7 @@ export class SuiteRepository {
         outputSchema: agent.outputSchema ?? null, strategy: agent.strategy, ciFailOn: agent.ciFailOn, repoIntel: agent.repoIntel, enabled: agent.enabled,
         links: links.map((link) => ({ id: link.id, order: link.order, enabled: link.linkEnabled, skillEnabled: link.skillEnabled, bodyHash: createHash('sha256').update(link.body).digest('hex') })) };
       const [run] = await tx.insert(t.evalSuiteRuns).values({ workspaceId, agentId, status: 'queued', datasetFingerprint: datasetFingerprint(cases),
-        engineVersion: this.engineVersion, scorerVersion: EVAL_SCORER_VERSION, snapshot: { agent: config, cases, promotion } }).returning();
+        engineVersion: this.engineVersion, scorerVersion: EVAL_SCORER_VERSION, snapshot: { scope: caseId ? 'case' : 'suite', agent: config, cases, promotion } }).returning();
       return { run: run!, agent: config, cases };
     });
   }
@@ -85,7 +88,7 @@ export class SuiteRepository {
       const snapshot = EvalPipelineSnapshot.safeParse(run.snapshot);
       const promotion = snapshot.success ? snapshot.data.promotion : undefined;
       const result = EvalPipelineResult.safeParse(run.result);
-      if (run.status !== 'completed' || !result.success || result.data.status !== 'completed' || !result.data.score || !promotion || !snapshot.success || result.data.results.length !== snapshot.data.cases.length || result.data.results.some((item) => item.status !== 'completed') || new Set(promotion.links.map((link) => link.id)).size !== promotion.links.length) throw new PromotionError('snapshot_unavailable');
+      if (run.status !== 'completed' || !result.success || result.data.status !== 'completed' || !result.data.score || !promotion || !snapshot.success || snapshot.data.scope !== 'suite' || result.data.results.length !== snapshot.data.cases.length || result.data.results.some((item) => item.status !== 'completed') || new Set(promotion.links.map((link) => link.id)).size !== promotion.links.length) throw new PromotionError('snapshot_unavailable');
       const currentSkills = promotion.links.length ? await tx.select().from(t.skills).where(and(eq(t.skills.workspaceId, workspaceId), inArray(t.skills.id, promotion.links.map((link) => link.id)))).for('update') : [];
       if (currentSkills.length !== promotion.links.length || promotion.links.some((link) => { const skill = currentSkills.find((item) => item.id === link.id); return !skill || skill.enabled !== link.skillEnabled || createHash('sha256').update(skill.body).digest('hex') !== link.bodyHash; })) throw new PromotionError('skills_changed');
       const replaySkills = promotion.links.filter((link) => link.enabled && link.skillEnabled).map((link) => currentSkills.find((skill) => skill.id === link.id)!).filter((skill) => !isUnsafeSkillContent(skill.body)).map((skill) => skill.body);

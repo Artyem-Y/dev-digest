@@ -1,0 +1,22 @@
+{
+  "findings": [
+    {
+      "id": "use-case-depends-on-fastify",
+      "file": "server/src/modules/billing/application/create-invoice.ts",
+      "line": 1,
+      "must_convey": "The application use case imports Fastify's request type, coupling the inner application ring to the inbound HTTP adapter. Accept an application-owned command or input type instead."
+    },
+    {
+      "id": "use-case-direct-drizzle-write",
+      "file": "server/src/modules/billing/application/create-invoice.ts",
+      "line": 3,
+      "must_convey": "The application use case imports the Drizzle schema and writes directly to the database; persistence should be behind an application-owned port implemented in infrastructure."
+    },
+    {
+      "id": "use-case-returns-persistence-row",
+      "file": "server/src/modules/billing/application/create-invoice.ts",
+      "line": 13,
+      "must_convey": "The application use case returns the raw Drizzle row shape instead of an application-owned result mapped at the persistence boundary."
+    }
+  ]
+}

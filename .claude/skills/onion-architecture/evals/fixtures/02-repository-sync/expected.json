@@ -1,0 +1,22 @@
+{
+  "findings": [
+    {
+      "id": "application-imports-github-sdk",
+      "file": "server/src/modules/repos/application/sync-repository.ts",
+      "line": 1,
+      "must_convey": "The application use case imports and constructs the concrete Octokit SDK, an outbound adapter dependency; define an application-owned port and inject its implementation at composition."
+    },
+    {
+      "id": "application-imports-drizzle-types",
+      "file": "server/src/modules/repos/application/sync-repository.ts",
+      "line": 2,
+      "must_convey": "The application package imports Drizzle and exposes a database row type as its contract; application types should be independent of persistence representation."
+    },
+    {
+      "id": "application-returns-persistence-row",
+      "file": "server/src/modules/repos/application/sync-repository.ts",
+      "line": 5,
+      "must_convey": "The use case returns an infrastructure Drizzle row shape instead of an application-owned result type mapped at the repository boundary."
+    }
+  ]
+}

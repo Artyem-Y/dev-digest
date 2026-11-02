@@ -31,7 +31,7 @@ d('eval cases on PostgreSQL', () => {
     const cases = new CasesRepository(db);
     const evalCase = await cases.saveManual(workspace!.id, agent!.id, { name: 'Manual', diff: raw, expectation: 'must_find', anchor: { file: 'synthetic/divide.ts', startLine: 2, endLine: 2 } });
     const suites = new SuiteRepository(db);
-    const admitted = await suites.admit(workspace!.id, agent!.id, evalCase.id);
+    const admitted = await suites.admit(workspace!.id, agent!.id);
     await suites.finish(workspace!.id, admitted.run.id, await runSuite({ review: async () => ({ grounded: [], dropped: 0, costUsd: null }) }, admitted.agent, admitted.cases));
     await db.update(t.agents).set({ systemPrompt: 'new prompt', model: 'new-model', version: 2 }).where(eq(t.agents.id, agent!.id));
     await expect(suites.promote('00000000-0000-0000-0000-000000000000', agent!.id, admitted.run.id, 2)).rejects.toMatchObject({ code: 'not_found' });
@@ -112,6 +112,8 @@ d('eval cases on PostgreSQL', () => {
     expect(stored).toMatchObject({ status: 'completed', result: { score: { recall: 1 }, costUsd: null } });
     const single = await suites.admit(workspace!.id, agent!.id, results[0]!.value.id);
     expect(single.cases.map((item) => item.id)).toEqual([results[0]!.value.id]);
+    expect(admitted.run.snapshot).toMatchObject({ scope: 'suite' });
+    expect(single.run.snapshot).toMatchObject({ scope: 'case' });
     await suites.finish(workspace!.id, single.run.id, result);
     await expect(suites.admit(workspace!.id, agent!.id, '00000000-0000-0000-0000-000000000000')).rejects.toMatchObject({ code: 'not_found' });
     const caseId = results[0]!.value.id;
@@ -181,10 +183,22 @@ d('eval cases on PostgreSQL', () => {
       const oneCase = await app.inject({ method: 'POST', url: `/agents/${agent!.id}/eval-cases/${caseId}/runs` });
       expect(oneCase.statusCode).toBe(202);
       expect(oneCase.json().snapshot.cases).toHaveLength(1);
+      expect(oneCase.json().snapshot.scope).toBe('case');
+      expect(started.json().snapshot.scope).toBe('suite');
       await vi.waitFor(async () => {
         expect((await app.inject({ method: 'GET', url: `/eval-runs/${oneCase.json().id}` })).json().status).toBe('completed');
       }, { timeout: 10_000 });
       expect((await app.inject({ method: 'POST', url: `/agents/${agent!.id}/eval-cases/00000000-0000-0000-0000-000000000000/runs` })).statusCode).toBe(404);
+      const batchAgents = await db.insert(t.agents).values(Array.from({ length: 6 }, (_, i) => ({ workspaceId: workspace!.id, name: `Batch ${i}`, provider: 'openai' as const, model: 'mock', systemPrompt: 'review' }))).returning();
+      const batchCases = new CasesRepository(db);
+      for (const batchAgent of batchAgents) await batchCases.saveManual(workspace!.id, batchAgent.id, { name: 'Batch case', diff: raw, expectation: 'must_find', anchor: { file: 'synthetic/divide.ts', startLine: 2, endLine: 2 } });
+      const batch = await app.inject({ method: 'POST', url: '/eval-runs/batch', payload: {} });
+      expect(batch.statusCode).toBe(202);
+      const startedBatch = batch.json().filter((item: { agent_id: string }) => [agent!.id, ...batchAgents.map((agent) => agent.id)].includes(item.agent_id));
+      expect(startedBatch).toHaveLength(7);
+      expect(startedBatch.every((item: { run: { snapshot: { scope: string } } }) => item.run.snapshot.scope === 'suite')).toBe(true);
+      expect(batch.json().some((item: { error: string }) => item.error === 'empty')).toBe(true);
+      await vi.waitFor(async () => { for (const item of startedBatch) expect((await app.inject({ method: 'GET', url: `/eval-runs/${item.run.id}` })).json().status).toBe('completed'); }, { timeout: 10_000 });
       const promote = await app.inject({ method: 'POST', url: `/agents/${agent!.id}/eval-runs/${id}/promote`, payload: { expected_version: agent!.version } });
       expect(promote.statusCode).toBe(200);
       expect(promote.json().version).toBe(agent!.version + 1);

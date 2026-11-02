@@ -101,6 +101,20 @@ export default async function evalRoutes(appBase: FastifyInstance) {
       throw error;
     }
   });
+  app.post('/eval-runs/batch', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } }, schema: {
+    body: z.object({}).strict(),
+    response: { 202: z.array(z.object({ agent_id: z.string().uuid(), run: EvalPipelineRun.nullable(), error: z.enum(['not_found', 'empty', 'active', 'limit', 'fixture_unavailable', 'capacity', 'internal']).nullable() })) },
+  } }, async (req, reply) => {
+    const { workspaceId } = await getContext(app.container, req);
+    const agentIds = await suites.repository.agentIds(workspaceId);
+    if (agentIds.length > 100) throw new AppError('limit', 'A batch supports up to 100 agents.', 422);
+    const results: Array<{ agent_id: string; run: z.infer<typeof EvalPipelineRun> | null; error: 'not_found' | 'empty' | 'active' | 'limit' | 'fixture_unavailable' | 'capacity' | 'internal' | null }> = [];
+    for (const agentId of agentIds) {
+      try { results.push({ agent_id: agentId, run: runDto(await suites.start(workspaceId, agentId)), error: null }); }
+      catch (error) { results.push({ agent_id: agentId, run: null, error: error instanceof SuiteAdmissionError ? error.code : 'internal' }); }
+    }
+    return reply.code(202).send(results);
+  });
   app.post('/agents/:id/eval-cases/:caseId/runs', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } }, schema: { params: IdParams.extend({ caseId: z.string().uuid() }), response: { 202: EvalPipelineRun } } }, async (req, reply) => {
     const { workspaceId } = await getContext(app.container, req);
     try { return reply.code(202).send(runDto(await suites.start(workspaceId, req.params.id, req.params.caseId))); }

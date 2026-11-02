@@ -1,0 +1,27 @@
+diff --git a/server/src/modules/catalog/infrastructure/catalog-repository.ts b/server/src/modules/catalog/infrastructure/catalog-repository.ts
+new file mode 100644
+index 0000000..98c6241
+--- /dev/null
++++ b/server/src/modules/catalog/infrastructure/catalog-repository.ts
+@@ -0,0 +1,8 @@
++import type { FastifyReply } from 'fastify';
++import { db } from '../../../db/client.js';
++import { products } from '../../../db/schema.js';
++
++export async function findProduct(id: string, reply: FastifyReply) {
++  const [product] = await db.select().from(products).where(eq(products.id, id));
++  if (!product) return reply.code(404).send({ message: 'Not found' });
++  return product;
++}
+diff --git a/server/src/modules/catalog/domain/credentials.ts b/server/src/modules/catalog/domain/credentials.ts
+new file mode 100644
+index 0000000..d0fa283
+--- /dev/null
++++ b/server/src/modules/catalog/domain/credentials.ts
+@@ -0,0 +1,7 @@
++export class ProviderCredential {
++  constructor(
++    readonly provider: string,
++    readonly accessToken: string,
++  ) {}
++}

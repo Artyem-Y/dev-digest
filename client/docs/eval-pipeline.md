@@ -6,6 +6,8 @@ Precision is labeled because only accepted and dismissed anchors are classified.
 
 Finding case creation is one click after accepting or dismissing a finding. The server persists the relevant original file fragment after verifying the full diff against the review fingerprint. Reviews with recorded Git commit IDs can be converted after a PR changes when those commits remain available. Older reviews without a fingerprint cannot be converted; run a new review first. The stored fragment may contain sensitive source content.
 
-The dashboard can request a run for each agent. Requests are admitted individually and failures include the server's reason for each agent; an empty dataset or active run can prevent an individual start. The agent overview shows the latest available metrics, and the Evals tab displays the latest run's passed-case count alongside its metrics.
+The dashboard requests all agents in one bounded batch (up to 100 agents per workspace); each admission succeeds or fails independently and failures are shown. An empty dataset or active run can prevent an individual start. Aggregate metrics and pass counts use the latest completed full-suite run, while individual-case runs remain labeled in history. Legacy runs with unknown scope remain visible but do not replace suite metrics or qualify for metric deltas or promotion.
 
 At narrow widths the shared navigation opens from the menu button, and the history table scrolls horizontally. Both light and dark themes use the application's theme tokens.
+
+Case actions are visible in each row. The editor has Diff, Files and PR meta views and displays the current expectation as JSON; the file view uses the stored anchor and PR metadata is explicitly unavailable because this case contract does not expose it. Aggregate metrics use full-suite runs only; individual and legacy runs remain labeled in history.

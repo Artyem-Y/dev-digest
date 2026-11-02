@@ -113,7 +113,7 @@ export function FindingCard({
             >
               {t("finding.dismiss")}
             </Button>
-            <Button kind="secondary" size="sm" disabled={!muted || createEval.isPending} onClick={() => createEval.mutate({ findingId: f.id })}>
+            <Button kind="secondary" size="sm" icon="FlaskConical" disabled={!muted || createEval.isPending} onClick={() => createEval.mutate({ findingId: f.id })}>
               {createEval.isPending ? t("finding.creatingEval") : t("finding.turnIntoEval")}
             </Button>
           </div>

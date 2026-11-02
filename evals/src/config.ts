@@ -11,7 +11,7 @@ export const EVAL_JUDGE_MODEL = process.env.EVAL_JUDGE_MODEL ?? (process.env.EVA
 export const MAX_TURNS = Number(process.env.EVAL_MAX_TURNS ?? "8");
 
 // --- Configuration tag ------------------------------------------------------
-// "candidate" = artifact injected (normal). "baseline" = no artifact (benchmark lift baseline).
+// "candidate" = current artifact injected. "baseline" = no artifact or the configured old skill snapshot.
 export const EVAL_CONFIG = process.env.EVAL_CONFIG ?? "candidate";
 export const IS_BASELINE = EVAL_CONFIG === "baseline";
 

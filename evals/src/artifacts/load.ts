@@ -15,16 +15,22 @@ function stripFrontmatter(md: string): string {
   return md;
 }
 
-/** SKILL.md plus every references/*.md — the full payload the harness would assemble. */
+/** SKILL.md plus supporting Markdown under references/ and rules/. */
 export function skillContent(skillName: string): string {
-  const dir = join(SKILLS_DIR, skillName);
+  return skillContentFromDir(join(SKILLS_DIR, skillName));
+}
+
+/** Load a skill payload from an explicit directory, useful for versioned eval baselines. */
+export function skillContentFromDir(dir: string): string {
   const skillMd = join(dir, "SKILL.md");
   if (!existsSync(skillMd)) throw new Error(`SKILL.md not found: ${skillMd}`);
   const parts = [readFileSync(skillMd, "utf8")];
-  const refs = join(dir, "references");
-  if (existsSync(refs)) {
-    for (const f of readdirSync(refs).filter((f) => f.endsWith(".md")).sort()) {
-      parts.push(`\n\n## Reference: ${f}\n\n${readFileSync(join(refs, f), "utf8")}`);
+  for (const folder of ["references", "rules"]) {
+    const supportingDocs = join(dir, folder);
+    if (existsSync(supportingDocs)) {
+      for (const f of readdirSync(supportingDocs).filter((f) => f.endsWith(".md")).sort()) {
+        parts.push(`\n\n## ${folder}: ${f}\n\n${readFileSync(join(supportingDocs, f), "utf8")}`);
+      }
     }
   }
   return parts.join("\n");

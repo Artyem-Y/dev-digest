@@ -8,7 +8,7 @@ import { EvalDashboard } from "./EvalDashboard";
 const state = vi.hoisted(() => ({ agents: {} as Record<string, unknown>, runs: {} as Record<string, unknown>, retryAgents: vi.fn(), retryRuns: vi.fn() }));
 vi.mock("@/components/app-shell", () => ({ AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 vi.mock("@/lib/hooks/agents", () => ({ useAgents: () => state.agents }));
-vi.mock("@/lib/hooks/evals", () => ({ useEvalRuns: () => state.runs, useStartEval: () => ({ mutate: vi.fn() }), usePromoteEvalRun: () => ({ mutate: vi.fn() }) }));
+vi.mock("@/lib/hooks/evals", () => ({ useEvalRuns: () => state.runs, useStartEval: () => ({ mutate: vi.fn() }), useStartAllEvals: () => ({ mutateAsync: vi.fn() }), usePromoteEvalRun: () => ({ mutate: vi.fn() }) }));
 const show = () => render(<NextIntlClientProvider locale="en" messages={{ eval: messages }}><EvalDashboard /></NextIntlClientProvider>);
 beforeEach(() => { state.agents = { data: [], refetch: state.retryAgents }; state.runs = { data: [], refetch: state.retryRuns }; vi.clearAllMocks(); });
 

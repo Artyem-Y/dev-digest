@@ -274,10 +274,10 @@ src/
     run-claude.ts       # runClaude() — the headless turn-loop; Result / RunOptions / Metrics types
   artifacts/
     paths.ts            # REPO_ROOT / SKILLS_DIR / AGENTS_DIR / RESULTS_DIR anchors
-    load.ts             # skillContent() (SKILL.md + references/*.md), agentContent()
+    load.ts             # skillContent() (SKILL.md + references/*.md + rules/*.md), agentContent()
     fixture.ts          # fixtureReader(import.meta.url) — inline a case's fixtures into a prompt
   tasks.ts              # skillTask / agentTask / workflowTask — compose runtime + artifacts;
-                        #   skill/agentTask skip injection under EVAL_CONFIG=baseline (benchmark lift)
+                        #   skillTask loads baseline snapshot (or no artifact) under EVAL_CONFIG=baseline
   scoring/
     pattern-match.ts    # patternMatch() — deterministic substring coverage
     llm-judge.ts        # llmJudge(), parseVerdict(), Verdict, the judge rubric
@@ -317,8 +317,11 @@ pnpm eval:scaffold --agent <name>  # same under evals/agents/<name>/  (refuses t
 Then fill in the generated `*.cases.ts` and run `pnpm vitest run skills/<name>`. Keep it minimal —
 one or two cases per skill is enough; there is no need to cover every skill.
 
-Cases live in the `evals/` package (**not** inside `.claude/skills/*` or `.claude/agents/*` —
-that folder is the skill's *payload*; a fixture there would leak into the assembled prompt).
+Case definitions and shared runner code live in `evals/`. By default, fixture data lives beside
+the case definitions. For the Onion Architecture Skill Creator bundle, primary fixtures and
+oracles live under `.claude/skills/onion-architecture/evals/` so the skill and its eval data can
+be versioned and distributed together. The loader includes the skill's `rules/` documents but
+never its `evals/` subdirectory; expected findings become judge criteria only after the task run.
 The folders mirror the artifacts one-to-one, and each case folder holds three kinds of file:
 
 | File | Holds | Example |
@@ -377,6 +380,33 @@ export const cases: SkillCase[] = [
     maxTurns: 8,          // optional
   },
 ];
+```
+
+The Onion Architecture suite keeps its primary cases and fixtures in
+`.claude/skills/onion-architecture/evals/`; see that folder's `EVALS.md` for scenarios and
+maintenance guidance. Thin executable case files under `evals/skills/onion-architecture/` load
+those cases. Run the paired
+with-skill/without-skill benchmark with:
+
+```bash
+cd evals
+EVAL_BACKEND=codex pnpm eval:benchmark skills/onion-architecture -n 1
+```
+
+Each run uses the same prompt and diff in both arms. Without `EVAL_BASELINE_SKILL_DIR`, the
+baseline removes the skill payload; with it, the baseline loads the selected old snapshot. Three
+practices per case correspond to the separate oracle findings.
+
+To compare two skill versions instead of a skill against the raw model, set
+`EVAL_BASELINE_SKILL_DIR` to a repository-relative directory containing the baseline `SKILL.md`
+and any supporting `rules/` or `references.md`. The candidate remains the named skill, while the
+benchmark's baseline arm receives that snapshot. For Onion Architecture, use the immutable
+`v1.1.0` snapshot and the targeted tenant-scoping eval:
+
+```bash
+EVAL_BACKEND=codex \
+EVAL_BASELINE_SKILL_DIR=.claude/skills/onion-architecture/evals/versions/v1.1.0 \
+pnpm eval:benchmark skills/onion-architecture -t "tenant scoping" -n 1
 ```
 
 `kind`: `quality` (judge) · `grounding` (patternMatch only, must equal 1).
@@ -471,13 +501,15 @@ configurations:
 
 - **candidate** = *with the artifact*. The skill's content (or the agent's definition) is
   injected into the system prompt — the normal, artifact-on condition.
-- **baseline** = *without it*. The identical prompt, case, and model, but the artifact is **not**
-  injected (raw model). Enabled by `EVAL_CONFIG=baseline`, which makes `skillTask`/`agentTask`
-  skip injection.
+- **baseline** = by default, *without the artifact*. The identical prompt, case, and model, but
+  no skill is injected (raw model). Enabled by `EVAL_CONFIG=baseline`. For version-to-version
+  skill comparisons, `EVAL_BASELINE_SKILL_DIR` instead injects the selected snapshot in the
+  baseline arm.
 
 The **difference** between them is the artifact's measured value ("lift") — not a feeling that it
-"seems to help." If candidate and baseline score the same, the artifact adds nothing the model
-didn't already do. Example output:
+"seems to help." In a raw-model benchmark, equal scores mean the artifact adds nothing the model
+didn't already do. In a snapshot comparison, equal scores mean no improvement was measured over
+that snapshot on the selected cases. Example output:
 
 ```
   metric      candidate   baseline    Δ
@@ -487,13 +519,11 @@ didn't already do. Example output:
      80% → 100%  noted the rejected alternative ...   ← read as candidate% → baseline%
 ```
 
-**What `baseline` removes — and what it must NOT.** A case has two text parts: the *user prompt*
-(the task + its fixture — the input the model must work on) and the *system prompt* (the
-artifact under test). `baseline` removes **only the artifact**. The user prompt and fixture stay
-**identical** to candidate. That is the definition of a controlled A/B: change exactly one
-variable (artifact on/off), hold everything else constant, so the delta is attributable to the
-artifact and nothing else. This is not a quirk of this package — it is how controlled evals work
-everywhere (skill-creator v2's with_skill/without_skill runs the same prompt too).
+**What `baseline` changes — and what it must not.** A case has a *user prompt* (the task + fixture)
+and a *system prompt* (the skill artifact). Baseline either omits the skill or substitutes the
+snapshot selected by `EVAL_BASELINE_SKILL_DIR`. The user prompt and fixture stay **identical** to
+candidate. This is the controlled comparison: change only the artifact version, while holding the
+task, fixture, and model constant.
 
 You therefore **cannot (and should not) "hide the fixture" from baseline.** The fixture is not a
 hint the baseline peeked at — it is the shared task both configurations must perform. Giving

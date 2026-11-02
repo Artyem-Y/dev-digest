@@ -1,6 +1,6 @@
 /**
- * Benchmark a skill/agent's LIFT: run a pattern N times with the artifact injected (candidate)
- * and N times without it (baseline: raw model), then report mean ± stddev / min / max per
+ * Benchmark a skill/agent's lift: run a pattern N times with the artifact injected (candidate)
+ * and N times with no artifact or an optional baseline skill snapshot, then report mean ± stddev / min / max per
  * configuration, the delta, a per-practice matrix, and deterministic analyst flags. This is the
  * with_skill vs without_skill comparison from skill-creator v2.
  *
@@ -99,7 +99,10 @@ async function main(): Promise<void> {
   console.log(
     `  ${nCases ?? "?"} test case(s) × ${times} runs × 2 configs = ${(nCases ?? 0) * times * 2} sessions`,
   );
-  console.log(`  ${GREEN}candidate${RESET} = artifact injected (with skill)   ${DIM}·${RESET}   ${YELLOW}baseline${RESET} = raw model, no artifact\n`);
+  const baselineDescription = process.env.EVAL_BASELINE_SKILL_DIR
+    ? `skill snapshot: ${process.env.EVAL_BASELINE_SKILL_DIR}`
+    : "raw model, no artifact";
+  console.log(`  ${GREEN}candidate${RESET} = current artifact   ${DIM}·${RESET}   ${YELLOW}baseline${RESET} = ${baselineDescription}\n`);
   await runConfig("candidate", times, vitestArgs);
   await runConfig("baseline", times, vitestArgs);
 
@@ -137,6 +140,7 @@ async function main(): Promise<void> {
       pattern: vitestArgs.join(" "),
       task_model: EVAL_MODEL,
       judge_model: EVAL_JUDGE_MODEL,
+      baseline_skill_dir: process.env.EVAL_BASELINE_SKILL_DIR ?? null,
       runs_per_configuration: times,
       git_sha: git.sha,
       dirty: git.dirty,
@@ -170,7 +174,7 @@ async function main(): Promise<void> {
   };
   const W = 18;
   console.log(`\n${"=".repeat(64)}\nBenchmark: ${vitestArgs.join(" ")}  (${times} runs/config)\n${"=".repeat(64)}`);
-  console.log(`  ${GREEN}candidate${RESET} = with artifact   ${YELLOW}baseline${RESET} = raw model   Δ = candidate − baseline\n`);
+  console.log(`  ${GREEN}candidate${RESET} = current artifact   ${YELLOW}baseline${RESET} = ${baselineDescription}   Δ = candidate − baseline\n`);
   console.log(`  ${"metric".padEnd(12)}${"candidate".padEnd(W)}${"baseline".padEnd(W)}Δ`);
   console.log(
     `  ${"pass_rate".padEnd(12)}${pct(candSum.pass_rate).padEnd(W)}${pct(baseSum.pass_rate).padEnd(W)}${dPct(candSum.pass_rate, baseSum.pass_rate)}`,

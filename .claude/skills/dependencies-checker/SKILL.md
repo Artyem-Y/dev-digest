@@ -5,6 +5,8 @@ description: Analyze a repository's Node dependencies and TypeScript import coup
 
 # Dependencies checker
 
+## Analysis workflow
+
 Use this skill for an evidence-backed dependency inventory of a local repository.
 
 Run the bundled analyzer before making findings. It reads only local manifests,

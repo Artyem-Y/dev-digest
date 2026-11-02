@@ -6,7 +6,7 @@ import type { EvalPipelineRun } from "@devdigest/shared";
 import { AppShell } from "@/components/app-shell";
 import { Button, Icon } from "@devdigest/ui";
 import { useAgents } from "@/lib/hooks/agents";
-import { useEvalRuns, usePromoteEvalRun, useStartEval } from "@/lib/hooks/evals";
+import { useEvalRuns, usePromoteEvalRun, useStartAllEvals, useStartEval } from "@/lib/hooks/evals";
 
 const pct = (n: number | null | undefined) => n == null ? "—" : `${Math.round(n * 100)}%`;
 const panel: React.CSSProperties = { background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 10 };
@@ -21,7 +21,7 @@ const passCount = (run: EvalPipelineRun) => {
 // and the unavailable sentinel cannot establish matching execution semantics.
 const knownEngine = (version: string) => /^sha256:[a-f0-9]{64}$/.test(version);
 export const compatibleEvalRuns = (a: EvalPipelineRun, b: EvalPipelineRun) =>
-  a.status === "completed" && b.status === "completed" && knownEngine(a.engine_version) &&
+  a.snapshot.scope === "suite" && b.snapshot.scope === "suite" && a.status === "completed" && b.status === "completed" && knownEngine(a.engine_version) &&
   a.engine_version === b.engine_version && a.dataset_fingerprint === b.dataset_fingerprint && a.scorer_version === b.scorer_version;
 function PromptDiff({ before, after }: { before: string; after: string }) {
   const a = before.split("\n"), b = after.split("\n");
@@ -57,7 +57,7 @@ function Comparison({ runs, onClose, agentVersion }: { runs: [EvalPipelineRun, E
     <h3>{t("promptDiff")}</h3><p>{t("oldPrompt")} (−) · {t("newPrompt")} (+)</p><PromptDiff before={old!.snapshot.agent.systemPrompt} after={current!.snapshot.agent.systemPrompt} />
     {JSON.stringify(old!.snapshot.agent.skills) !== JSON.stringify(current!.snapshot.agent.skills) && <><h3>{t("oldSkills")}</h3><pre style={{ whiteSpace: "pre-wrap" }}>{old!.snapshot.agent.skills.join("\n\n")}</pre><h3>{t("newSkills")}</h3><pre style={{ whiteSpace: "pre-wrap" }}>{current!.snapshot.agent.skills.join("\n\n")}</pre></>}
     <div style={{ display: "flex", gap: 10, marginTop: 20, position: "sticky", bottom: -24, padding: "14px 0", background: "var(--bg-surface)", borderTop: "1px solid var(--border)" }}><Button onClick={() => dialog.current?.close()}>{t("close")}</Button>
-    <Button kind="primary" disabled={!agentVersion || current!.status !== "completed" || !current!.snapshot.promotion || promote.isPending} onClick={() => { if (agentVersion && window.confirm(t("confirmPromote"))) promote.mutate({ agentId: current!.agent_id, runId: current!.id, expectedVersion: agentVersion }); }}>{t("promoteRun")}</Button></div>
+    <Button kind="primary" disabled={!agentVersion || current!.snapshot.scope !== "suite" || current!.status !== "completed" || !current!.snapshot.promotion || promote.isPending} onClick={() => { if (agentVersion && window.confirm(t("confirmPromote"))) promote.mutate({ agentId: current!.agent_id, runId: current!.id, expectedVersion: agentVersion }); }}>{t("promoteRun")}</Button></div>
     {promote.isError && <p role="alert">{promote.error.message}</p>}{promote.isSuccess && <p role="status">{t("promoted", { version: promote.data.version })}</p>}
   </dialog>;
 }
@@ -67,6 +67,7 @@ export function EvalDashboard({ agentId }: { agentId?: string }) {
   const agents = useAgents();
   const runs = useEvalRuns(agentId);
   const start = useStartEval();
+  const startAll = useStartAllEvals();
   const [selected, setSelected] = React.useState<string[]>([]);
   const [comparing, setComparing] = React.useState(false);
   const [runningAll, setRunningAll] = React.useState(false);
@@ -75,13 +76,14 @@ export function EvalDashboard({ agentId }: { agentId?: string }) {
   const visibleRuns = React.useMemo(() => (runs.data ?? []).filter((run) => period === "all" || Date.parse(run.created_at) >= Date.now() - Number(period) * 86400000), [runs.data, period]);
   const selectedRuns = visibleRuns.filter((run) => selected.includes(run.id));
   const agent = agents.data?.find((item) => item.id === agentId);
-  const newestComplete = visibleRuns.find((run) => run.status === "completed" && run.result?.score);
+  const newestComplete = visibleRuns.find((run) => run.snapshot.scope === "suite" && run.status === "completed" && run.result?.score);
   const completed = newestComplete ? visibleRuns.filter((run) => compatibleEvalRuns(run, newestComplete)).reverse() : [];
   const previousComplete = completed.length > 1 ? completed[completed.length - 2] : undefined;
   const precisionDelta = newestComplete?.result?.score?.precision != null && previousComplete?.result?.score?.precision != null
     ? newestComplete.result.score.precision - previousComplete.result.score.precision : null;
   return <AppShell crumb={[{ label: "Skills Lab" }, { label: "Eval Dashboard", href: "/eval" }, ...(agent ? [{ label: agent.name }] : [])]}>
     <main style={{ maxWidth: 1036, margin: "auto", padding: "24px 28px 40px" }}>
+      <style>{`@media (max-width: 700px) { .eval-agent-card { gap: 12px !important; position: relative; } .eval-agent-card .eval-agent-meta { flex: 0 0 calc(100% - 52px) !important; padding-right: 18px; } .eval-agent-card .eval-agent-metric { flex: 1 1 0 !important; min-width: 0 !important; } .eval-agent-card .eval-agent-arrow { position: absolute; right: 16px; top: 26px; } }`}</style>
       {agentId && <Link href="/eval">← {t("allAgents")}</Link>}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: 16, marginTop: 16 }}><div style={{ flex: "1 1 240px" }}><h1 style={{ fontSize: 22, fontWeight: 700 }}>{agentId ? agent?.name ?? t("agent") : t("dashboardTitle")}</h1>
       <p style={{ color: "var(--text-secondary)", marginTop: 4 }}>{agentId ? t("agentDescription") : t("dashboardDescription")}</p></div>
@@ -89,9 +91,10 @@ export function EvalDashboard({ agentId }: { agentId?: string }) {
       {!agentId && <Button kind="primary" icon="Play" disabled={runningAll || !agents.data?.length} onClick={async () => {
         setRunningAll(true); setRunAllErrors([]);
         const failures: string[] = [];
-        for (const item of agents.data ?? []) {
-          try { await start.mutateAsync(item.id); } catch (error) { failures.push(`${item.name}: ${error instanceof Error ? error.message : t("loadError")}`); }
-        }
+        try {
+          const result = await startAll.mutateAsync();
+          for (const item of result) if (item.error) failures.push(`${agents.data?.find((agent) => agent.id === item.agent_id)?.name ?? item.agent_id}: ${item.error}`);
+        } catch (error) { failures.push(error instanceof Error ? error.message : t("loadError")); }
         setRunAllErrors(failures); setRunningAll(false);
       }}>{runningAll ? t("running") : t("runAllAgents")}</Button>}</div>
       {runAllErrors.length > 0 && <p role="alert">{t("runAllFailed", { agents: runAllErrors.join(", ") })}</p>}
@@ -102,10 +105,10 @@ export function EvalDashboard({ agentId }: { agentId?: string }) {
       {agentId && newestComplete && <p>{t("runCaseCount", { count: newestComplete.snapshot.cases.length })}</p>}
       {!agentId && <section aria-label={t("agents")} style={{ marginTop: 28 }}><h2 style={{ fontSize: 12, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 12 }}>{t("agents")}</h2>
         {!agents.isLoading && !agents.isError && !agents.data?.length && <p>{t("noAgents")}</p>}
-        <div style={{ display: "grid", gap: 10 }}>{agents.data?.map((item) => { const latest = visibleRuns.find((run) => run.agent_id === item.id); return <Link key={item.id} href={`/eval/${item.id}`} style={{ ...panel, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 18, padding: "16px 18px", color: "inherit", textDecoration: "none" }}>
+        <div style={{ display: "grid", gap: 10 }}>{agents.data?.map((item) => { const latest = visibleRuns.find((run) => run.agent_id === item.id && run.snapshot.scope === "suite" && run.status === "completed"); return <Link className="eval-agent-card" key={item.id} href={`/eval/${item.id}`} style={{ ...panel, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 18, padding: "16px 18px", color: "inherit", textDecoration: "none" }}>
           <span aria-hidden="true" style={{ display: "grid", placeItems: "center", width: 40, height: 40, borderRadius: 8, background: "var(--accent-subtle, rgba(59,130,246,.12))", color: "var(--accent)" }}><Icon.Cpu size={20} /></span>
-          <div style={{ flex: "1 1 150px", minWidth: 0 }}><strong>{item.name}</strong><div style={{ color: "var(--text-secondary)", fontSize: 13 }}>{latest ? `${new Date(latest.created_at).toLocaleString()} · ${latest.status}` : t("noRuns")}</div></div>
-          {([['recall', t('recall')], ['precision', t('precision')], ['citationAccuracy', t('citation')]] as const).map(([key, label]) => <div key={key} style={{ flex: "0 1 90px", minWidth: 65 }}><small style={{ color: "var(--text-secondary)", textTransform: "uppercase", fontSize: 10, fontWeight: 700 }}>{label}</small><div style={{ color: metricColors[key], fontSize: 22, fontWeight: 700 }}>{pct(latest?.result?.score?.[key])}</div></div>)}<Icon.ChevronRight aria-hidden="true" size={16} />
+          <div className="eval-agent-meta" style={{ flex: "1 1 150px", minWidth: 0 }}><strong>{item.name}</strong><div style={{ color: "var(--text-secondary)", fontSize: 13 }}>{latest ? `${new Date(latest.created_at).toLocaleString()} · ${latest.status}` : t("noRuns")}</div></div>
+          {([['recall', t('recall')], ['precision', t('precision')], ['citationAccuracy', t('citation')]] as const).map(([key, label]) => <div className="eval-agent-metric" key={key} style={{ flex: "0 1 90px", minWidth: 65 }}><small style={{ color: "var(--text-secondary)", textTransform: "uppercase", fontSize: 10, fontWeight: 700 }}>{label}</small><div style={{ color: metricColors[key], fontSize: 22, fontWeight: 700 }}>{pct(latest?.result?.score?.[key])}</div></div>)}<Icon.ChevronRight className="eval-agent-arrow" aria-hidden="true" size={16} />
         </Link>; })}</div>
       </section>}
       {agentId && <section aria-label={t("metrics")} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginTop: 24 }}>
@@ -132,7 +135,7 @@ export function EvalDashboard({ agentId }: { agentId?: string }) {
         </tr></thead><tbody>{visibleRuns.map((run) => <tr key={run.id} style={{ borderTop: "1px solid var(--border)" }}>
           {agentId && <td style={{ padding: 12 }}><input type="checkbox" aria-label={t("selectRun", { date: new Date(run.created_at).toLocaleString() })} checked={selected.includes(run.id)} disabled={!selected.includes(run.id) && selected.length === 2} onChange={(event) => setSelected(event.target.checked ? [...selected, run.id] : selected.filter((id) => id !== run.id))} /></td>}
           {!agentId && <td style={{ padding: 12 }}><Link href={`/eval/${run.agent_id}`}>{agents.data?.find((item) => item.id === run.agent_id)?.name ?? t("agent")}</Link></td>}
-          <td style={{ padding: 12, whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{new Date(run.created_at).toLocaleString()}</td><td style={{ padding: 12 }}>{run.status}</td>
+          <td style={{ padding: 12, whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{new Date(run.created_at).toLocaleString()}</td><td style={{ padding: 12 }}>{run.status} · {run.snapshot.scope ?? "legacy"}</td>
           {metricKeys.map((key) => { const value = run.result?.score?.[key]; return <td key={key} style={{ padding: 12, minWidth: 110 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span aria-hidden="true" style={{ height: 6, width: 48, background: "var(--bg-elevated)", borderRadius: 4, overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${Math.max(0, Math.min(1, value ?? 0)) * 100}%`, background: metricColors[key] }} /></span><span>{pct(value)}</span></div></td>; })}
           <td style={{ padding: 12, whiteSpace: "nowrap" }}>{passCount(run)}</td><td style={{ padding: 12 }}>{money(run.result?.costUsd)}</td>
         </tr>)}</tbody></table></div>}

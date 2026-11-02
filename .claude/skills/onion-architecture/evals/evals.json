@@ -1,0 +1,57 @@
+{
+  "skill_name": "onion-architecture",
+  "format_version": 1,
+  "execution": {
+    "baseline": { "skills": [] },
+    "with_skill": { "skills": [".claude/skills/onion-architecture/SKILL.md"] }
+  },
+  "matching": {
+    "require_file_and_line_citation": true,
+    "allow_equivalent_wording": true,
+    "ignore_unexpected_findings": false
+  },
+  "cases": [
+    {
+      "id": "billing-invoice-creation",
+      "prompt": "Review this proposed backend change for architectural concerns. Report each concrete issue with file and changed-line citations. Include only issues supported by the diff.",
+      "fixture": "fixtures/01-billing-invoice/change.diff",
+      "expected_output": "fixtures/01-billing-invoice/expected.json"
+    },
+    {
+      "id": "repository-sync",
+      "prompt": "Review this proposed backend change for architectural concerns. Report each concrete issue with file and changed-line citations. Include only issues supported by the diff.",
+      "fixture": "fixtures/02-repository-sync/change.diff",
+      "expected_output": "fixtures/02-repository-sync/expected.json"
+    },
+    {
+      "id": "catalog-credentials",
+      "prompt": "Review this proposed backend change for architectural concerns. Report each concrete issue with file and changed-line citations. Include only issues supported by the diff.",
+      "fixture": "fixtures/03-catalog-credentials/change.diff",
+      "expected_output": "fixtures/03-catalog-credentials/expected.json"
+    },
+    {
+      "id": "tenant-scoping",
+      "prompt": "Review this proposed backend change for architectural concerns. Report each concrete issue with file and changed-line citations. Include only issues supported by the diff.",
+      "fixture": "fixtures/04-tenant-scoping/change.diff",
+      "expected_output": "fixtures/04-tenant-scoping/expected.json"
+    },
+    {
+      "id": "transactional-side-effect",
+      "prompt": "Review this proposed backend change for architectural concerns. Report each concrete issue with file and changed-line citations. Include only issues supported by the diff.",
+      "fixture": "fixtures/05-transactional-side-effect/change.diff",
+      "expected_output": "fixtures/05-transactional-side-effect/expected.json"
+    },
+    {
+      "id": "outbox-lifecycle",
+      "prompt": "Review this proposed backend change for architectural concerns. Trace the event flow across the changed files and report each concrete issue with file and changed-line citations. Include only issues supported by the diff.",
+      "fixture": "fixtures/06-outbox-lifecycle/change.diff",
+      "expected_output": "fixtures/06-outbox-lifecycle/expected.json"
+    },
+    {
+      "id": "peer-schema-import",
+      "prompt": "Review this proposed backend change for architectural concerns. Report each concrete issue with file and changed-line citations. Include only issues supported by the diff.",
+      "fixture": "fixtures/07-peer-schema-import/change.diff",
+      "expected_output": "fixtures/07-peer-schema-import/expected.json"
+    }
+  ]
+}

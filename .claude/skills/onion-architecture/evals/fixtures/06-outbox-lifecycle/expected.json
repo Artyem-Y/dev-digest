@@ -1,0 +1,22 @@
+{
+  "findings": [
+    {
+      "id": "business-write-and-outbox-not-atomic",
+      "file": "server/src/modules/billing/application/renewal-service.ts",
+      "line": 13,
+      "must_convey": "The subscription update commits in RenewalRepository.renew before BillingOutbox.append executes as a separate database operation, so a failure between them leaves changed business state with no durable event. Make the business write and outbox insert one atomic repository/unit-of-work operation."
+    },
+    {
+      "id": "outbox-marked-published-before-send",
+      "file": "server/src/modules/billing/infrastructure/billing-outbox-repository.ts",
+      "line": 21,
+      "must_convey": "claimBatch sets publishedAt before dispatchBillingEvents calls the external publisher. If publishing fails, the event is already excluded from future pending batches and is lost. Claim with a lease/in-progress state and mark published only after successful delivery."
+    },
+    {
+      "id": "consumer-not-idempotent",
+      "file": "server/src/modules/accounts/infrastructure/billing-event-handler.ts",
+      "line": 13,
+      "must_convey": "handleSubscriptionRenewed increments account credits without recording or checking event.id. A redelivery can apply the credit bonus more than once; persist a deduplication key or otherwise make event handling idempotent."
+    }
+  ]
+}

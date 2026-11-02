@@ -9,17 +9,24 @@
  */
 
 import { IS_BASELINE, WORKFLOW_ALLOWED_TOOLS } from "./config.js";
+import { resolve } from "node:path";
 import { runClaude, type RunOptions } from "./runtime/run-claude.js";
 import { runContent } from "./runtime/dispatch.js";
-import { skillContent, agentContent, agentTools } from "./artifacts/load.js";
+import { skillContent, skillContentFromDir, agentContent, agentTools } from "./artifacts/load.js";
+import { REPO_ROOT } from "./artifacts/paths.js";
 
 /**
- * Run a prompt with a skill's content injected (the 'candidate' condition). Under
- * EVAL_CONFIG=baseline the artifact is NOT injected — that is the benchmark's without-skill
- * baseline, i.e. the raw model, used to measure the skill's lift.
+ * Run a prompt with a skill's content injected (the 'candidate' condition). In the benchmark's
+ * baseline condition, EVAL_BASELINE_SKILL_DIR optionally injects a versioned skill snapshot;
+ * when unset, baseline is the raw model without a skill.
  */
 export function skillTask(prompt: string, skillName: string, opts: RunOptions = {}) {
-  const systemPrompt = IS_BASELINE ? undefined : skillContent(skillName);
+  const baselineSkillDir = process.env.EVAL_BASELINE_SKILL_DIR;
+  const systemPrompt = IS_BASELINE
+    ? baselineSkillDir
+      ? skillContentFromDir(resolve(REPO_ROOT, baselineSkillDir))
+      : undefined
+    : skillContent(skillName);
   return runContent(prompt, { ...opts, systemPrompt });
 }
 

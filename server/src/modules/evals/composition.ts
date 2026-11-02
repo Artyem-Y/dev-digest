@@ -8,6 +8,7 @@ import { ConfigError } from '../../platform/errors.js';
 import type { LLMProvider, Provider } from '@devdigest/shared';
 import { ReviewRepository } from '../reviews/repository.js';
 import { loadDiff } from '../reviews/diff-loader.js';
+import { SuiteAdmissionError } from './infrastructure/suite-repository.js';
 
 export function createCasesRepository(container: Container): CasesRepository {
   const reviews = new ReviewRepository(container.db);
@@ -17,9 +18,22 @@ export function createCasesRepository(container: Container): CasesRepository {
 export function createEvalSuiteService(container: Container) {
   const repository = new SuiteRepository(container.db);
   const reviewer = createEvalReviewer((provider) => container.llm(provider));
+  const queue: Array<() => Promise<void>> = [];
+  let running = 0;
+  let reserved = 0;
+  const pump = () => {
+    while (running < 3 && queue.length) {
+      const task = queue.shift()!;
+      running++;
+      void task().catch(() => { /* startup recovery handles unfinished runs */ }).finally(() => { running--; reserved--; pump(); });
+    }
+  };
   return {
     repository,
     async start(workspaceId: string, agentId: string, caseId?: string) {
+      if (reserved >= 100) throw new SuiteAdmissionError('capacity');
+      reserved++;
+      try {
       const artifact = container.hasUnverifiedEvalProviders() ? null : await loadEvalEngine();
       const executionRepository = artifact ? new SuiteRepository(container.db, artifact.version) : repository;
       const providers = new Map<Provider, LLMProvider>();
@@ -34,7 +48,7 @@ export function createEvalSuiteService(container: Container) {
         return provider;
       });
       const admitted = await executionRepository.admit(workspaceId, agentId, caseId);
-      void (async () => {
+      queue.push(async () => {
         try {
           await executionRepository.markRunning(workspaceId, admitted.run.id);
           const result = artifact && artifactReviewer
@@ -44,8 +58,10 @@ export function createEvalSuiteService(container: Container) {
         } catch {
           await executionRepository.finish(workspaceId, admitted.run.id, { status: 'failed', results: [], score: null, costUsd: null });
         }
-      })().catch(() => { /* startup recovery marks the persisted run failed */ });
+      });
+      pump();
       return admitted.run;
+      } catch (error) { reserved--; throw error; }
     },
   };
 }

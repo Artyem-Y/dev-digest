@@ -22,6 +22,7 @@ export const EvalPromotionSnapshot = z.object({
   links: z.array(z.object({ id: z.string().uuid(), order: z.number().int(), enabled: z.boolean(), skillEnabled: z.boolean(), bodyHash: z.string().regex(/^[a-f0-9]{64}$/) })),
 }).refine((value) => Object.prototype.hasOwnProperty.call(value, 'outputSchema'));
 export const EvalPipelineSnapshot = z.object({
+  scope: z.enum(['suite', 'case']).optional(),
   agent: z.object({ systemPrompt: z.string(), provider: z.string(), model: z.string(), strategy: z.string(), skills: z.array(z.string()) }),
   cases: z.array(EvalPipelineCaseSnapshot),
   promotion: EvalPromotionSnapshot.optional(),

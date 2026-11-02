@@ -1,134 +1,96 @@
 ---
 name: onion-architecture
-version: 1.0.0
-description: Use when creating or substantially changing a DevDigest backend module, use case, repository, job, SSE flow, or external integration. Enforces Onion Architecture dependency direction for Fastify, Zod, Drizzle, PostgreSQL, and platform adapters.
+version: 1.3.0
+description: >
+  Apply DevDigest's inward-only backend boundaries when adding or substantially
+  changing server modules, routes, services, repositories, jobs, SSE flows, or
+  external integrations, and when deciding where backend code belongs. Do not
+  use for unrelated legacy rewrites or detailed Fastify, Drizzle, or Zod recipes
+  handled by their specialized skills.
 ---
 
 # Onion Architecture for DevDigest Backend
 
-Apply Onion Architecture to new and substantially changed code in `server/`.
-The dependency rule is mandatory: compile-time dependencies point toward the
-application core, never toward Fastify, Drizzle, PostgreSQL, external clients,
-or the DI container.
+Use this skill for new backend behavior and the path a task substantially changes.
+Keep unrelated legacy code within its current boundaries; do not expand a feature
+into a broad architecture migration.
 
-Do not use this skill to justify a broad rewrite of an unrelated legacy module.
-Preserve existing code outside the task boundary, but do not introduce a new
-outward dependency in code you create or substantially refactor.
+The rule is compile-time dependency direction: **outer rings may depend inward;
+inner rings must not depend outward.** Runtime calls to external capabilities
+cross application-owned ports implemented by infrastructure.
 
-Read [README.md](README.md) when updating these rules or when architectural
-trade-offs need source context.
+## Rings in this repository
 
-## Rings and dependency direction
+| Ring | DevDigest examples | Owns |
+|---|---|---|
+| Presentation / inbound adapters | `modules/<feature>/routes.ts`, job handlers, SSE handlers | Parse transport input, resolve request scope, invoke application behavior, map results/errors or events to transport |
+| Application | `modules/<feature>/service.ts` and new `application/` code | Use cases, workflow decisions, authorization checks, commands/results, ports |
+| Domain | `modules/<feature>/domain/` when domain policy warrants it | Pure business concepts, invariants, value objects and policies |
+| Infrastructure / outbound adapters | `repository.ts`, `repository/`, `infrastructure/`, `src/adapters/` | Drizzle/PostgreSQL, GitHub/Git/LLM, filesystem, queues and other external I/O; implement application ports |
+| Composition boundary | `modules/<feature>/composition.ts`, `src/platform/container.ts`, module bootstrap | Construct concrete dependencies and connect adapters to application code |
+
+These are dependency boundaries, not a mandate to create every folder in every
+module. Preserve the repository's established module shape when making a narrow
+change. A trivial route with no reusable business behavior does not need a new
+domain layer, and a private pure helper does not need an interface.
 
 ```text
-Fastify routes, jobs, SSE                         inbound adapters
-                         ↓
-Application use cases and ports                   application ring
-                         ↓
-Domain policies, value objects, invariants        core ring
-                         ↑
-Drizzle/Postgres, GitHub, Git, LLM, secrets       outbound adapters
-                         ↑
-Container/module bootstrap                        composition boundary
+Inbound adapters → Application use cases / ports → Domain policy
+                         ↑                          ↑
+                 Infrastructure implements ports ──┘
+
+Composition selects and wires concrete implementations at the boundary.
 ```
 
-An outer ring may import an inner ring. An inner ring must not import an outer
-ring. The database is infrastructure, not the application center.
+## Fast placement guide
 
-## Placement and allowed dependencies
+- Is it HTTP/SSE/job input or output translation? Keep it in the inbound adapter.
+- Is it a business workflow, permission decision, or precondition? Put it in the application service/use case.
+- Is it a pure invariant or business calculation independent of I/O? Put it in domain code when that separation adds value.
+- Does it query Drizzle/PostgreSQL or call GitHub, Git, an LLM, secrets, the filesystem, or a queue? Put it behind an application-owned port in infrastructure or `src/adapters/`.
+- Does it choose concrete classes or providers? Put it in module composition or the platform container.
+- Is the task on a legacy path? Change only the boundary needed for the requested behavior and preserve the rest.
 
-| Concern | DevDigest location | May depend on | Must not depend on |
-|---|---|---|---|
-| Domain policy, value object, invariant | `src/modules/<feature>/domain/` | TypeScript standard library and other domain modules | Fastify, Zod, Drizzle, database rows, adapters, `Container` |
-| Use case and command/result types | `src/modules/<feature>/application/` | Domain and application-owned ports | Fastify request/reply, Drizzle, concrete adapters, `Container` |
-| Inbound port | `application/ports/` | Domain/application types | Fastify and infrastructure imports |
-| Outbound port | `application/ports/` | Domain/application types | Drizzle, `postgres`, GitHub/LLM SDK types |
-| HTTP adapter | `src/modules/<feature>/routes.ts` | Fastify, shared Zod contracts, application API | Business-rule implementation and direct persistence for new flows |
-| Repository or external implementation | `src/modules/<feature>/infrastructure/` or the existing `repository/` area | Application port plus Drizzle or a concrete client | Fastify request/reply |
-| Cross-cutting external adapter | `src/adapters/**` | Its application-facing port and concrete SDK | Route-specific types or business policy |
-| Composition | `src/platform/container.ts` or a module bootstrap called by it | Concrete adapters and application constructors | HTTP request-specific data |
+For detailed guidance, read only the relevant rule:
 
-For a trivial route with no business behavior, a distinct `domain/` folder is
-not required. It must still keep transport parsing and persistence details out
-of any reusable application policy. Create a port only when application logic
-needs to vary, fake, or isolate an external dependency; do not create an
-interface for a private pure helper.
+- New module or layer placement: [rules/layers.md](rules/layers.md)
+- Import direction or cross-module dependency: [rules/dependency-rule.md](rules/dependency-rule.md)
+- Cross-module persistence access: [rules/module-schema-ownership.md](rules/module-schema-ownership.md)
+- Domain policy and invariants: [rules/domain-layer.md](rules/domain-layer.md)
+- Use cases, ports, authorization and workflow logic: [rules/application-layer.md](rules/application-layer.md)
+- Repositories, adapters, scoping and transactions: [rules/infrastructure-layer.md](rules/infrastructure-layer.md)
+- Fastify, request context and transport schemas: [rules/presentation-layer.md](rules/presentation-layer.md)
+- Validation ownership: [rules/validation-stack.md](rules/validation-stack.md)
+- Composition and test doubles: [rules/di-container.md](rules/di-container.md)
+- Tenant context through repository predicates: [rules/tenant-scoping.md](rules/tenant-scoping.md)
+- External effects around database transactions: [rules/transactional-effects.md](rules/transactional-effects.md)
 
-## Adapter rules for the current stack
+Use `fastify-best-practices`, `drizzle-orm-patterns`, `zod`, and
+`postgresql-table-design` for detailed framework, query, schema, or database
+design recipes. This skill decides which ring owns that work.
+For architecture background and the research bibliography, see
+[references.md](references.md).
 
-### Fastify and Zod
+## Safe change workflow
 
-- `routes.ts` is an inbound adapter. It obtains request scope through
-  `modules/_shared/context.ts`, accepts validated transport input, invokes a use
-  case, and maps application errors/results to HTTP.
-- Shared Zod schemas and the Fastify Zod type provider belong at the transport
-  boundary. Do not make a domain policy accept a `FastifyRequest` or a Zod
-  schema as its dependency.
-- SSE handlers and background-job handlers are inbound adapters too. They may
-  start a use case and translate events, but do not own the workflow's business
-  decisions.
-
-### Drizzle and PostgreSQL
-
-- Drizzle schema, queries, transactions, migrations, and PostgreSQL row shapes
-  are infrastructure. A repository implements an application-owned outbound
-  port and maps persistence data at that boundary.
-- A use case decides that a workflow must be atomic; a transaction runner or
-  unit-of-work port expresses that need. Do not pass a Drizzle transaction into
-  domain or application code.
-- Keep committed migration history immutable. The current Drizzle schema is the
-  source for a new migration, and database constraints remain a final integrity
-  boundary rather than a substitute for application rules.
-
-### External systems and composition
-
-- GitHub, Git, LLM, secrets, job queue, repository-intel, and run-bus clients
-  are outbound adapters. Application code depends on narrow ports that describe
-  the needed capability, not on the full `Container`.
-- Only composition code chooses concrete implementations. Existing services
-  that receive `Container` are legacy migration boundaries; do not copy that
-  shape into a new use case.
-- Secrets never enter domain values, logs, transport contracts, or tests.
-
-## Change workflow
-
-1. Identify the use case and its business invariant before selecting files.
-2. Put pure policy in `domain/` when it has domain meaning; otherwise keep
-   orchestration in `application/`.
-3. Define an application-owned port before adding an external dependency to the
-   use case.
-4. Implement the port in infrastructure with Drizzle or the relevant adapter.
-5. Wire concrete dependencies at the composition boundary.
-6. Keep the route, job, or SSE handler thin: validate, resolve scope, call the
-   use case, and translate its result.
-7. For a touched legacy path, improve only the dependency violation necessary
-   for the change. Record an intentional remaining exception in review notes.
-
-## Testing by ring
-
-| Ring | Test style |
-|---|---|
-| Domain/application | Hermetic unit test with fake ports; no Fastify, Drizzle, Docker, GitHub, Git, or LLM. |
-| HTTP/SSE adapter | `app.inject()` with container overrides and mocked ports/adapters. |
-| Repository/transaction | `*.it.test.ts` with Testcontainers and a real PostgreSQL database. |
-| External adapter | Contract-focused unit test or integration test only when the behavior belongs to that provider boundary. |
-
-Do not mistake a client-side or transport-level check for authorization. A use
-case must receive the relevant actor/workspace context and enforce the business
-permission through its policy and ports; protected server operations remain the
-authority.
+1. Trace the current route/job/SSE-to-service-to-repository path and identify existing legacy boundaries.
+2. State the business invariant and the actor/workspace context the operation needs.
+3. Keep wire parsing in the inbound adapter; pass application-owned inputs into the use case.
+4. Keep workflow decisions in application code. Add a narrow port when an external capability must be isolated, varied, or faked.
+5. Implement persistence and external I/O in infrastructure; map database/provider shapes at that boundary.
+6. Wire concrete dependencies in `composition.ts` or the platform container. Do not pass the full `Container` into new domain/application code.
+7. Verify the changed ring with its appropriate test and check that authorization, tenant scoping, secrets, and transaction boundaries still hold.
 
 ## Review checklist
 
-Before finishing, verify:
-
-1. Does domain/application import a framework, ORM, driver, SDK, environment
-   config, or `Container`? If yes, move or invert the dependency.
-2. Does an inner layer define the port used by the outer implementation?
-3. Does a route/job/SSE handler contain a business rule or direct new Drizzle
-   workflow that belongs in a use case or repository?
-4. Are transaction scope and persistence constraints sufficient for the stated
-   invariant?
-5. Can the changed domain/application behavior run with fakes rather than real
-   infrastructure?
-6. Did the change preserve server-side authorization and avoid leaking secrets?
+1. Do domain or application files import Fastify, Zod transport schemas, Drizzle, PostgreSQL, an SDK, environment configuration, or `Container`?
+2. Does application code depend on ports/types it owns rather than concrete adapters or persistence rows?
+3. Do repository and external adapter implementations depend on the application-facing contract, without importing routes or service implementations?
+4. Do routes, jobs, and SSE handlers translate input/output and delegate workflow decisions?
+5. Does the use case receive trusted actor/workspace context and enforce server-side authorization? Are tenant reads/writes scoped in the repository?
+6. Are multi-write invariants atomic, with database constraints protecting integrity under concurrency where needed?
+7. Can domain/application behavior be tested with fakes, without real infrastructure?
+8. Are secrets kept within the secrets/provider flow and excluded from domain values, transport contracts, logs and tests?
+9. For tenant-owned reads and writes, does trusted actor/workspace context reach the use case and appear in the repository predicate?
+10. Does a database transaction callback perform external I/O that cannot roll back with the database? Prefer an outbox or an explicit post-commit action.
+11. Does a module import another feature module's private Drizzle schema/table or join against it directly? Treat the owning module's persistence as private; use its application-facing API or an explicitly owned cross-module read contract.
