@@ -58,6 +58,19 @@ describe("FindingCard (smoke, both themes)", () => {
     fireEvent.click(screen.getByText("Dismiss"));
     expect(onAction).toHaveBeenCalledWith("dismiss");
   });
+  it("updates focus and decision without conflicting border styles", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { rerender } = renderWithIntl(<FindingCard f={FINDING} focused defaultExpanded />);
+      rerender(
+        <QueryClientProvider client={new QueryClient()}><NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+          <FindingCard f={{ ...FINDING, accepted_at: "2026-01-01T00:00:00Z" }} focused={false} defaultExpanded />
+        </NextIntlClientProvider></QueryClientProvider>,
+      );
+      expect(screen.getByRole("button", { name: "Turn into eval case" })).toBeEnabled();
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally { consoleError.mockRestore(); }
+  });
   it("creates a case in one click for a decided finding", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ agent_id: "agent" }), { status: 201, headers: { "content-type": "application/json" } }));
     try {

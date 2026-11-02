@@ -385,14 +385,11 @@
       "label": "edited case saved"
     },
     {
-      "cmd": [
-        "find",
-        "role",
-        "button",
-        "click",
-        "--name",
-        "Run all evals"
-      ],
+      "cmd": ["eval", "(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Run all evals');b.scrollIntoView({block:'center'});b.focus()})()"],
+      "label": "focus first run action"
+    },
+    {
+      "cmd": ["press", "Enter"],
       "label": "run frozen cases"
     },
     {
@@ -486,14 +483,11 @@
       "label": "wait for eval controls"
     },
     {
-      "cmd": [
-        "find",
-        "role",
-        "button",
-        "click",
-        "--name",
-        "Run all evals"
-      ],
+      "cmd": ["eval", "(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Run all evals');b.scrollIntoView({block:'center'});b.focus()})()"],
+      "label": "focus second run action"
+    },
+    {
+      "cmd": ["press", "Enter"],
       "label": "run changed prompt"
     },
     {
