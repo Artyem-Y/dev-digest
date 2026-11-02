@@ -45,6 +45,10 @@ export interface RunOptions {
   stopWhen?: (partial: Pick<Result, "subagents" | "filesRead" | "skillsInvoked" | "toolsUsed">) => boolean;
 }
 
+export function normalizeReadPath(path: string): string {
+  return path.replace(/\\/g, "/");
+}
+
 /** Run one headless Claude turn-loop and extract what it ACTUALLY did (not its prose). */
 export async function runClaude(prompt: string, opts: RunOptions = {}): Promise<Result> {
   const allowedTools = opts.allowedTools ?? [];
@@ -114,7 +118,7 @@ export async function runClaude(prompt: string, opts: RunOptions = {}): Promise<
             }
             if (block.name === "Read") {
               const fp = input.file_path ?? input.path;
-              if (fp) reads.push(fp);
+              if (fp) reads.push(normalizeReadPath(fp));
             }
             if (block.name === "Skill") {
               const s = input.skill ?? input.command;

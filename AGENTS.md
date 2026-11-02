@@ -72,6 +72,21 @@ cd reviewer-core && npm run typecheck && npm test
 cd e2e && npm run typecheck
 ```
 
+## Eval routing
+
+Run the focused eval tier after changing agent artifacts; use repeated comparisons when measuring a version change.
+
+| Change | Eval |
+|---|---|
+| `SKILL.md`, skill references, or skill rules: structural validity | `cd evals && pnpm eval:quality <skill>` |
+| Skill behavior or curated expectations | `cd evals && pnpm vitest run skills/<skill>` |
+| Skill version lift (with vs without skill) | `cd evals && pnpm eval:benchmark skills/<skill> -n 5` |
+| Agent behavior | `cd evals && pnpm vitest run agents/<agent>` |
+| Compare two labeled agent/skill series | `cd evals && pnpm eval:repeat <pattern> -n 5 --label <label>` for each version, then `pnpm eval:delta <baseline> <candidate>` |
+| `CLAUDE.md`, activation, file routing, or subagent dispatch | `cd evals && pnpm eval:workflow` (Claude Agent SDK required) |
+
+Model-backed evals can cost money and vary between runs. Do not run them as fork-PR CI jobs; the static `eval:quality` gate is safe for pull requests.
+
 Server integration tests require Docker. Browser flows require the hermetic runner and `agent-browser`; do not claim they passed without running them.
 
 ## Completion

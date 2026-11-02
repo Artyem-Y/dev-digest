@@ -459,19 +459,22 @@ pnpm eval:skills         # just skills/
 pnpm eval:agents         # just agents/
 pnpm eval:workflow       # just workflow/
 pnpm vitest run skills/onion-architecture       # one artifact
-pnpm vitest run src/records/stats.test.ts       # the only non-model unit test (stats math)
+pnpm vitest run src/records                      # non-model record/statistics unit tests
+pnpm vitest run src/runtime/run-claude.test.ts   # workflow trace path normalization
 ```
 
 ### `eval:repeat` — stability of one thing
 
 ```bash
-pnpm eval:repeat <vitest pattern> [-n times=5] [-t testNamePattern] [--label name]
+pnpm eval:repeat <vitest pattern> [-n times=2] [-t testNamePattern] [--label name]
 pnpm eval:repeat skills/onion-architecture -n 5 --label baseline
 ```
 Runs the pattern N times, then prints per-test pass rate, a per-**practice** table
 (`passed/total (pct)`), and metric stats (`turns`, `duration_ms`, `tokens_out` as mean ± stddev;
-n<5 prints an "indicative only" caveat). `--label` saves the aggregate to
-`results/repeat-<label>.json` for delta.
+n<5 prints an "indicative only" caveat). The default cap allows up to five runs; set
+`EVAL_REPEAT_MAX_TIMES` to another positive integer to change that cap. `--label` saves the
+aggregate to `results/repeat-<label>.json` for delta. `eval:delta` aligns cases by their leaf test
+title so different agent/version file names can be compared; duplicate titles fail explicitly.
 
 ### `eval:delta` — version vs version (the canonical loop)
 
@@ -564,6 +567,7 @@ Cheap and orthogonal; the `TrendReporter` keeps writing test-level outcome rows 
 | `OPENROUTER_API_KEY` | — | required when `EVAL_BACKEND=openrouter`; also in `~/.devdigest/secrets.json` |
 | `OPENROUTER_BASE_URL` | OpenRouter | override to point at a local LiteLLM proxy for non-Anthropic tool-tier models |
 | `EVAL_MAX_TURNS` | `8` | max agent turns per case |
+| `EVAL_REPEAT_MAX_TIMES` | `5` | maximum `-n` accepted by `eval:repeat` (default repeat count remains 2) |
 | `EVAL_CONFIG` | `candidate` | `benchmark` sets this to `baseline` to skip artifact injection |
 | `EVAL_QUIET` | unset | suppress per-run trace spam during multi-run aggregation |
 

@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { GREEN, RED, DIM, RESET } from "./ansi.js";
 import { RESULTS_DIR } from "./artifacts/paths.js";
 import type { NodeAggregate, Series, Stats } from "./records/stats.js";
+import { alignTestSeries } from "./records/test-identity.js";
 
 interface RepeatFile {
   label: string;
@@ -63,10 +64,12 @@ function main(): void {
   console.log(`A = ${labelA}  sha ${a.git_sha}${a.dirty ? "-dirty" : ""}  (${a.times} runs)`);
   console.log(`B = ${labelB}  sha ${b.git_sha}${b.dirty ? "-dirty" : ""}  (${b.times} runs)`);
 
-  const nodeids = [...new Set([...Object.keys(a.tests), ...Object.keys(b.tests)])].sort();
+  const testsA = alignTestSeries(a.tests);
+  const testsB = alignTestSeries(b.tests);
+  const nodeids = [...new Set([...Object.keys(testsA), ...Object.keys(testsB)])].sort();
   for (const id of nodeids) {
-    const ta = a.tests[id];
-    const tb = b.tests[id];
+    const ta = testsA[id];
+    const tb = testsB[id];
     const shortId = id.split(" > ").slice(-1)[0];
     rateRow("\n  ", shortId, ta?.pass, tb?.pass);
 

@@ -70,10 +70,15 @@ function printTest(agg: NodeAggregate, times: number): void {
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  // Cap runs at 2 to keep token spend bounded — LLM sessions are expensive, and 2 runs is enough
-  // to catch a blatantly flaky case. Bump MAX_TIMES if you deliberately want a fuller stability run.
-  const MAX_TIMES = 2;
-  let times = MAX_TIMES;
+  // Keep the default cheap, but permit a five-run stability series for version comparisons.
+  // EVAL_REPEAT_MAX_TIMES can lower or raise the cap intentionally for local experiments.
+  const configuredMax = Number(process.env.EVAL_REPEAT_MAX_TIMES ?? 5);
+  if (!Number.isInteger(configuredMax) || configuredMax < 1) {
+    console.error("EVAL_REPEAT_MAX_TIMES must be a positive integer");
+    process.exit(1);
+  }
+  const MAX_TIMES = configuredMax;
+  let times = Math.min(2, MAX_TIMES);
   let label: string | undefined;
   const vitestArgs: string[] = [];
   for (let i = 0; i < argv.length; i++) {
@@ -83,7 +88,7 @@ async function main(): Promise<void> {
     else vitestArgs.push(a);
   }
   if (vitestArgs.length === 0 || !Number.isFinite(times) || times < 1) {
-    console.error("usage: pnpm eval:repeat <vitest pattern> [-n times<=2] [-t testNamePattern] [--label name]");
+    console.error(`usage: pnpm eval:repeat <vitest pattern> [-n times<=${MAX_TIMES}] [-t testNamePattern] [--label name]`);
     process.exit(1);
   }
   if (times > MAX_TIMES) {

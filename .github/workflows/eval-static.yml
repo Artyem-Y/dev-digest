@@ -19,9 +19,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
+          cache-dependency-path: evals/pnpm-lock.yaml
       - run: node scripts/validate-eval-assets.mjs
       - run: >-
           node --test
@@ -30,3 +35,18 @@ jobs:
           .claude/skills/dependencies-checker/evals/run-evals.test.mjs
           .claude/skills/dependencies-checker/evals/run-evals-exit.test.mjs
           scripts/eval-summary.test.mjs
+      - name: Install eval harness
+        working-directory: evals
+        run: pnpm install --frozen-lockfile
+      - name: Check skill quality
+        working-directory: evals
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm eval:quality | tee "$RUNNER_TEMP/eval-quality.txt" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: skill-quality-report
+          path: ${{ runner.temp }}/eval-quality.txt
+          if-no-files-found: ignore

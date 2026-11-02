@@ -70,7 +70,7 @@ export type WorkflowCase =
     };
 
 /** Did a skill engage? Either an explicit Skill tool-call, or reading its SKILL.md. */
-export function activated(result: Result, skill: string): boolean {
+export function activated(result: Pick<Result, "skillsInvoked" | "filesRead">, skill: string): boolean {
   const bySkill = result.skillsInvoked.some((s) => s === skill || s.endsWith(`:${skill}`));
   const byRead = result.filesRead.some((f) => f.includes(`skills/${skill}/SKILL.md`));
   return bySkill || byRead;
@@ -135,7 +135,12 @@ export function runWorkflowCases(cases: WorkflowCase[]): void {
           record(c.name, { result });
         }
       } else if (c.kind === "activation") {
-        const result = await workflowTask(c.prompt, { maxTurns: c.maxTurns });
+        const result = await workflowTask(c.prompt, {
+          maxTurns: c.maxTurns,
+          // Positive activation is established as soon as the skill tool/read appears. Keep
+          // negative controls running normally so they still require a successful completed run.
+          ...(c.shouldActivate ? { stopWhen: (p: Pick<Result, "skillsInvoked" | "filesRead">) => activated(p, c.skill) } : {}),
+        });
         logTrace(c.name, result);
         try {
           assertSessionSucceeded(result);
