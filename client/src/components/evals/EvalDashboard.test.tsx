@@ -6,15 +6,16 @@ import messages from "../../../messages/en/eval.json";
 import { EvalDashboard, compatibleEvalRuns } from "./EvalDashboard";
 import type { EvalPipelineRun } from "@devdigest/shared";
 
+const { trendRunIdentity } = vi.hoisted(() => ({ trendRunIdentity: { engineVersion: "unavailable" } }));
 vi.mock("@/components/app-shell", () => ({ AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
-vi.mock("@/lib/hooks/agents", () => ({ useAgents: () => ({ data: [{ id: "a", name: "Reviewer", version: 4 }] }) }));
+vi.mock("@/lib/hooks/agents", () => ({ useAgents: () => ({ data: [{ id: "a", name: "Reviewer", provider: "openai", model: "gpt-6-luna", version: 4 }] }) }));
 const startAll = vi.fn().mockResolvedValue([]);
 const promote = vi.fn();
 vi.mock("@/lib/hooks/evals", () => ({
   useStartEval: () => ({ mutate: vi.fn() }),
   useStartAllEvals: () => ({ mutateAsync: startAll }),
   usePromoteEvalRun: () => ({ mutate: promote }),
-  useEvalRuns: () => ({ data: ["one", "two"].map((id, index) => ({ id, agent_id: "a", status: "completed", created_at: `2026-10-3${index}T00:00:00Z`, dataset_fingerprint: "same", engine_version: "unavailable", scorer_version: "1", snapshot: { scope: "suite", agent: { provider: "openai", model: "m", systemPrompt: id, skills: [] }, cases: [], ...(index ? { promotion: {} } : {}) }, result: { score: { recall: 0.5, precision: 0.5, citationAccuracy: 1, counts: { truePositive: 1, knownFalsePositive: 1, unlabeled: 0 } }, costUsd: null } })) }),
+  useEvalRuns: () => ({ data: ["one", "two"].map((id, index) => ({ id, agent_id: "a", status: "completed", created_at: `2026-10-3${index}T00:00:00Z`, dataset_fingerprint: "same", engine_version: trendRunIdentity.engineVersion, scorer_version: "1", snapshot: { scope: "suite", agent: { provider: "openai", model: "m", systemPrompt: id, skills: [] }, cases: [], ...(index ? { promotion: {} } : {}) }, result: { score: { recall: 0.5, precision: 0.5, citationAccuracy: 1, counts: { truePositive: 1, knownFalsePositive: 1, unlabeled: 0 } }, costUsd: null } })) }),
 }));
 
 it("suppresses deltas when the engine revision is unavailable even for the same dataset", () => {
@@ -56,9 +57,28 @@ it("requires equal known engine, dataset and scorer identities", () => {
 it("shows labeled metrics and recent runs on the dashboard", () => {
   render(<NextIntlClientProvider locale="en" messages={{ eval: messages }}><EvalDashboard /></NextIntlClientProvider>);
   expect(within(screen.getByRole("region", { name: "Agents" })).getByRole("link", { name: /Reviewer/ })).toHaveAttribute("href", "/eval/a");
+  expect(screen.getByTestId("eval-agent-trend-recall")).toBeInTheDocument();
   expect(screen.getAllByText("Labeled precision").length).toBeGreaterThan(0);
   expect(screen.getByRole("heading", { name: "Run history" })).toBeInTheDocument();
   expect(screen.getAllByText("100%").length).toBeGreaterThan(0);
+});
+
+it("matches the standalone eval dashboard header treatment", () => {
+  render(<NextIntlClientProvider locale="en" messages={{ eval: messages }}><EvalDashboard agentId="a" /></NextIntlClientProvider>);
+  const configure = screen.getByRole("link", { name: "Configure eval cases →" });
+  expect(configure).toHaveClass("mono", "eval-configure-link");
+  expect(configure).toHaveAttribute("href", "/agents/a?tab=evals");
+  expect(screen.getByText("openai/gpt-6-luna")).toBeInTheDocument();
+});
+
+it("keeps precision visible when metric series share a value", () => {
+  trendRunIdentity.engineVersion = `sha256:${"a".repeat(64)}`;
+  render(<NextIntlClientProvider locale="en" messages={{ eval: messages }}><EvalDashboard agentId="a" /></NextIntlClientProvider>);
+  const chart = screen.getByRole("region", { name: "Metric trend" }).querySelector("svg")!;
+  const markers = [...chart.querySelectorAll("circle")];
+  const firstRunXs = [markers[0]?.getAttribute("cx"), markers[2]?.getAttribute("cx"), markers[4]?.getAttribute("cx")];
+  expect(new Set(firstRunXs).size).toBe(3);
+  trendRunIdentity.engineVersion = "unavailable";
 });
 
 it("starts each agent through the real start action", async () => {
@@ -71,7 +91,8 @@ it("shows the reason an agent's evaluation could not start", async () => {
   startAll.mockResolvedValueOnce([{ agent_id: "a", error: "empty", run: null }]);
   render(<NextIntlClientProvider locale="en" messages={{ eval: messages }}><EvalDashboard /></NextIntlClientProvider>);
   fireEvent.click(screen.getByRole("button", { name: "Run all agents" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Reviewer: empty");
+  expect(await screen.findByRole("alert")).toHaveTextContent("Reviewer: No eval cases yet.");
+  expect(screen.getByRole("link", { name: /Configure eval cases/ })).toHaveAttribute("href", "/agents/a?tab=evals");
 });
 
 it("renders the agent history as a labeled table with pass and cost", () => {

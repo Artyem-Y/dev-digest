@@ -338,7 +338,7 @@
       "label": "manual case saved"
     },
     {
-      "cmd": ["eval", "[...document.querySelectorAll('summary')].find(s => s.textContent.includes('Browser manual case')).focus()"],
+      "cmd": ["eval", "(()=>{const c=[...document.querySelectorAll('article')].find(a=>a.textContent.includes('Browser manual case'));const b=[...c.querySelectorAll('button')].find(b=>b.textContent.trim()==='Edit case');b.focus()})()"],
       "label": "focus manual case"
     },
     {
@@ -348,14 +348,6 @@
     {
       "cmd": ["screenshot", "test-results/15-eval-long-path.png"],
       "label": "capture long case path"
-    },
-    {
-      "cmd": ["eval", "[...document.querySelector('details[open]').closest('article').querySelectorAll('button')].find(b => b.textContent.trim() === 'Edit case').focus()"],
-      "label": "focus manual case editor"
-    },
-    {
-      "cmd": ["press", "Enter"],
-      "label": "edit manual case"
     },
     {
       "cmd": [
@@ -535,9 +527,15 @@
     },
     {
       "cmd": [
+        "eval",
+        "[...document.querySelectorAll('h2')].find(h => h.textContent.toLowerCase().includes('run history')).scrollIntoView()"
+      ],
+      "label": "scroll to dashboard history"
+    },
+    {
+      "cmd": [
         "wait",
-        "--text",
-        "Run history"
+        "table[aria-label='Run history']"
       ],
       "label": "load history"
     },
