@@ -23,12 +23,17 @@ export interface Verdict {
   score: number;
 }
 
-function parseVerdict(text: string): Verdict["results"] {
+function parseVerdict(text: string, practices: string[], output: string): Verdict["results"] {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start === -1 || end === -1 || end < start) throw new Error(`judge returned no JSON: ${text.slice(0, 200)}`);
   const obj = JSON.parse(text.slice(start, end + 1));
-  if (!Array.isArray(obj.results)) throw new Error("judge JSON missing results[]");
+  if (!Array.isArray(obj.results) || obj.results.length !== practices.length || new Set(practices).size !== practices.length) throw new Error("judge must return exactly one result per unique practice");
+  const remaining = new Set(practices);
+  for (const result of obj.results) {
+    if (!result || typeof result.practice !== "string" || !remaining.delete(result.practice) || typeof result.passed !== "boolean" || typeof result.evidence !== "string") throw new Error("invalid judge result");
+    if (result.passed && (!result.evidence.trim() || !output.includes(result.evidence))) throw new Error("judge evidence is not present in output");
+  }
   return obj.results;
 }
 
@@ -38,7 +43,7 @@ export async function llmJudge(output: string, practices: string[], model = EVAL
   const prompt = `${JUDGE_RUBRIC}\n\n## PRACTICES\n${listed}\n\n## OUTPUT\n${output}\n\nReturn the JSON now.`;
   const res = await runContent(prompt, { allowedTools: [], maxTurns: 1, model });
   if (res.isError) throw new Error(`Judge session failed: ${res.text}`);
-  const results = parseVerdict(res.text);
+  const results = parseVerdict(res.text, practices, output);
   const total = results.length || 1;
   const passed = results.filter((r) => r.passed).length;
   return { results, passed, total, score: passed / total };

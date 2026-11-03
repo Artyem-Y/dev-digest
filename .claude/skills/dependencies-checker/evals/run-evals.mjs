@@ -93,6 +93,11 @@ function runCommand(command, args, cwd, timeoutMs) {
   });
 }
 
+export function isCandidateSkillFile(source, root) {
+  const relative = path.relative(root, source);
+  return relative === '' || (!relative.split(path.sep).includes('evals') && !relative.split(path.sep).includes('fixtures'));
+}
+
 async function runOne({ arm, index, output, prompt, expected }) {
   const sandbox = await mkdtemp(path.join(tmpdir(), `dependencies-checker-${arm}-${index}-`));
   const repository = path.join(sandbox, 'repo');
@@ -105,11 +110,11 @@ async function runOne({ arm, index, output, prompt, expected }) {
   if (arm === 'candidate') {
     await cp(skillRoot, path.join(repository, '.claude/skills/dependencies-checker'), {
       recursive: true,
-      filter: (source) => !source.includes(`${path.sep}fixtures${path.sep}`),
+      filter: (source) => isCandidateSkillFile(source, skillRoot),
     });
     await cp(skillRoot, path.join(repository, '.codex/skills/dependencies-checker'), {
       recursive: true,
-      filter: (source) => !source.includes(`${path.sep}fixtures${path.sep}`),
+      filter: (source) => isCandidateSkillFile(source, skillRoot),
     });
   }
   const task = [

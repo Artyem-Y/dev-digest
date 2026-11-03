@@ -54,12 +54,20 @@
       "label": "open findings"
     },
     {
+      "cmd": ["wait", "--url", "tab=findings"],
+      "label": "wait for findings tab navigation"
+    },
+    {
       "cmd": [
         "wait",
         "--text",
         "Synthetic division example"
       ],
       "label": "wait for findings"
+    },
+    {
+      "cmd": ["wait", "--fn", "document.querySelectorAll('[data-finding-id]').length >= 2"],
+      "label": "wait for fixture finding cards"
     },
     {
       "cmd": [

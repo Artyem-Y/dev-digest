@@ -92,6 +92,7 @@ function runQualityCases(artifact: string, cases: QualityCase[], task: Task): vo
       // (e.g. baseline: grounding gate fails, judge skipped) still leaves a record.
       let grounded: number | undefined;
       let verdict: Verdict | undefined;
+      let measured = false;
       try {
         assertSessionSucceeded(result);
         // Cheap deterministic tier first — the grounding gate. When it fails the judge is skipped.
@@ -100,8 +101,9 @@ function runQualityCases(artifact: string, cases: QualityCase[], task: Task): vo
           verdict = await llmJudge(result.text, c.practices);
           logVerdict(c.name, verdict);
         }
+        measured = true;
       } finally {
-        record(c.name, { result, verdict, grounded, threshold });
+        record(c.name, { result, verdict, grounded, threshold, ...(!measured ? { outcome: false } : {}) });
       }
 
       if (grounded !== undefined) {
@@ -128,11 +130,13 @@ export function runWorkflowCases(cases: WorkflowCase[]): void {
           stopWhen: (p) => p.subagents.includes(expect1),
         });
         logTrace(c.name, result);
+        let passed = false;
         try {
           assertSessionSucceeded(result);
           expect(result.subagents, `subagents: ${result.subagents.join(", ")}`).toContain(c.expectSubagent);
+          passed = true;
         } finally {
-          record(c.name, { result });
+          record(c.name, { result, outcome: passed });
         }
       } else if (c.kind === "activation") {
         const result = await workflowTask(c.prompt, {
@@ -142,14 +146,16 @@ export function runWorkflowCases(cases: WorkflowCase[]): void {
           ...(c.shouldActivate ? { stopWhen: (p: Pick<Result, "skillsInvoked" | "filesRead">) => activated(p, c.skill) } : {}),
         });
         logTrace(c.name, result);
+        let passed = false;
         try {
           assertSessionSucceeded(result);
           expect(
             activated(result, c.skill),
             `skills: ${result.skillsInvoked.join(", ")} | reads: ${result.filesRead.join(", ")}`,
           ).toBe(c.shouldActivate);
+          passed = true;
         } finally {
-          record(c.name, { result });
+          record(c.name, { result, outcome: passed });
         }
       } else if (c.kind === "trace") {
         // One session, many asserts — every provided expectation is checked against the same trace.
@@ -169,6 +175,7 @@ export function runWorkflowCases(cases: WorkflowCase[]): void {
             files.every((f) => p.filesRead.some((r) => r.includes(f))),
         });
         logTrace(c.name, result);
+        let passed = false;
         try {
           assertSessionSucceeded(result);
           for (const sub of c.expectSubagents ?? []) {
@@ -187,8 +194,9 @@ export function runWorkflowCases(cases: WorkflowCase[]): void {
             ).toBe(true);
           }
           expect(result.isError).toBe(false);
+          passed = true;
         } finally {
-          record(c.name, { result });
+          record(c.name, { result, outcome: passed });
         }
       } else {
         // contrast: treatment (real harness) vs control (empty tmpdir, no on-disk config).
@@ -203,16 +211,16 @@ export function runWorkflowCases(cases: WorkflowCase[]): void {
         });
         logTrace(`${c.name} [treatment]`, treatment);
         logTrace(`${c.name} [control]`, control);
+        const treatmentRead = treatment.filesRead.some((f) => f.includes(c.expectFileRead));
+        const controlRead = control.filesRead.some((f) => f.includes(c.expectFileRead));
         try {
           assertSessionSucceeded(treatment);
           assertSessionSucceeded(control);
-          const treatmentRead = treatment.filesRead.some((f) => f.includes(c.expectFileRead));
-          const controlRead = control.filesRead.some((f) => f.includes(c.expectFileRead));
           expect(treatmentRead, `treatment reads: ${treatment.filesRead.join(", ")}`).toBe(true);
           expect(controlRead, `control reads: ${control.filesRead.join(", ")}`).toBe(false);
         } finally {
-          record(`${c.name} [treatment]`, { result: treatment });
-          record(`${c.name} [control]`, { result: control });
+          record(`${c.name} [treatment]`, { result: treatment, outcome: !treatment.isError && treatmentRead });
+          record(`${c.name} [control]`, { result: control, outcome: !control.isError && !controlRead });
         }
       }
     });

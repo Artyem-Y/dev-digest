@@ -48,6 +48,13 @@ On top of the tiers sit three statistical tools: **repeat** (run one thing N tim
 **delta** (diff two labeled repeat runs → version-vs-version), **benchmark** (run with vs without
 the artifact → measured lift). All three read the same persisted `results/records.jsonl`.
 
+Labeled repeat results carry a conservative hash of the harness, graders, fixtures, selection and
+model settings. `eval:delta` rejects missing or different identities; older labeled results need
+fresh runs. A matching identity does not guarantee an unchanged remote model or judge calibration.
+Workflow assertion failures are recorded as failures even when the model session itself completed.
+Judge verdicts must contain exactly one result per requested practice, and passing evidence must
+be a nonempty verbatim substring of the output. Human calibration is still needed for meaning.
+
 `EVAL_BACKEND=codex pnpm eval:skills` runs content cases and their judge with Codex CLI,
 using its existing login and a temporary read-only working directory. User configuration is
 disabled for these runs; set `EVAL_MODEL` and `EVAL_JUDGE_MODEL` to select models explicitly.

@@ -15,6 +15,7 @@ import { GREEN, RED, DIM, RESET } from "./ansi.js";
 import { RESULTS_DIR } from "./artifacts/paths.js";
 import type { NodeAggregate, Series, Stats } from "./records/stats.js";
 import { alignTestSeries } from "./records/test-identity.js";
+import { assertComparable } from "./records/comparability.js";
 
 interface RepeatFile {
   label: string;
@@ -22,6 +23,7 @@ interface RepeatFile {
   dirty: boolean;
   times: number;
   tests: Record<string, NodeAggregate>;
+  evalIdentity?: string;
 }
 
 function load(label: string): RepeatFile {
@@ -61,6 +63,7 @@ function main(): void {
   }
   const a = load(labelA);
   const b = load(labelB);
+  assertComparable(a, b);
   console.log(`A = ${labelA}  sha ${a.git_sha}${a.dirty ? "-dirty" : ""}  (${a.times} runs)`);
   console.log(`B = ${labelB}  sha ${b.git_sha}${b.dirty ? "-dirty" : ""}  (${b.times} runs)`);
 

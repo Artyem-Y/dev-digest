@@ -16,6 +16,7 @@ import { GREEN, RED, DIM, RESET, rateColor } from "./ansi.js";
 import { gitInfo } from "./git.js";
 import { countTests, runVitestOnce } from "./run-vitest.js";
 import { RESULTS_DIR } from "./artifacts/paths.js";
+import { evalIdentity } from "./records/comparability.js";
 import { aggregate, loadRecords, recordCount, type NodeAggregate, type Stats } from "./records/stats.js";
 
 /**
@@ -97,6 +98,8 @@ async function main(): Promise<void> {
   }
   vitestArgs.splice(0, vitestArgs.length, ...resolveEvalPatterns(vitestArgs));
 
+  const identity = evalIdentity(vitestArgs);
+
   const startLine = recordCount();
   let line = startLine;
   const nCases = countTests(vitestArgs);
@@ -130,7 +133,8 @@ async function main(): Promise<void> {
     const git = gitInfo();
     mkdirSync(RESULTS_DIR, { recursive: true });
     const file = join(RESULTS_DIR, `repeat-${label}.json`);
-    writeFileSync(file, JSON.stringify({ label, git_sha: git.sha, dirty: git.dirty, times, vitestArgs, tests }, null, 2));
+    if (identity !== evalIdentity(vitestArgs)) throw new Error("Eval harness or fixtures changed during the run; refusing to save a comparable series.");
+    writeFileSync(file, JSON.stringify({ label, git_sha: git.sha, dirty: git.dirty, times, vitestArgs, evalIdentity: identity, tests }, null, 2));
     console.log(`\n${GREEN}Saved as '${label}'${RESET} -> ${file}`);
     console.log(`Compare with: pnpm eval:delta <baseline-label> ${label}`);
   }

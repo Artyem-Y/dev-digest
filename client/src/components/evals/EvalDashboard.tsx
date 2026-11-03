@@ -14,6 +14,12 @@ const metricColors = { recall: "#3b82f6", precision: "#10b981", citationAccuracy
 const metricKeys = ["recall", "precision", "citationAccuracy"] as const;
 const trendOffsets = { recall: -7, precision: 0, citationAccuracy: 7 } as const;
 const money = (value: number | null | undefined) => value == null ? "—" : `$${value.toFixed(value > 0 && value < 0.01 ? 4 : 2)}`;
+/** Sum case execution times; queue and orchestration time are not included. */
+export function formatCaseTime(run: EvalPipelineRun): string {
+  const results = run.result?.results;
+  if (run.status !== "completed" || !results?.length || results.length !== run.snapshot.cases.length || results.some((item) => !Number.isFinite(item.durationMs) || item.durationMs < 0)) return "—";
+  return `${(results.reduce((sum, item) => sum + item.durationMs, 0) / 1000).toFixed(2)} s`;
+}
 function MetricSparkline({ values, color, testId }: { values: Array<number | null | undefined>; color: string; testId?: string }) {
   const points = values.flatMap((value, index) => value == null ? [] : [[index, value] as const]);
   if (points.length < 2) return null;
@@ -120,7 +126,7 @@ export function EvalDashboard({ agentId }: { agentId?: string }) {
       {agentId && newestComplete && <p>{t("runCaseCount", { count: newestComplete.snapshot.cases.length })}</p>}
       {!agentId && <section aria-label={t("agents")} style={{ marginTop: 28 }}><h2 style={{ fontSize: 12, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 12 }}>{t("agents")}</h2>
         {!agents.isLoading && !agents.isError && !agents.data?.length && <p>{t("noAgents")}</p>}
-        <div style={{ display: "grid", gap: 10 }}>{agents.data?.map((item) => { const history = visibleRuns.filter((run) => run.agent_id === item.id && run.snapshot.scope === "suite" && run.status === "completed").slice(0, 5).reverse(); const latest = history[history.length - 1]; const recallHistory = history.map((run) => run.result?.score?.recall); return <Link className="eval-agent-card" key={item.id} href={`/eval/${item.id}`} style={{ ...panel, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 18, padding: "16px 18px", color: "inherit", textDecoration: "none" }}>
+        <div style={{ display: "grid", gap: 10 }}>{agents.data?.map((item) => { const history = visibleRuns.filter((run) => run.agent_id === item.id && run.snapshot.scope === "suite" && run.status === "completed").slice(0, 5).reverse(); const latest = history[history.length - 1]; const recallHistory = latest ? history.filter((run) => compatibleEvalRuns(run, latest)).map((run) => run.result?.score?.recall) : []; return <Link className="eval-agent-card" key={item.id} href={`/eval/${item.id}`} style={{ ...panel, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 18, padding: "16px 18px", color: "inherit", textDecoration: "none" }}>
           <span aria-hidden="true" style={{ display: "grid", placeItems: "center", width: 40, height: 40, borderRadius: 8, background: "var(--accent-subtle, rgba(59,130,246,.12))", color: "var(--accent)" }}><Icon.Cpu size={20} /></span>
           <div className="eval-agent-meta" style={{ flex: "1 1 150px", minWidth: 0 }}><strong>{item.name}</strong><div style={{ color: "var(--text-secondary)", fontSize: 13 }}>{latest ? `${new Date(latest.created_at).toLocaleString()} · ${latest.status}` : t("noRuns")}</div></div>
           <MetricSparkline testId="eval-agent-trend-recall" values={recallHistory} color={metricColors.recall} />
@@ -148,13 +154,13 @@ export function EvalDashboard({ agentId }: { agentId?: string }) {
         <thead><tr style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", textTransform: "uppercase", fontSize: 10, letterSpacing: ".05em" }}>
           {agentId && <th scope="col" style={{ padding: 12 }}><span className="sr-only">{t("select")}</span></th>}
           {!agentId && <th scope="col" style={{ padding: 12 }}>{t("agent")}</th>}
-          {[t("ranAt"), t("status"), t("recall"), t("precision"), t("citation"), t("pass"), t("cost")].map((label) => <th scope="col" key={label} style={{ padding: 12 }}>{label}</th>)}
+          {[t("ranAt"), t("status"), t("recall"), t("precision"), t("citation"), t("pass"), t("cost"), t("caseTime")].map((label) => <th scope="col" key={label} style={{ padding: 12 }}>{label}</th>)}
         </tr></thead><tbody>{visibleRuns.map((run) => <tr key={run.id} style={{ borderTop: "1px solid var(--border)" }}>
           {agentId && <td style={{ padding: 12 }}><input type="checkbox" aria-label={t("selectRun", { date: new Date(run.created_at).toLocaleString() })} checked={selected.includes(run.id)} disabled={!selected.includes(run.id) && selected.length === 2} onChange={(event) => setSelected(event.target.checked ? [...selected, run.id] : selected.filter((id) => id !== run.id))} /></td>}
           {!agentId && <td style={{ padding: 12 }}><Link href={`/eval/${run.agent_id}`}>{agents.data?.find((item) => item.id === run.agent_id)?.name ?? t("agent")}</Link></td>}
           <td style={{ padding: 12, whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{new Date(run.created_at).toLocaleString()}</td><td style={{ padding: 12 }}>{run.status} · {run.snapshot.scope ?? "legacy"}</td>
           {metricKeys.map((key) => { const value = run.result?.score?.[key]; return <td key={key} style={{ padding: 12, minWidth: 110 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span aria-hidden="true" style={{ height: 6, width: 48, background: "var(--bg-elevated)", borderRadius: 4, overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${Math.max(0, Math.min(1, value ?? 0)) * 100}%`, background: metricColors[key] }} /></span><span>{pct(value)}</span></div></td>; })}
-          <td style={{ padding: 12, whiteSpace: "nowrap" }}>{passCount(run)}</td><td style={{ padding: 12 }}>{money(run.result?.costUsd)}</td>
+          <td style={{ padding: 12, whiteSpace: "nowrap" }}>{passCount(run)}</td><td style={{ padding: 12 }}>{money(run.result?.costUsd)}</td><td style={{ padding: 12, whiteSpace: "nowrap" }}>{formatCaseTime(run)}</td>
         </tr>)}</tbody></table></div>}
       {comparing && selectedRuns.length === 2 && <Comparison runs={[selectedRuns[0]!, selectedRuns[1]!]} agentVersion={agent?.version} onClose={() => setComparing(false)} />}
     </main>

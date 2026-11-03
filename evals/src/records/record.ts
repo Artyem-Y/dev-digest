@@ -31,6 +31,7 @@ export interface RecordData {
   verdict?: Verdict;
   grounded?: number;
   threshold?: number;
+  outcome?: boolean;
   extra?: Record<string, unknown>;
 }
 
@@ -46,12 +47,12 @@ export function record(label: string, data: RecordData): void {
 
   // outcome: grounding gate failure short-circuits to false; else the judge threshold; else
   // "did the run itself succeed" (workflow tests have neither grounding nor a judge verdict).
-  const outcome =
+  const outcome = data.outcome ?? (
     grounded !== undefined && grounded < 1
       ? false
       : verdict && threshold !== undefined
         ? verdict.score >= threshold
-        : !result.isError;
+        : !result.isError);
 
   const outDir = join(OUTPUTS, RUN_ID);
   mkdirSync(outDir, { recursive: true });

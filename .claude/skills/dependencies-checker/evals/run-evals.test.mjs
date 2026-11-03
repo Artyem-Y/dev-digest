@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { aggregate } from './run-evals.mjs';
+import { aggregate, isCandidateSkillFile } from './run-evals.mjs';
+
+test('candidate copy excludes grading assets but retains the skill', () => {
+  assert.equal(isCandidateSkillFile('/tmp/skill/evals/expected.json', '/tmp/skill'), false);
+  assert.equal(isCandidateSkillFile('/tmp/skill/evals', '/tmp/skill'), false);
+  assert.equal(isCandidateSkillFile('/tmp/skill/SKILL.md', '/tmp/skill'), true);
+});
 
 test('aggregate excludes infrastructure failures from quality metrics', () => {
   const benchmark = aggregate({
