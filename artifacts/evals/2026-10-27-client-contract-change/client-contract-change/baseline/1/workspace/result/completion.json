@@ -1,0 +1,20 @@
+{
+  "changed_paths": [
+    "server/src/vendor/shared/pulls.ts",
+    "client/src/vendor/shared/pulls.ts",
+    "client/src/lib/api.ts",
+    "client/messages/en/pulls.json",
+    "client/src/app/pulls/[id]/page.tsx",
+    "result/completion.json"
+  ],
+  "verification": [
+    {
+      "command": "node -e \"const fs=require('fs'); const server=fs.readFileSync('server/src/vendor/shared/pulls.ts','utf8'); const client=fs.readFileSync('client/src/vendor/shared/pulls.ts','utf8'); const api=fs.readFileSync('client/src/lib/api.ts','utf8'); const page=fs.readFileSync('client/src/app/pulls/[id]/page.tsx','utf8'); const messages=JSON.parse(fs.readFileSync('client/messages/en/pulls.json','utf8')); for (const source of [server, client]) if (!source.includes('reviewSummary: z.string().nullable()')) throw new Error('nullable review summary contract missing'); if (!api.includes('reviewSummary: string | null')) throw new Error('nullable transport type missing'); if (!page.includes('getPull(params.id)') || page.includes('fetch(')) throw new Error('page bypasses transport boundary'); if (!page.includes('pull.reviewSummary === null')) throw new Error('unavailable state is not explicit'); for (const key of ['reviewSummary', 'reviewSummaryUnavailable']) if (typeof messages[key] !== 'string') throw new Error('missing localized copy: '+key); console.log('focused pull-detail contract and unavailable-state checks passed');\"",
+      "status": "passed",
+      "scope": "Static fixture check for the mirrored nullable contract, typed client transport, API-boundary use, explicit unavailable state, and localized copy."
+    }
+  ],
+  "environment_blocks": [
+    "No package manifest, test runner, TypeScript configuration, or source-control metadata is present in this fixture, so package-level tests and a worktree diff could not be run."
+  ]
+}

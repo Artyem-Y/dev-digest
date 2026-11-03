@@ -5,6 +5,8 @@ description: Perform the final local DevDigest implementation diff check before 
 
 # PR self review
 
+## Review procedure
+
 Manual-only workflow for the plan-designated integration owner. Never install a
 git-push hook. It is a focused self-check before handoff, not a replacement for
 `architecture-reviewer`, `security-reviewer`, or `plan-verifier`.

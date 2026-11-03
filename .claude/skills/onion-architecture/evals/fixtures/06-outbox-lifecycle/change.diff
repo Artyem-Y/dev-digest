@@ -1,0 +1,165 @@
+diff --git a/server/src/modules/billing/application/renewal-service.ts b/server/src/modules/billing/application/renewal-service.ts
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/server/src/modules/billing/application/renewal-service.ts
+@@ -0,0 +1,19 @@
++import type { RenewalRepository } from './renewal-repository.js';
++import type { BillingOutbox } from './billing-outbox.js';
++
++export interface RenewalInput {
++  accountId: string;
++  plan: 'standard' | 'pro';
++}
++
++export function createRenewalService(deps: { repository: RenewalRepository; outbox: BillingOutbox }) {
++  return {
++    async renew(input: RenewalInput) {
++      const subscription = await deps.repository.renew(input.accountId, input.plan);
++      await deps.outbox.append({
++        eventType: 'SubscriptionRenewed', accountId: input.accountId, plan: input.plan,
++      });
++      return subscription;
++    },
++  };
++}
+diff --git a/server/src/modules/billing/application/billing-outbox.ts b/server/src/modules/billing/application/billing-outbox.ts
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/server/src/modules/billing/application/billing-outbox.ts
+@@ -0,0 +1,11 @@
++export interface BillingOutbox {
++  append(event: {
++    eventType: 'SubscriptionRenewed';
++    accountId: string;
++    plan: 'standard' | 'pro';
++  }): Promise<void>;
++}
++
++export interface RenewalRepository {
++  renew(accountId: string, plan: 'standard' | 'pro'): Promise<{ accountId: string; plan: string }>;
++}
+diff --git a/server/src/modules/billing/infrastructure/renewal-repository.ts b/server/src/modules/billing/infrastructure/renewal-repository.ts
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/server/src/modules/billing/infrastructure/renewal-repository.ts
+@@ -0,0 +1,15 @@
++import { db } from '../../../db/client.js';
++import { subscriptions } from '../../../db/schema.js';
++import { eq } from 'drizzle-orm';
++
++export const renewalRepository = {
++  async renew(accountId: string, plan: string) {
++    return db.transaction(async (tx) => {
++      const [row] = await tx.update(subscriptions)
++        .set({ plan, renewedAt: new Date() })
++        .where(eq(subscriptions.accountId, accountId))
++        .returning();
++      return { accountId: row.accountId, plan: row.plan };
++    });
++  },
++};
+diff --git a/server/src/modules/billing/infrastructure/billing-outbox-repository.ts b/server/src/modules/billing/infrastructure/billing-outbox-repository.ts
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/server/src/modules/billing/infrastructure/billing-outbox-repository.ts
+@@ -0,0 +1,26 @@
++import { and, inArray, isNull } from 'drizzle-orm';
++import { db } from '../../../db/client.js';
++import { billingOutbox } from '../../../db/schema.js';
++
++export const billingOutboxRepository = {
++  async append(event: { eventType: string; accountId: string; plan: string }) {
++    await db.insert(billingOutbox).values({
++      eventId: crypto.randomUUID(),
++      eventType: event.eventType,
++      payload: event,
++      createdAt: new Date(),
++    });
++  },
++
++  async claimBatch(limit: number) {
++    const rows = await db.select().from(billingOutbox)
++      .where(isNull(billingOutbox.publishedAt))
++      .limit(limit);
++    if (rows.length) {
++      await db.update(billingOutbox)
++        .set({ publishedAt: new Date() })
++        .where(and(isNull(billingOutbox.publishedAt), inArray(billingOutbox.id, rows.map((row) => row.id))));
++    }
++    return rows;
++  },
++};
+diff --git a/server/src/modules/billing/infrastructure/billing-outbox-worker.ts b/server/src/modules/billing/infrastructure/billing-outbox-worker.ts
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/server/src/modules/billing/infrastructure/billing-outbox-worker.ts
+@@ -0,0 +1,13 @@
++import type { BillingPublisher } from '../../../platform/billing-publisher.js';
++import { billingOutboxRepository } from './billing-outbox-repository.js';
++
++export async function dispatchBillingEvents(publisher: BillingPublisher) {
++  const messages = await billingOutboxRepository.claimBatch(50);
++  for (const message of messages) {
++    await publisher.publish({
++      id: message.eventId,
++      type: message.eventType,
++      payload: message.payload,
++    });
++  }
++}
+diff --git a/server/src/modules/accounts/infrastructure/billing-event-handler.ts b/server/src/modules/accounts/infrastructure/billing-event-handler.ts
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/server/src/modules/accounts/infrastructure/billing-event-handler.ts
+@@ -0,0 +1,23 @@
++import { eq, sql } from 'drizzle-orm';
++import { db } from '../../../db/client.js';
++import { accounts } from '../../../db/schema.js';
++
++interface SubscriptionRenewed {
++  id: string;
++  type: 'SubscriptionRenewed';
++  payload: { accountId: string; plan: string; creditBonus: number };
++}
++
++export async function handleSubscriptionRenewed(event: SubscriptionRenewed) {
++  await db.update(accounts)
++    .set({ credits: sql`${accounts.credits} + ${event.payload.creditBonus}` })
++    .where(eq(accounts.id, event.payload.accountId));
++}
++
++export async function consumeBillingMessage(message: {
++  event: SubscriptionRenewed;
++  ack(): Promise<void>;
++}) {
++  await handleSubscriptionRenewed(message.event);
++  await message.ack();
++}
+diff --git a/server/src/modules/billing/composition.ts b/server/src/modules/billing/composition.ts
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/server/src/modules/billing/composition.ts
+@@ -0,0 +1,16 @@
++import type { Container } from '../../platform/container.js';
++import { createRenewalService } from './application/renewal-service.js';
++import { billingOutboxRepository } from './infrastructure/billing-outbox-repository.js';
++import { renewalRepository } from './infrastructure/renewal-repository.js';
++import { dispatchBillingEvents } from './infrastructure/billing-outbox-worker.js';
++
++export function createBillingModule(container: Container) {
++  const service = createRenewalService({
++    repository: renewalRepository,
++    outbox: billingOutboxRepository,
++  });
++  return {
++    service,
++    dispatch: () => dispatchBillingEvents(container.billingPublisher),
++  };
++}

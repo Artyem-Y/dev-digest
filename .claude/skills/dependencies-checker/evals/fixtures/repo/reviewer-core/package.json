@@ -1,0 +1,7 @@
+{
+  "name": "fixture-reviewer-core",
+  "private": true,
+  "dependencies": {
+    "openai": "4.70.0"
+  }
+}

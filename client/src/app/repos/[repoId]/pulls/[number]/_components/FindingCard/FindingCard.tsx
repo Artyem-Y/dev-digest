@@ -22,6 +22,7 @@ import { SEV_COLOR, SEV_COLOR_FALLBACK } from "./constants";
 import { lineLabel } from "./helpers";
 import { githubBlobUrl } from "../../../../../../../lib/github-urls";
 import { s } from "./styles";
+import { useCreateEvalCase } from "@/lib/hooks/evals";
 
 export function FindingCard({
   f,
@@ -41,6 +42,7 @@ export function FindingCard({
   headSha?: string | null;
 }) {
   const t = useTranslations("prReview");
+  const createEval = useCreateEvalCase();
   const [expanded, setExpanded] = React.useState(defaultExpanded ?? false);
   const sevColor = SEV_COLOR[f.severity] ?? SEV_COLOR_FALLBACK;
   const fileHref =
@@ -53,7 +55,9 @@ export function FindingCard({
 
   return (
     <div data-finding-id={f.id} style={s.card(!!focused, sevColor, muted)}>
-      <div onClick={() => setExpanded((e) => !e)} style={s.header}>
+      <div role="button" tabIndex={0} aria-expanded={expanded} aria-label={f.title}
+        onClick={() => setExpanded((e) => !e)}
+        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setExpanded((e) => !e); } }} style={s.header}>
         <div style={s.badgeWrap}>
           <SeverityBadge severity={f.severity as Severity} compact />
         </div>
@@ -109,7 +113,13 @@ export function FindingCard({
             >
               {t("finding.dismiss")}
             </Button>
+            <Button kind="secondary" size="sm" icon="FlaskConical" disabled={!muted || createEval.isPending} onClick={() => createEval.mutate({ findingId: f.id })}>
+              {createEval.isPending ? t("finding.creatingEval") : t("finding.turnIntoEval")}
+            </Button>
           </div>
+          {!muted && <div>{t("finding.evalRequiresDecision")}</div>}
+          {createEval.isSuccess && <div role="status">{t("finding.evalCreated")}</div>}
+          {createEval.isError && <div role="alert">{createEval.error.message}</div>}
         </div>
       )}
     </div>

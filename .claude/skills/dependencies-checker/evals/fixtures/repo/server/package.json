@@ -1,0 +1,13 @@
+{
+  "name": "fixture-server",
+  "private": true,
+  "dependencies": {
+    "fastify": "5.0.0"
+  },
+  "devDependencies": {
+    "typescript": "5.6.0"
+  },
+  "optionalDependencies": {
+    "@fastify/compress": "8.0.0"
+  }
+}

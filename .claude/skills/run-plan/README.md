@@ -19,11 +19,12 @@ plan:<path> [mode:multi|single] [max-fix:N]
   -> plan-verifier completion
   -> architecture-reviewer || conditional security-reviewer
   -> bounded fix loop and re-verification
+  -> doc-writer: package-local documentation decision and updates
 ```
 
 ## When to invoke
 
-- `/run-plan plan:docs/superpowers/plans/<feature>.md`
+- `/run-plan plan:docs/plans/<feature>.md`
 - “run the plan”, “execute the plan”, or “implement this plan”.
 
 The specification and Implementation Plan are manual, approved inputs. The

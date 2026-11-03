@@ -6,4 +6,4 @@ Use this directory for durable backend documentation that is too detailed for th
 
 ## Index
 
-No additional server documents have been added yet.
+- [Eval pipeline](eval-pipeline.md): captured inputs, suite execution, metrics and limitations.

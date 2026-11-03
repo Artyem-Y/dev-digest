@@ -1,0 +1,38 @@
+{
+  "skill_name": "api-contract-reviewer",
+  "format_version": 1,
+  "execution": {
+    "baseline": {
+      "skills": []
+    },
+    "with_skill": {
+      "skills": [".claude/skills/api-contract-reviewer/SKILL.md"]
+    }
+  },
+  "matching": {
+    "expected_findings_per_case": 3,
+    "require_file_and_line_citation": true,
+    "allow_equivalent_wording": true,
+    "ignore_unexpected_findings": false
+  },
+  "cases": [
+    {
+      "id": "response-contract",
+      "prompt": "Review this public HTTP API change. Report only compatibility issues proven by the diff, with file and changed-line citations.",
+      "fixture": "fixtures/01-response-contract/change.diff",
+      "expected_output": "fixtures/01-response-contract/expected.json"
+    },
+    {
+      "id": "request-contract",
+      "prompt": "Review this public HTTP API change. Report only compatibility issues proven by the diff, with file and changed-line citations.",
+      "fixture": "fixtures/02-request-contract/change.diff",
+      "expected_output": "fixtures/02-request-contract/expected.json"
+    },
+    {
+      "id": "versioning-and-deprecation",
+      "prompt": "Review this public HTTP API change. Report only compatibility issues proven by the diff, with file and changed-line citations.",
+      "fixture": "fixtures/03-versioning-and-deprecation/change.diff",
+      "expected_output": "fixtures/03-versioning-and-deprecation/expected.json"
+    }
+  ]
+}

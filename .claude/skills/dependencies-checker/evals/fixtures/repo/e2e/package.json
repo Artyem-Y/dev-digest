@@ -1,0 +1,8 @@
+{
+  "name": "fixture-e2e",
+  "private": true,
+  "devDependencies": {
+    "playwright": "1.48.0",
+    "vitest": "2.1.0"
+  }
+}

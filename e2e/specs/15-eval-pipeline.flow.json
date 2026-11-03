@@ -1,0 +1,649 @@
+{
+  "name": "Create cases and compare eval runs",
+  "description": "Hermetic seeded decisions and deterministic provider prove browser data flow; this is not real-model sensitivity evidence.",
+  "steps": [
+    {
+      "cmd": [
+        "open",
+        "{BASE}/"
+      ],
+      "label": "open seeded repository"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls"
+      ],
+      "label": "wait for pull requests"
+    },
+    {
+      "cmd": [
+        "find",
+        "text",
+        "Add rate limiting to public API endpoints",
+        "click"
+      ],
+      "label": "open PR"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls/482"
+      ],
+      "label": "wait for PR route"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Agent runs"
+      ],
+      "label": "wait for review controls"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Agent runs"
+      ],
+      "label": "open findings"
+    },
+    {
+      "cmd": ["wait", "--url", "tab=findings"],
+      "label": "wait for findings tab navigation"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Synthetic division example"
+      ],
+      "label": "wait for findings"
+    },
+    {
+      "cmd": ["wait", "--fn", "document.querySelectorAll('[data-finding-id]').length >= 2"],
+      "label": "wait for fixture finding cards"
+    },
+    {
+      "cmd": [
+        "eval",
+        "[...document.querySelectorAll(\"[data-finding-id]\")].slice(0, 2).forEach((node, index) => node.setAttribute(\"data-eval-target\", index === 0 ? \"first\" : \"second\"))"
+      ],
+      "label": "identify fixture findings"
+    },
+    {
+      "cmd": [
+        "scrollintoview",
+        "div[data-eval-target=first]"
+      ],
+      "label": "bring first finding into view"
+    },
+    {
+      "cmd": [
+        "scrollintoview",
+        "div[data-eval-target=first] button"
+      ],
+      "label": "bring first action into view"
+    },
+    {
+      "cmd": [
+        "focus",
+        "div[data-eval-target=first] button:nth-of-type(1)"
+      ],
+      "label": "focus accept"
+    },
+    {
+      "cmd": [
+        "press",
+        "Enter"
+      ],
+      "label": "accept first finding"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "accepted"
+      ],
+      "label": "decision is saved"
+    },
+    {
+      "cmd": ["screenshot", "test-results/15-eval-finding.png"],
+      "label": "capture finding action"
+    },
+    {
+      "cmd": [
+        "focus",
+        "div[data-eval-target=first] button:nth-of-type(3)"
+      ],
+      "label": "focus positive eval action"
+    },
+    {
+      "cmd": [
+        "press",
+        "Enter"
+      ],
+      "label": "create case from original review diff"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Eval case saved."
+      ],
+      "label": "positive case saved"
+    },
+    {
+      "cmd": [
+        "scrollintoview",
+        "div[data-eval-target=first] > div:first-child"
+      ],
+      "label": "return to first header"
+    },
+    {
+      "cmd": [
+        "focus",
+        "div[data-eval-target=first] > div:first-child"
+      ],
+      "label": "focus first header"
+    },
+    {
+      "cmd": [
+        "press",
+        "Enter"
+      ],
+      "label": "collapse first finding"
+    },
+    {
+      "cmd": [
+        "scrollintoview",
+        "div[data-eval-target=second]"
+      ],
+      "label": "bring second finding into view"
+    },
+    {
+      "cmd": [
+        "focus",
+        "div[data-eval-target=second] > div:first-child"
+      ],
+      "label": "focus second finding"
+    },
+    {
+      "cmd": [
+        "press",
+        "Enter"
+      ],
+      "label": "expand second finding"
+    },
+    {
+      "cmd": [
+        "scrollintoview",
+        "div[data-eval-target=second] button"
+      ],
+      "label": "bring second action into view"
+    },
+    {
+      "cmd": [
+        "focus",
+        "div[data-eval-target=second] button:nth-of-type(2)"
+      ],
+      "label": "focus dismiss"
+    },
+    {
+      "cmd": [
+        "press",
+        "Enter"
+      ],
+      "label": "dismiss second finding"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "dismissed"
+      ],
+      "label": "dismissal is saved"
+    },
+    {
+      "cmd": [
+        "focus",
+        "div[data-eval-target=second] button:nth-of-type(3)"
+      ],
+      "label": "focus negative eval action"
+    },
+    {
+      "cmd": [
+        "press",
+        "Enter"
+      ],
+      "label": "create case from original review diff"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Eval case saved."
+      ],
+      "label": "negative case saved"
+    },
+    {
+      "cmd": [
+        "open",
+        "{BASE}/agents"
+      ],
+      "label": "open agents"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "General Reviewer"
+      ],
+      "label": "wait for agents"
+    },
+    {
+      "cmd": [
+        "find",
+        "text",
+        "General Reviewer",
+        "click"
+      ],
+      "label": "open producing agent"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Config"
+      ],
+      "label": "wait for agent editor"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Evals"
+      ],
+      "label": "open evals"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Synthetic identity example"
+      ],
+      "label": "both cases listed"
+    },
+    {
+      "cmd": ["screenshot", "test-results/15-eval-agent-tab.png"],
+      "label": "capture populated eval cases"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "New eval case"
+      ],
+      "label": "open manual case editor"
+    },
+    {
+      "cmd": [
+        "fill",
+        "dialog label:nth-of-type(1) input",
+        "Browser manual case"
+      ],
+      "label": "name manual case"
+    },
+    {
+      "cmd": [
+        "fill",
+        "dialog textarea",
+        "diff --git a/manual/this-is-a-deliberately-long-directory-name-for-checking-layout-with-unbroken-file-name-abcdefghijklmnopqrstuvwxyz/example.ts b/manual/this-is-a-deliberately-long-directory-name-for-checking-layout-with-unbroken-file-name-abcdefghijklmnopqrstuvwxyz/example.ts\n--- a/manual/this-is-a-deliberately-long-directory-name-for-checking-layout-with-unbroken-file-name-abcdefghijklmnopqrstuvwxyz/example.ts\n+++ b/manual/this-is-a-deliberately-long-directory-name-for-checking-layout-with-unbroken-file-name-abcdefghijklmnopqrstuvwxyz/example.ts\n@@ -0,0 +1 @@\n+export const example = 1;\n"
+      ],
+      "label": "enter manual diff"
+    },
+    {
+      "cmd": [
+        "fill",
+        "dialog label:nth-of-type(3) input",
+        "manual/this-is-a-deliberately-long-directory-name-for-checking-layout-with-unbroken-file-name-abcdefghijklmnopqrstuvwxyz/example.ts"
+      ],
+      "label": "enter manual file"
+    },
+    {
+      "cmd": ["screenshot", "test-results/15-eval-case-editor.png"],
+      "label": "capture case editor"
+    },
+    {
+      "cmd": ["eval", "[...document.querySelectorAll('dialog button')].find(b => b.textContent.trim() === 'Save case').focus()"],
+      "label": "focus save manual case"
+    },
+    {
+      "cmd": ["press", "Enter"],
+      "label": "save manual case"
+    },
+    {
+      "cmd": ["wait", "--fn", "!document.querySelector('dialog[open]')"],
+      "label": "wait for case editor to close"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Browser manual case"
+      ],
+      "label": "manual case saved"
+    },
+    {
+      "cmd": ["eval", "(()=>{const c=[...document.querySelectorAll('article')].find(a=>a.textContent.includes('Browser manual case'));const b=[...c.querySelectorAll('button')].find(b=>b.textContent.trim()==='Edit case');b.focus()})()"],
+      "label": "focus manual case"
+    },
+    {
+      "cmd": ["press", "Enter"],
+      "label": "open manual case"
+    },
+    {
+      "cmd": ["screenshot", "test-results/15-eval-long-path.png"],
+      "label": "capture long case path"
+    },
+    {
+      "cmd": [
+        "wait",
+        "dialog textarea"
+      ],
+      "label": "wait for saved case detail"
+    },
+    {
+      "cmd": [
+        "fill",
+        "dialog label:nth-of-type(1) input",
+        "Browser edited case"
+      ],
+      "label": "rename manual case"
+    },
+    {
+      "cmd": ["eval", "[...document.querySelectorAll('dialog button')].find(b => b.textContent.trim() === 'Save case').focus()"],
+      "label": "focus save edited case"
+    },
+    {
+      "cmd": ["press", "Enter"],
+      "label": "save edited case"
+    },
+    {
+      "cmd": ["wait", "--fn", "!document.querySelector('dialog[open]')"],
+      "label": "wait for edited case to close"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Browser edited case"
+      ],
+      "label": "edited case saved"
+    },
+    {
+      "cmd": ["eval", "(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Run all evals');b.scrollIntoView({block:'center'});b.focus()})()"],
+      "label": "focus first run action"
+    },
+    {
+      "cmd": ["press", "Enter"],
+      "label": "run frozen cases"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "completed"
+      ],
+      "label": "first run completes"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "0 matched positives \u00b7 0 known false positives \u00b7 0 unlabeled findings"
+      ],
+      "label": "assert scored prediction counts"
+    },
+    {
+      "cmd": ["eval", "[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Config').focus()"],
+      "label": "focus config"
+    },
+    {
+      "cmd": ["press", "Enter"],
+      "label": "open config"
+    },
+    {
+      "cmd": [
+        "wait",
+        "textarea"
+      ],
+      "label": "wait for prompt editor"
+    },
+    {
+      "cmd": [
+        "fill",
+        "textarea",
+        "Fixture changed system prompt"
+      ],
+      "label": "change prompt"
+    },
+    {
+      "cmd": [
+        "eval",
+        "[...document.querySelectorAll(\"button\")].find(b => b.textContent.trim() === \"Save agent\").scrollIntoView()"
+      ],
+      "label": "scroll to Save agent"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Save"
+      ],
+      "label": "save prompt"
+    },
+    {
+      "cmd": [
+        "wait",
+        "2000"
+      ],
+      "label": "allow save response"
+    },
+    {
+      "cmd": [
+        "eval",
+        "[...document.querySelectorAll(\"button\")].find(b => b.textContent.trim() === \"Evals\").scrollIntoView()"
+      ],
+      "label": "scroll to Evals"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Evals"
+      ],
+      "label": "return to evals"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Run all evals"
+      ],
+      "label": "wait for eval controls"
+    },
+    {
+      "cmd": ["eval", "(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Run all evals');b.scrollIntoView({block:'center'});b.focus()})()"],
+      "label": "focus second run action"
+    },
+    {
+      "cmd": ["press", "Enter"],
+      "label": "run changed prompt"
+    },
+    {
+      "cmd": [
+        "wait",
+        "3000"
+      ],
+      "label": "allow run to complete"
+    },
+    {
+      "cmd": [
+        "eval",
+        "[...document.querySelectorAll(\"a\")].find(a => a.textContent.includes(\"View full dashboard\")).focus()"
+      ],
+      "label": "focus dashboard link"
+    },
+    {
+      "cmd": [
+        "press",
+        "Enter"
+      ],
+      "label": "open dashboard"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/eval/"
+      ],
+      "label": "wait for dashboard route"
+    },
+    {
+      "cmd": [
+        "eval",
+        "[...document.querySelectorAll('h2')].find(h => h.textContent.toLowerCase().includes('run history')).scrollIntoView()"
+      ],
+      "label": "scroll to dashboard history"
+    },
+    {
+      "cmd": [
+        "wait",
+        "table[aria-label='Run history']"
+      ],
+      "label": "load history"
+    },
+    {
+      "cmd": ["screenshot", "test-results/15-eval-dashboard-populated.png"],
+      "label": "capture populated dashboard"
+    },
+    {
+      "cmd": [
+        "eval",
+        "document.querySelectorAll('input[type=checkbox]')[0].click()"
+      ],
+      "label": "select first run"
+    },
+    {
+      "cmd": [
+        "eval",
+        "document.querySelectorAll('input[type=checkbox]')[1].click()"
+      ],
+      "label": "select second run"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Compare runs"
+      ],
+      "label": "compare snapshots"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Fixture changed system prompt"
+      ],
+      "label": "changed prompt is visible"
+    },
+    {
+      "cmd": [
+        "screenshot",
+        "test-results/15-eval-comparison.png"
+      ],
+      "label": "capture deterministic comparison"
+    },
+    {
+      "cmd": [
+        "eval",
+        "window.confirm = () => true"
+      ],
+      "label": "confirm promotion in fixture"
+    },
+    {
+      "cmd": ["eval", "[...document.querySelectorAll('dialog button')].find(b => b.textContent.trim() === 'Promote newer run').focus()"],
+      "label": "focus promotion"
+    },
+    {
+      "cmd": ["press", "Enter"],
+      "label": "promote tested configuration"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Promoted as agent version"
+      ],
+      "label": "promotion completes"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Close",
+        "--exact"
+      ],
+      "label": "close comparison"
+    },
+    {
+      "cmd": [
+        "set",
+        "viewport",
+        "390",
+        "844"
+      ],
+      "label": "set mobile viewport"
+    },
+    {
+      "cmd": [
+        "screenshot",
+        "test-results/15-eval-dashboard-mobile.png"
+      ],
+      "label": "capture mobile dashboard"
+    },
+    {
+      "cmd": [
+        "set",
+        "viewport",
+        "1280",
+        "800"
+      ],
+      "label": "restore desktop viewport"
+    }
+  ]
+}

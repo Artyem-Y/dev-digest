@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { fireEvent, render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 
@@ -71,9 +72,9 @@ const FINDINGS: FindingRecord[] = [
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+    <QueryClientProvider client={new QueryClient()}><NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
       {ui}
-    </NextIntlClientProvider>,
+    </NextIntlClientProvider></QueryClientProvider>,
   );
 }
 

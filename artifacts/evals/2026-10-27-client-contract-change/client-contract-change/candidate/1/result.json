@@ -1,0 +1,154 @@
+{
+  "arm": "candidate",
+  "index": 1,
+  "exit_code": 0,
+  "timed_out": false,
+  "valid": true,
+  "status": "passed",
+  "failure_phase": null,
+  "grade": {
+    "pass": true,
+    "totals": {
+      "passed": 16,
+      "required": 16
+    },
+    "checks": [
+      {
+        "id": "completion-contract",
+        "passed": true,
+        "evidence": {
+          "changed_paths": [
+            "server/src/vendor/shared/pulls.ts",
+            "client/src/vendor/shared/pulls.ts",
+            "client/src/lib/api.ts",
+            "client/src/app/pulls/[id]/page.tsx",
+            "client/messages/en/pulls.json",
+            "result/completion.json"
+          ],
+          "verification": [
+            {
+              "command": "cmp -s server/src/vendor/shared/pulls.ts client/src/vendor/shared/pulls.ts && grep checks for nullable summary, API-boundary use, and localized unavailable copy",
+              "status": "passed",
+              "scope": "Mirrored shared contract parity and static presence of the nullable review summary, client transport boundary, and localized unavailable state."
+            },
+            {
+              "command": "pnpm --dir client typecheck",
+              "status": "blocked",
+              "scope": "Client integration typecheck; pnpm is not installed in this fixture environment."
+            }
+          ],
+          "environment_blocks": [
+            "pnpm is unavailable, and the fixture contains no client package manifest or test configuration for a focused Vitest/RTL run."
+          ]
+        }
+      },
+      {
+        "id": "path:server/src/vendor/shared/pulls.ts",
+        "passed": true,
+        "evidence": "server/src/vendor/shared/pulls.ts"
+      },
+      {
+        "id": "reported-change:server/src/vendor/shared/pulls.ts",
+        "passed": true,
+        "evidence": [
+          "server/src/vendor/shared/pulls.ts",
+          "client/src/vendor/shared/pulls.ts",
+          "client/src/lib/api.ts",
+          "client/src/app/pulls/[id]/page.tsx",
+          "client/messages/en/pulls.json",
+          "result/completion.json"
+        ]
+      },
+      {
+        "id": "path:client/src/vendor/shared/pulls.ts",
+        "passed": true,
+        "evidence": "client/src/vendor/shared/pulls.ts"
+      },
+      {
+        "id": "reported-change:client/src/vendor/shared/pulls.ts",
+        "passed": true,
+        "evidence": [
+          "server/src/vendor/shared/pulls.ts",
+          "client/src/vendor/shared/pulls.ts",
+          "client/src/lib/api.ts",
+          "client/src/app/pulls/[id]/page.tsx",
+          "client/messages/en/pulls.json",
+          "result/completion.json"
+        ]
+      },
+      {
+        "id": "path:client/src/lib/api.ts",
+        "passed": true,
+        "evidence": "client/src/lib/api.ts"
+      },
+      {
+        "id": "reported-change:client/src/lib/api.ts",
+        "passed": true,
+        "evidence": [
+          "server/src/vendor/shared/pulls.ts",
+          "client/src/vendor/shared/pulls.ts",
+          "client/src/lib/api.ts",
+          "client/src/app/pulls/[id]/page.tsx",
+          "client/messages/en/pulls.json",
+          "result/completion.json"
+        ]
+      },
+      {
+        "id": "path:client/messages/en/pulls.json",
+        "passed": true,
+        "evidence": "client/messages/en/pulls.json"
+      },
+      {
+        "id": "reported-change:client/messages/en/pulls.json",
+        "passed": true,
+        "evidence": [
+          "server/src/vendor/shared/pulls.ts",
+          "client/src/vendor/shared/pulls.ts",
+          "client/src/lib/api.ts",
+          "client/src/app/pulls/[id]/page.tsx",
+          "client/messages/en/pulls.json",
+          "result/completion.json"
+        ]
+      },
+      {
+        "id": "content:server/src/vendor/shared/pulls.ts:reviewSummary",
+        "passed": true,
+        "evidence": "server/src/vendor/shared/pulls.ts"
+      },
+      {
+        "id": "content:server/src/vendor/shared/pulls.ts:nullable",
+        "passed": true,
+        "evidence": "server/src/vendor/shared/pulls.ts"
+      },
+      {
+        "id": "content:client/src/vendor/shared/pulls.ts:reviewSummary",
+        "passed": true,
+        "evidence": "client/src/vendor/shared/pulls.ts"
+      },
+      {
+        "id": "content:client/src/vendor/shared/pulls.ts:nullable",
+        "passed": true,
+        "evidence": "client/src/vendor/shared/pulls.ts"
+      },
+      {
+        "id": "content:client/messages/en/pulls.json:summary",
+        "passed": true,
+        "evidence": "client/messages/en/pulls.json"
+      },
+      {
+        "id": "content-any:client/src/lib/api.ts",
+        "passed": true,
+        "evidence": "client/src/lib/api.ts"
+      },
+      {
+        "id": "verification:client-package-verification",
+        "passed": true,
+        "evidence": {
+          "command": "pnpm --dir client typecheck",
+          "status": "blocked",
+          "scope": "Client integration typecheck; pnpm is not installed in this fixture environment."
+        }
+      }
+    ]
+  }
+}

@@ -293,6 +293,8 @@ export class MockGitClient implements GitClient {
   async diffNameOnly(): Promise<string[]> {
     return this.opts.diffNameOnly ?? [];
   }
+  async resolveRevision(_repo: RepoRef, ref: string): Promise<string> { return ref; }
+
   async diff(): Promise<UnifiedDiff> {
     const raw =
       this.opts.diff ??

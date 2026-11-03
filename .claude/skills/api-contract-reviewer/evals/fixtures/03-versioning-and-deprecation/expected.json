@@ -1,0 +1,22 @@
+{
+  "findings": [
+    {
+      "id": "v1-route-removed-without-deprecation",
+      "file": "src/http/invoices.ts",
+      "line": 2,
+      "must_convey": "The v1 invoices endpoint was removed with no compatibility or deprecation path in this public API change."
+    },
+    {
+      "id": "pagination-query-contract-replaced",
+      "file": "src/http/invoices.ts",
+      "line": 5,
+      "must_convey": "The cursor and limit query parameters were removed in favor of page, breaking existing pagination clients."
+    },
+    {
+      "id": "response-field-renamed-without-major-version",
+      "file": "src/http/invoices.ts",
+      "line": 9,
+      "must_convey": "The public total_cents response field was renamed or removed while the API version remains 2.4.0, requiring a compatible migration or major-version change."
+    }
+  ]
+}

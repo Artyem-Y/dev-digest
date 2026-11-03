@@ -2,6 +2,8 @@ import type { GitClient, UnifiedDiff } from '@devdigest/shared';
 import { parseUnifiedDiff } from '../../adapters/git/diff-parser.js';
 import type { ReviewRepository, PullRow } from './repository.js';
 
+export type ReviewDiff = UnifiedDiff & { evalRevisions?: { base: string; head: string } };
+
 export interface ReviewRepositoryRef { owner: string; name: string; }
 
 /**
@@ -10,12 +12,19 @@ export interface ReviewRepositoryRef { owner: string; name: string; }
  * patches (so the reviewer works even before a clone completes / in tests).
  */
 export async function loadDiff(
-  git: Pick<GitClient, 'diff'>,
+  git: Pick<GitClient, 'diff' | 'resolveRevision'>,
   repo: ReviewRepository,
   workspaceId: string,
   pull: PullRow,
   repoRow: ReviewRepositoryRef,
-): Promise<UnifiedDiff> {
+): Promise<ReviewDiff> {
+  try {
+    const base = await git.resolveRevision(repoRow, pull.base);
+    const head = await git.resolveRevision(repoRow, pull.headSha);
+    if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(base) || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(head)) throw new Error('Unresolved revision');
+    const diff = await git.diff(repoRow, base, head);
+    if (diff.files.length > 0) return { ...diff, evalRevisions: { base, head } };
+  } catch { /* preserve legacy diff fallback */ }
   try {
     const diff = await git.diff(
       { owner: repoRow.owner, name: repoRow.name },

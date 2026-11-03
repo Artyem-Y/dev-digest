@@ -1,0 +1,27 @@
+{
+  "format_version": 1,
+  "completion_contract": "public-completion-contract.md",
+  "workflows": [
+    {
+      "id": "client-contract-change",
+      "fixture": "fixtures/client-contract-change",
+      "expected": "fixtures/client-contract-change/expected.json",
+      "candidate_skills": ["frontend-ui-architecture", "zod", "react-testing-library", "devdigest-verification"],
+      "prompt": "Add an optional review summary to pull detail. The server contract and client view must support an unavailable value deliberately. Keep client transport at its established boundary, localize visible copy, and leave focused verification evidence."
+    },
+    {
+      "id": "server-safe-module-change",
+      "fixture": "fixtures/server-safe-module-change",
+      "expected": "fixtures/server-safe-module-change/expected.json",
+      "candidate_skills": ["onion-architecture", "fastify-best-practices", "devdigest-verification"],
+      "prompt": "Add a workspace-scoped pull summary endpoint. Keep transport thin, place reusable orchestration behind an application boundary, resolve request scope through the shared context helper, and add hermetic route-level verification evidence."
+    },
+    {
+      "id": "persistence-and-verification",
+      "fixture": "fixtures/persistence-and-verification",
+      "expected": "fixtures/persistence-and-verification/expected.json",
+      "candidate_skills": ["drizzle-orm-patterns", "postgresql-table-design", "devdigest-verification"],
+      "prompt": "Persist an optional review summary for a pull. Preserve migration history, add a new migration from the current schema, cover the real persistence boundary in the correct test lane, and report verification evidence without claiming unavailable Docker checks passed."
+    }
+  ]
+}

@@ -120,6 +120,20 @@
       "when": 1793398248506,
       "tag": "0016_onboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793399461257,
+      "tag": "0017_bouncy_cargill",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793486759991,
+      "tag": "0018_flippant_dragon_lord",
+      "breakpoints": true
     }
   ]
 }

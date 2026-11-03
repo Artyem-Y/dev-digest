@@ -1,0 +1,20 @@
+diff --git a/server/src/modules/billing/application/create-invoice.ts b/server/src/modules/billing/application/create-invoice.ts
+new file mode 100644
+index 0000000..15d6c01
+--- /dev/null
++++ b/server/src/modules/billing/application/create-invoice.ts
+@@ -0,0 +1,14 @@
++import type { FastifyRequest } from 'fastify';
++import { db } from '../../../db/client.js';
++import { invoices } from '../../../db/schema.js';
++
++export async function createInvoice(request: FastifyRequest) {
++  const accountId = request.body.accountId;
++  const lines = request.body.lines;
++  const total = lines.reduce((sum, line) => sum + line.amount, 0);
++  const [invoice] = await db.insert(invoices).values({
++    accountId,
++    total,
++  }).returning();
++  return invoice;
++}

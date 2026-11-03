@@ -1,0 +1,18 @@
+{
+  "required_workspaces": ["client", "e2e", "mcp", "reviewer-core", "server"],
+  "required_dependencies": [
+    { "workspace": "server", "package": "fastify", "kind": "production" },
+    { "workspace": "server", "package": "@fastify/compress", "kind": "optional" },
+    { "workspace": "client", "package": "react", "kind": "peer" }
+  ],
+  "required_cycle": [
+    "server/src/modules/billing/service.ts",
+    "server/src/modules/billing/summary.ts"
+  ],
+  "required_duplicate": { "package": "cookie", "versions": ["0.6.0", "0.7.1"] },
+  "required_alias_edge": {
+    "from": "server/src/modules/billing/routes.ts",
+    "to": "server/src/modules/billing/service.ts",
+    "via": "@billing/service"
+  }
+}

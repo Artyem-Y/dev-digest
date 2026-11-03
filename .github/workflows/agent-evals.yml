@@ -26,7 +26,7 @@ on:
       model:
         description: 'Codex model override for currently supported runners.'
         required: false
-        default: codex-mini-latest
+        default: ''
         type: string
 
 permissions:
@@ -39,14 +39,26 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    outputs:
+      runnable: ${{ steps.select.outputs.runnable }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: node scripts/validate-eval-assets.mjs
-      - run: node --test .claude/skills/devdigest-verification/evals/grade-workflow.test.mjs
+      - run: >-
+          node --test
+          .claude/skills/devdigest-verification/evals/grade-workflow.test.mjs
+          .claude/skills/devdigest-verification/evals/run-workflows.test.mjs
+          .claude/skills/dependencies-checker/evals/run-evals.test.mjs
+          .claude/skills/dependencies-checker/evals/run-evals-exit.test.mjs
+          scripts/eval-summary.test.mjs
       - name: Select runnable evals and explain skips
+        id: select
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             node scripts/select-evals.mjs \
@@ -56,54 +68,121 @@ jobs:
           else
             node scripts/select-evals.mjs --all-known --output artifacts/evals/selection.json
           fi
+          node -e 'const s=require("./artifacts/evals/selection.json"); if (!s.runnable.every(x => /^[a-z0-9-]+$/.test(x.id) && ["skill", "composite-workflow"].includes(x.kind))) process.exit(1); process.stdout.write(`runnable=${JSON.stringify(s.runnable)}\n`)' >> "$GITHUB_OUTPUT"
+      - name: Explain live eval switch
+        if: vars.LIVE_EVAL_ENABLED != 'true'
+        run: |
+          echo 'Live evals skipped: set repository variable LIVE_EVAL_ENABLED to true to enable them.'
 
   live-evals:
     needs: validate
     if: >-
+      vars.LIVE_EVAL_ENABLED == 'true' &&
       (github.event_name == 'workflow_dispatch' ||
        github.event.pull_request.head.repo.full_name == github.repository) &&
-      (github.event_name != 'workflow_dispatch' || inputs.provider == 'codex')
-    runs-on: ubuntu-latest
+      (github.event_name != 'workflow_dispatch' || inputs.provider == 'codex') &&
+      needs.validate.outputs.runnable != '[]'
+    environment:
+      name: dev
+      deployment: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        eval: ${{ fromJSON(needs.validate.outputs.runnable) }}
     env:
       EVAL_PROVIDER: codex
-      EVAL_MODEL: ${{ inputs.model || vars.CODEX_EVAL_MODEL || 'codex-mini-latest' }}
+      EVAL_MODEL: ${{ inputs.model || vars.CODEX_EVAL_MODEL || 'gpt-6-luna' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
       - name: Install Codex CLI
-        run: npm install --global @openai/codex
-      - name: Select runnable evals
+        run: npm install --global @openai/codex @openai/codex-responses-api-proxy
+      - name: Set up Codex sandbox
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            node scripts/select-evals.mjs \
-              --base "${{ github.event.pull_request.base.sha }}" \
-              --head "${{ github.event.pull_request.head.sha }}" \
-              --output artifacts/evals/selection.json
-          else
-            node scripts/select-evals.mjs --all-known --output artifacts/evals/selection.json
-          fi
-      - name: Run selected evals
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap apparmor-profiles apparmor-utils acl
+          sudo install -m 0644 \
+            /usr/share/apparmor/extra-profiles/bwrap-userns-restrict \
+            /etc/apparmor.d/bwrap-userns-restrict
+          sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
+      - name: Verify Codex sandbox
+        run: codex sandbox /bin/true
+      - name: Prepare unprivileged eval user
         run: |
-          workflows="$(node -e \"const selection=require('./artifacts/evals/selection.json'); console.log(selection.runnable.filter((item) => item.kind === 'composite-workflow').map((item) => item.id).join(' '))\")"
-          for workflow in $workflows; do
-            node .claude/skills/devdigest-verification/evals/run-workflows.mjs \
-              --live --workflow "$workflow" --runs 1 \
-              --output "artifacts/evals/$workflow"
-          done
-          skills="$(node -e \"const selection=require('./artifacts/evals/selection.json'); console.log(selection.runnable.filter((item) => item.kind === 'skill').map((item) => item.id).join(' '))\")"
-          for skill in $skills; do
-            if [ "$skill" = "dependencies-checker" ]; then
-              node .claude/skills/dependencies-checker/evals/run-evals.mjs \
-                --live --runs 1 --output "artifacts/evals/$skill"
+          sudo useradd --create-home --shell /bin/bash evalworker
+          sudo install -d -o evalworker -g evalworker -m 0700 /home/evalworker/.codex
+          sudo install -d -o evalworker -g evalworker -m 0755 "$GITHUB_WORKSPACE/artifacts/evals"
+          sudo setfacl -m u:evalworker:--x /home/runner /home/runner/work "$RUNNER_WORKSPACE" "$GITHUB_WORKSPACE"
+          sudo setfacl -R -P -m u:evalworker:rX "$GITHUB_WORKSPACE/.claude"
+          sudo setfacl -m u:evalworker:--x "$GITHUB_WORKSPACE/artifacts"
+          for runner in \
+            .claude/skills/devdigest-verification/evals/run-workflows.mjs \
+            .claude/skills/dependencies-checker/evals/run-evals.mjs; do
+            if ! sudo -n -u evalworker test -r "$GITHUB_WORKSPACE/$runner"; then
+              echo "Eval user cannot read $runner" >&2
+              exit 1
             fi
+          done
+          if sudo -n -u evalworker sudo -n true 2>/dev/null; then
+            echo 'Eval user unexpectedly has sudo access' >&2
+            exit 1
+          fi
+          if sudo -n -u evalworker test -w /var/run/docker.sock; then
+            echo 'Eval user unexpectedly has Docker socket access' >&2
+            exit 1
+          fi
+      - name: Start credential proxy
+        env:
+          PROXY_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          [ -n "$PROXY_API_KEY" ] || { echo 'Missing OpenAI API key' >&2; exit 1; }
+          sudo install -d -m 0755 /run/eval-proxy
+          printf '%s' "$PROXY_API_KEY" | sudo -n env PATH="$PATH" NODE_OPTIONS=--disable-sigusr1 codex-responses-api-proxy --server-info /run/eval-proxy/info.json >/dev/null 2>&1 &
+          for attempt in $(seq 1 30); do
+            [ -s /run/eval-proxy/info.json ] && break
+            sleep 1
+          done
+          [ -s /run/eval-proxy/info.json ] || { echo 'Credential proxy failed to start' >&2; exit 1; }
+      - name: Configure Codex proxy
+        run: |
+          port="$(node -e 'const p=require("/run/eval-proxy/info.json").port; if (!Number.isInteger(p) || p < 1 || p > 65535) process.exit(1); process.stdout.write(String(p))')"
+          printf 'model_provider = "eval-proxy"\n[model_providers.eval-proxy]\nname = "Eval Proxy"\nbase_url = "http://127.0.0.1:%s/v1"\nwire_api = "responses"\n' "$port" | sudo -n -u evalworker tee /home/evalworker/.codex/config.toml >/dev/null
+          sudo chmod 0400 /home/evalworker/.codex/config.toml
+      - name: Run selected eval
+        env:
+          EVAL_KIND: ${{ matrix.eval.kind }}
+          EVAL_ID: ${{ matrix.eval.id }}
+        run: |
+          if [ "$EVAL_KIND" = "composite-workflow" ]; then
+            sudo -n -u evalworker env -i HOME=/home/evalworker PATH="$PATH" EVAL_MODEL="$EVAL_MODEL" node .claude/skills/devdigest-verification/evals/run-workflows.mjs \
+              --live --workflow "$EVAL_ID" --runs 1 \
+              --output "artifacts/evals/$EVAL_ID"
+          elif [ "$EVAL_KIND" = "skill" ] && [ "$EVAL_ID" = "dependencies-checker" ]; then
+            sudo -n -u evalworker env -i HOME=/home/evalworker PATH="$PATH" EVAL_MODEL="$EVAL_MODEL" node .claude/skills/dependencies-checker/evals/run-evals.mjs \
+              --live --runs 1 --output "artifacts/evals/$EVAL_ID"
+          else
+            echo "Unsupported eval selection" >&2
+            exit 1
+          fi
+      - name: Summarize completed evals
+        if: always()
+        run: |
+          for benchmark in artifacts/evals/*/benchmark.json; do
+            [ -f "$benchmark" ] || continue
+            name="$(basename "$(dirname "$benchmark")")"
+            node scripts/eval-summary.mjs "$name" "$benchmark" "$GITHUB_STEP_SUMMARY"
           done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: agent-eval-artifacts
+          name: agent-eval-${{ matrix.eval.kind }}-${{ matrix.eval.id }}
           path: artifacts/evals/
           if-no-files-found: warn

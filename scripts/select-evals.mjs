@@ -1,4 +1,4 @@
-import { access, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import process from 'node:process';
@@ -94,7 +94,11 @@ async function select() {
   for (const item of selection.runnable) {
     process.stdout.write(`::notice title=Eval selected::${item.kind}:${item.id}\n`);
   }
-  if (args.output) await writeFile(path.resolve(root, args.output), `${JSON.stringify(selection, null, 2)}\n`);
+  if (args.output) {
+    const output = path.resolve(root, args.output);
+    await mkdir(path.dirname(output), { recursive: true });
+    await writeFile(output, `${JSON.stringify(selection, null, 2)}\n`);
+  }
   process.stdout.write(`${JSON.stringify(selection)}\n`);
 }
 

@@ -1,0 +1,25 @@
+{
+  "changed_paths": [
+    "server/src/vendor/shared/pulls.ts",
+    "client/src/vendor/shared/pulls.ts",
+    "client/src/lib/api.ts",
+    "client/src/app/pulls/[id]/page.tsx",
+    "client/messages/en/pulls.json",
+    "result/completion.json"
+  ],
+  "verification": [
+    {
+      "command": "cmp -s server/src/vendor/shared/pulls.ts client/src/vendor/shared/pulls.ts && grep checks for nullable summary, API-boundary use, and localized unavailable copy",
+      "status": "passed",
+      "scope": "Mirrored shared contract parity and static presence of the nullable review summary, client transport boundary, and localized unavailable state."
+    },
+    {
+      "command": "pnpm --dir client typecheck",
+      "status": "blocked",
+      "scope": "Client integration typecheck; pnpm is not installed in this fixture environment."
+    }
+  ],
+  "environment_blocks": [
+    "pnpm is unavailable, and the fixture contains no client package manifest or test configuration for a focused Vitest/RTL run."
+  ]
+}

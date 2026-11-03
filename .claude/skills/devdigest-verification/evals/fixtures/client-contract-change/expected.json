@@ -1,0 +1,23 @@
+{
+  "required_paths": [
+    "server/src/vendor/shared/pulls.ts",
+    "client/src/vendor/shared/pulls.ts",
+    "client/src/lib/api.ts",
+    "client/messages/en/pulls.json"
+  ],
+  "required_text": {
+    "server/src/vendor/shared/pulls.ts": ["reviewSummary", "nullable"],
+    "client/src/vendor/shared/pulls.ts": ["reviewSummary", "nullable"],
+    "client/messages/en/pulls.json": ["summary"]
+  },
+  "required_any_text": {
+    "client/src/lib/api.ts": ["reviewSummary", "PullDetailSchema"]
+  },
+  "verification": [
+    {
+      "id": "client-package-verification",
+      "command_fragment": "pnpm typecheck",
+      "allow_blocked_when": "package manifest"
+    }
+  ]
+}

@@ -79,6 +79,15 @@ For iteration `1..max-fix`:
 4. Stop successfully when no actionable backlog remains. Stop and ask a human
    if the same backlog makes no progress or the fix limit is reached.
 
+## Documentation handoff
+
+After the remediation loop, dispatch `doc-writer` with the approved plan,
+implementation result, changed-file manifest, and fresh verification matrix.
+For every changed `client/`, `server/`, `reviewer-core/`, or `mcp/` package, it
+must create or update the package-local durable documentation required by the
+plan, or report the evidence-backed test-only/refactor exception. Run the
+documentation link and rendering checks before final reporting.
+
 ## Final report
 
 Return only concise evidence:
@@ -90,6 +99,7 @@ Return only concise evidence:
 - **Implemented:** <task IDs and one-line result>
 - **Verification:** <focused and integration receipts, or limits>
 - **Test Writer:** not invoked by design
+- **Documentation:** <files changed or explicit package exceptions>
 
 ### Review gate
 - plan-verifier preflight: <ready|blocked>

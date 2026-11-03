@@ -6,4 +6,4 @@ Use this directory for durable frontend documentation that is too detailed for t
 
 ## Index
 
-No additional client documents have been added yet.
+- [Eval pipeline](eval-pipeline.md): finding-to-case action, run history and comparison states.

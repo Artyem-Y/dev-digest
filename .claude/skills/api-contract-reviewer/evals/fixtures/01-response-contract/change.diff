@@ -1,0 +1,28 @@
+diff --git a/src/http/users.ts b/src/http/users.ts
+index 63d53ef..0e93495 100644
+--- a/src/http/users.ts
++++ b/src/http/users.ts
+@@ -4,20 +4,19 @@ export type UserResponse = {
+   id: string;
+-  name: string;
+-  status: 'active' | 'disabled';
++  display_name: string;
++  state: 'active' | 'disabled';
+ };
+ 
+ export async function getUser(request: Request): Promise<Response> {
+   const user = await users.byId(request.params.id);
+ 
+   if (!user) {
+-    return json(404, { error: { code: 'user_not_found', message: 'User not found' } });
++    return json(404, { message: 'User not found' });
+   }
+ 
+   return json(200, {
+     id: user.id,
+-    name: user.name,
+-    status: user.status,
++    display_name: user.name,
++    state: user.status,
+   });
+ }

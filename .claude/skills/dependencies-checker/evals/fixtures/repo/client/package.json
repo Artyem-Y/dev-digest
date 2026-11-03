@@ -1,0 +1,13 @@
+{
+  "name": "fixture-client",
+  "private": true,
+  "dependencies": {
+    "next": "14.2.0"
+  },
+  "devDependencies": {
+    "vitest": "2.1.0"
+  },
+  "peerDependencies": {
+    "react": "18.3.1"
+  }
+}

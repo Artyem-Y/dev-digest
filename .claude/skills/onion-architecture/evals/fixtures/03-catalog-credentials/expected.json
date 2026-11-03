@@ -1,0 +1,22 @@
+{
+  "findings": [
+    {
+      "id": "repository-depends-on-fastify",
+      "file": "server/src/modules/catalog/infrastructure/catalog-repository.ts",
+      "line": 1,
+      "must_convey": "The infrastructure repository imports Fastify's reply type, making an outbound persistence adapter depend on the inbound HTTP adapter."
+    },
+    {
+      "id": "repository-owns-http-response",
+      "file": "server/src/modules/catalog/infrastructure/catalog-repository.ts",
+      "line": 5,
+      "must_convey": "The repository handles HTTP response status and serialization; it should return persistence/application data and let the route map it to HTTP."
+    },
+    {
+      "id": "secret-credential-in-domain",
+      "file": "server/src/modules/catalog/domain/credentials.ts",
+      "line": 1,
+      "must_convey": "A provider access token is modeled as a domain value, conflicting with the boundary rule that secrets must not enter domain values; keep it within the secrets/provider adapter flow."
+    }
+  ]
+}

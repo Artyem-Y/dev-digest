@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { DerivedIntent, LLMProvider, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
 import type { IntentDerivation } from '../intents/application/derive-intent.js';
 import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
@@ -6,7 +7,7 @@ import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
-import type { ReviewRepositoryRef } from './diff-loader.js';
+import type { ReviewDiff, ReviewRepositoryRef } from './diff-loader.js';
 import type { RepoIntel } from '../repo-intel/types.js';
 import type { ResolvedBriefContext } from '../project-context/domain/types.js';
 
@@ -51,7 +52,7 @@ export interface ReviewRunExecutorDependencies {
     workspaceId: string,
     pull: PullRow,
     repository: ReviewRepositoryRef,
-  ): Promise<UnifiedDiff>;
+  ): Promise<ReviewDiff>;
   resolveSkills(agentId: string): Promise<ResolvedSkill[]>;
   resolveProjectContext(input: { workspaceId: string; repoId: string; agentId: string }): Promise<ResolvedBriefContext>;
   /** Detailed prompt metadata is opt-in and supplied only by local config. */
@@ -140,7 +141,7 @@ export class ReviewRunExecutor {
       (result) => { completedIntent = result; },
       () => { completedIntent = { status: 'unavailable', reasonCode: 'intent_unexpected_failure', trace: { sourceCount: 0 } }; },
     );
-    let diff: UnifiedDiff;
+    let diff: ReviewDiff;
     try {
       diff = await runLog.step('Loading PR diff', () => this.dependencies.loadDiff(workspaceId, pull, repo), {
         kind: 'tool',
@@ -225,7 +226,7 @@ export class ReviewRunExecutor {
     workspaceId: string,
     pull: PullRow,
     repo: ReviewRepositoryRef,
-    diff: UnifiedDiff,
+    diff: ReviewDiff,
     intent: DerivedIntent | undefined,
     intentTrace: NonNullable<RunTrace['intent']>,
     agent: AgentRow,
@@ -333,6 +334,8 @@ export class ReviewRunExecutor {
       const keptFindings = outcome.review.findings;
 
       // ---- Persist review + findings ----------------------------------------
+      // Raw source can contain credentials that pattern matching cannot reliably
+      // detect. Persist only its fingerprint until a user creates an eval case.
       const review = await this.repo.insertReview({
         workspaceId,
         prId: pull.id,
@@ -344,6 +347,7 @@ export class ReviewRunExecutor {
         score: outcome.review.score,
         model: agent.model,
       });
+      await this.repo.saveEvalReviewInput(workspaceId, runId, { diffHash: createHash('sha256').update(diff.raw).digest('hex'), ...(diff.evalRevisions ? { revisions: diff.evalRevisions } : {}) });
       const findingRows = await this.repo.insertFindings(review.id, keptFindings);
       runLog.result(`Persisted review ${review.id} with ${findingRows.length} finding(s)`);
 

@@ -12,6 +12,7 @@ import { SkillsTab } from "./_components/SkillsTab";
 import { TABS } from "./constants";
 import { s } from "./styles";
 import { ProjectContext } from "@/components/project-context/ProjectContext";
+import { EvalsTab } from "@/components/evals/EvalsTab";
 
 export function AgentEditor({ agent, tab, onTab }: { agent: Agent; tab: string; onTab: (t: string) => void }) {
   const t = useTranslations("agents");
@@ -22,7 +23,7 @@ export function AgentEditor({ agent, tab, onTab }: { agent: Agent; tab: string; 
         <Tabs tabs={tabs} value={tab} onChange={onTab} pad="0 24px" />
       </div>
       <div style={s.body}>
-        {tab === "skills" ? <SkillsTab agent={agent} /> : tab === "context" ? <ProjectContext owner="agent" ownerId={agent.id} /> : <ConfigTab agent={agent} />}
+        {tab === "skills" ? <SkillsTab agent={agent} /> : tab === "context" ? <ProjectContext owner="agent" ownerId={agent.id} /> : tab === "evals" ? <EvalsTab agentId={agent.id} /> : <ConfigTab agent={agent} />}
       </div>
     </div>
   );

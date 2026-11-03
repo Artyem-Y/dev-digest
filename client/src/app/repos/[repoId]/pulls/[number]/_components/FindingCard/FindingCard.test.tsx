@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 import { FindingCard } from "./FindingCard";
@@ -28,9 +29,9 @@ const FINDING: FindingRecord = {
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+    <QueryClientProvider client={new QueryClient()}><NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
       {ui}
-    </NextIntlClientProvider>,
+    </NextIntlClientProvider></QueryClientProvider>,
   );
 }
 
@@ -56,5 +57,35 @@ describe("FindingCard (smoke, both themes)", () => {
     expect(onAction).toHaveBeenCalledWith("accept");
     fireEvent.click(screen.getByText("Dismiss"));
     expect(onAction).toHaveBeenCalledWith("dismiss");
+  });
+  it("updates focus and decision without conflicting border styles", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { rerender } = renderWithIntl(<FindingCard f={FINDING} focused defaultExpanded />);
+      rerender(
+        <QueryClientProvider client={new QueryClient()}><NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+          <FindingCard f={{ ...FINDING, accepted_at: "2026-01-01T00:00:00Z" }} focused={false} defaultExpanded />
+        </NextIntlClientProvider></QueryClientProvider>,
+      );
+      expect(screen.getByRole("button", { name: "Turn into eval case" })).toBeEnabled();
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally { consoleError.mockRestore(); }
+  });
+  it("creates a case in one click for a decided finding", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ agent_id: "agent" }), { status: 201, headers: { "content-type": "application/json" } }));
+    try {
+      renderWithIntl(<FindingCard f={{ ...FINDING, accepted_at: "2026-01-01T00:00:00Z" }} defaultExpanded />);
+      fireEvent.click(screen.getByRole("button", { name: "Turn into eval case" }));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/findings/f1/eval-cases"), expect.objectContaining({ method: "POST", body: "{}" })));
+      expect(await screen.findByText("Eval case saved.")).toBeInTheDocument();
+    } finally { fetchMock.mockRestore(); }
+  });
+  it("opens and closes a finding from the keyboard", () => {
+    renderWithIntl(<FindingCard f={FINDING} />);
+    const header = screen.getByRole("button", { name: FINDING.title });
+    fireEvent.keyDown(header, { key: "Enter" });
+    expect(header).toHaveAttribute("aria-expanded", "true");
+    fireEvent.keyDown(header, { key: " " });
+    expect(header).toHaveAttribute("aria-expanded", "false");
   });
 });

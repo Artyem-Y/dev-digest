@@ -99,9 +99,8 @@ export class OpenAIProvider implements LLMProvider {
     let lastRaw = '';
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
-      const res = await withRetry(() =>
-        withTimeout(
-          this.client.chat.completions.create({
+      const res = await withRetry(() => {
+        const request = this.client.chat.completions.create({
             model: req.model,
             messages,
             ...tuningParams(req.model, req.temperature, req.maxTokens),
@@ -109,9 +108,9 @@ export class OpenAIProvider implements LLMProvider {
               type: 'json_schema',
               json_schema: { name: req.schemaName, schema: jsonSchema.schema, strict: true },
             },
-          }, req.maxRetries === 0 ? { maxRetries: 0 } : undefined),
-          req.timeoutMs ?? REVIEW_COMPLETION_TIMEOUT_MS,
-        ),
+          }, { ...(req.maxRetries === 0 ? { maxRetries: 0 } : {}), ...(req.nativeTimeout ? { timeout: req.timeoutMs ?? REVIEW_COMPLETION_TIMEOUT_MS } : {}) });
+        return req.nativeTimeout ? request : withTimeout(request, req.timeoutMs ?? REVIEW_COMPLETION_TIMEOUT_MS);
+      },
         req.maxRetries === 0 ? { retries: 0 } : {},
       );
       inputAvailable &&= typeof res.usage?.prompt_tokens === 'number';

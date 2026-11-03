@@ -1,0 +1,22 @@
+{
+  "findings": [
+    {
+      "id": "tenant-scope-project-read",
+      "file": "server/src/modules/projects/repository.ts",
+      "line": 6,
+      "must_convey": "getProject accepts workspaceId but the query filters only by project id, so it can return a project belonging to another workspace. Include the workspace predicate in the repository query."
+    },
+    {
+      "id": "tenant-scope-project-list",
+      "file": "server/src/modules/projects/repository.ts",
+      "line": 11,
+      "must_convey": "listProjects accepts workspaceId but the query filters only by status, so it can list active projects from every workspace. Scope the list query by workspaceId as well."
+    },
+    {
+      "id": "tenant-scope-project-update",
+      "file": "server/src/modules/projects/repository.ts",
+      "line": 17,
+      "must_convey": "renameProject accepts workspaceId but the update is constrained only by project id. Include the owning workspace in the update predicate to prevent cross-tenant modification."
+    }
+  ]
+}

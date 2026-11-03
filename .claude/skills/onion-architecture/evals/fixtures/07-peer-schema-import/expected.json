@@ -1,0 +1,10 @@
+{
+  "findings": [
+    {
+      "id": "reports-imports-billing-schema",
+      "file": "server/src/modules/reports/infrastructure/revenue-query.ts",
+      "line": 4,
+      "must_convey": "The reports module imports the billing module's private Drizzle invoices table and builds a cross-module join directly against it. Feature modules own their persistence schemas; this bypasses billing's application boundary and couples reports to billing storage details. Read the needed data through a billing application-facing API or an explicitly owned cross-module read contract/port."
+    }
+  ]
+}

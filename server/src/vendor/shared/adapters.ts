@@ -61,6 +61,8 @@ export interface StructuredRequest<T> {
   maxTokens?: number;
   timeoutMs?: number;
   maxRetries?: number;
+  /** Use the SDK's aborting timeout instead of a detached promise timeout. */
+  nativeTimeout?: boolean;
   /**
    * OpenRouter session id — groups related generations (e.g. all map-reduce
    * chunks of one review) into a session in the OpenRouter dashboard. Sent as
@@ -225,6 +227,7 @@ export interface GitClient {
    */
   sync(repo: RepoRef, branch: string): Promise<{ head: string }>;
   currentHead(repo: RepoRef): Promise<string>;
+  resolveRevision(repo: RepoRef, ref: string): Promise<string>;
   diff(repo: RepoRef, base: string, head: string): Promise<UnifiedDiff>;
   /**
    * Names of files changed between two commits (`git diff --name-only base..head`).

@@ -1,0 +1,18 @@
+diff --git a/server/src/modules/repos/application/sync-repository.ts b/server/src/modules/repos/application/sync-repository.ts
+new file mode 100644
+index 0000000..204af90
+--- /dev/null
++++ b/server/src/modules/repos/application/sync-repository.ts
+@@ -0,0 +1,12 @@
++import { Octokit } from '@octokit/rest';
++import type { InferSelectModel } from 'drizzle-orm';
++import { repositories } from '../../../db/schema.js';
++
++export type RepositoryRecord = InferSelectModel<typeof repositories>;
++
++export async function syncRepository(owner: string, name: string): Promise<RepositoryRecord> {
++  const github = new Octokit();
++  const remote = await github.repos.get({ owner, repo: name });
++  const row = await saveRepository(remote.data);
++  return row;
++}

@@ -171,6 +171,11 @@ export class Container {
     return provider;
   }
 
+  /** Injected providers cannot be identified by the eval artifact hash. */
+  hasUnverifiedEvalProviders(): boolean {
+    return !!this.overrides.llm || shouldUseE2EBriefFixture(process.env);
+  }
+
   private async buildLlm(id: 'openai' | 'anthropic' | 'openrouter'): Promise<LLMProvider> {
     // The deterministic browser fixture has a deliberately narrow, double-gated
     // seam. It is unavailable in development and production and cannot be

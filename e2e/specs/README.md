@@ -21,3 +21,4 @@ New flow specifications should state the user journey, seed-data assumptions, de
 - `13-skill-context.flow.json` — hermetic-only skill attachment and persisted reload
 
 - `14-onboarding-tour.flow.json`: hermetic-only generation, reload and failed regeneration using the isolated onboarding fixture.
+- `15-eval-pipeline.flow.json`: hermetic-only finding decisions, original and manual case creation/editing, deterministic runs, prompt comparison and promotion.

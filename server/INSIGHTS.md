@@ -187,3 +187,33 @@ On macOS realpath of /dev/fd/N returns the descriptor path rather than the opene
 - Implication: For Project Context resolve a single main tree snapshot rather than reading checkout paths; retain descriptor validation for other features that read worktree files.
 
 Supersedes eng-server-68d601c55df9 for Project Context only. Reading tracked Git blobs avoids worktree races and preserves a consistent selected branch snapshot; it does not make descriptor checks unnecessary for other worktree readers.
+
+<!-- insight-id: eng-server-4e8c69b2d61b -->
+## eng-server-4e8c69b2d61b — A timeout race does not release a provider request
+
+- Date: 2026-10-31
+- Category: invariant
+- Evidence: server/src/platform/resilience.ts uses Promise.race; server/test/eval-run-suite.test.ts verifies that an uncancellable provider stays active until its promise settles
+- Implication: Do not admit a replacement expensive run merely because a timeout race rejected; use provider cancellation and retain ownership until the provider settles.
+
+Rejecting the caller timeout does not cancel the underlying network operation, so reporting a slot free can violate concurrency bounds.
+
+<!-- insight-id: eng-server-42a953e24912 -->
+## eng-server-42a953e24912 — Eval identity must cover executed adapters as well as reviewer
+
+- Date: 2026-10-31
+- Category: invariant
+- Evidence: The eval bundle includes reviewer, scorer and provider adapters; eval-engine-artifact.test.ts executes the bundle and checks changed and tampered bytes, while eval-cases.it.test.ts checks injected-provider fallback.
+- Implication: Hash and execute the same self-contained artifact, and mark injected providers unavailable rather than attributing them to the artifact.
+
+A reviewer-only build fingerprint cannot establish execution equivalence when injected provider implementations and SDKs can change request or response behavior.
+
+<!-- insight-id: eng-server-2b8bdbaaf737 -->
+## eng-server-2b8bdbaaf737 — Diff hunk headers bound the new-side line range
+
+- Date: 2026-10-31
+- Category: invariant
+- Evidence: The eval original-input test exercises a unified diff whose trailing blank line is treated as context by diff-parser, while its hunk header bounds the actual range.
+- Implication: Validate citation overlap against the hunk header range when reconstructing or verifying an original diff fragment.
+
+The parsed newLineNumbers can include a trailing empty split line outside the hunk. A header-bounded overlap prevents accepting that line as part of the original change.

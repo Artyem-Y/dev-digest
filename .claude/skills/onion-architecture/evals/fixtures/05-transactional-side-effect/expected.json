@@ -1,0 +1,10 @@
+{
+  "findings": [
+    {
+      "id": "external-effect-inside-db-transaction",
+      "file": "server/src/modules/billing/infrastructure/subscription-repository.ts",
+      "line": 13,
+      "must_convey": "The repository publishes an external billing event from inside the database transaction callback. That event cannot be rolled back if the transaction commit fails. Recommend an outbox row written in the transaction and published after commit, and state that delivery can repeat so consumers must be idempotent; alternatively, explain the failure handling for a best-effort post-commit call."
+    }
+  ]
+}

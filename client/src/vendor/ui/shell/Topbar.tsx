@@ -8,6 +8,7 @@ export function Topbar({ ctx, crumb = [] }: { ctx: ShellContext; crumb?: Crumb[]
   const Link = ctx.Link ?? DefaultLink;
   return (
     <header
+      className="dd-shell-topbar"
       style={{
         height: 52,
         flexShrink: 0,
@@ -19,7 +20,7 @@ export function Topbar({ ctx, crumb = [] }: { ctx: ShellContext; crumb?: Crumb[]
         padding: "0 24px",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+      <div className="dd-shell-crumb" style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
         {crumb.map((c, i) => {
           const last = i === crumb.length - 1;
           const text = (
@@ -46,6 +47,7 @@ export function Topbar({ ctx, crumb = [] }: { ctx: ShellContext; crumb?: Crumb[]
         })}
       </div>
       <button
+        className="dd-shell-search"
         onClick={ctx.onOpenCommandPalette}
         style={{
           marginLeft: "auto",
